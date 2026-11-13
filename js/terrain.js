@@ -6,10 +6,20 @@ export const halfW = (z) => 27 + 7 * Math.sin(z * 0.031 + 2.0);
 export const GROTTO = { x: 106, z: 60 };
 export const WRECK = { x: -300, z: 236 };
 export const BOUNDS = { r: 1500, top: -5, deep: -90 };
+// Schnee-Ebene: weite, fast leere Sandfläche, tiefer als alles andere; eine lange Rampe führt aus der Startschlucht hinab
+export const PLAIN = { x: -310, z: -240, r: 92, floor: -92 };
+export const WHALE = { x: -312, z: -238, yaw: 0.55 };
+export const BELL = { x: -128, z: -174, yaw: 2.2 };
+const plainR = (x, z) => { const dx = x - PLAIN.x, dz = z - PLAIN.z, a = Math.atan2(dz, dx); return Math.hypot(dx, dz) / (PLAIN.r * (1 + 0.36 * (fbm(Math.cos(a) * 1.4 + 5.3, Math.sin(a) * 1.4 + 2.1, 2) - 0.5))); };
+/** 1 mitten in der Ebene, 0 weit draußen (für Schnee, Bewuchs, Tiefengrenze) */
+export const plainK = (x, z) => 1 - smooth(0.85, 1.35, Math.hypot(x - PLAIN.x, z - PLAIN.z) / PLAIN.r);
+/** wie tief das Boot hier darf: über der Ebene etwas tiefer als sonst */
+export const deepAt = (x, z) => BOUNDS.deep - 12 * plainK(x, z);
 // von Hand gelegte Seitenarme: Punkte, halbe Breite, Breite am Ende, Tiefe
 const VAL = [
   { p: [[34, 25], [106, 60]], w: 9, we: 19, e0: 0.72, d: 37 },                                        // zur Kristallgrotte
   { p: [[4, 44], [-70, 72], [-150, 104], [-226, 166], [-300, 236]], w: 13, we: 50, e0: 0.8, d: 45 },    // zum Wrack, endet in einer Senke
+  { p: [[-22, -122], [-70, -146], [-128, -170], [-185, -192], [-240, -222]], w: 11, we: 26, e0: 0.7, d: 48, d1: 77 },   // Rampe hinab zur Schnee-Ebene
 ];
 for (const v of VAL) { v.len = []; let L = 0; for (let i = 0; i < v.p.length - 1; i++) { const l = Math.hypot(v.p[i + 1][0] - v.p[i][0], v.p[i + 1][1] - v.p[i][1]); v.len.push(l); L += l; } v.L = L; }
 const terr = (k, n) => { const t = k * n, f = Math.floor(t); return (f + smooth(0.2, 0.8, t - f)) / n; };
@@ -27,7 +37,7 @@ export const shelfH = (x, z) => -10 - 10 * fbm(x * 0.011 + 3.1, z * 0.011 - 1.7,
 export function handDist(x, z) {
   let d = Math.abs(x - cxAt(clamp(z, -180, 330))); if (z < -180) d = Math.hypot(d, -180 - z); else if (z > 330) d = Math.hypot(d, z - 330);
   for (const v of VAL) { valDist(v, x, z); if (vd[0] < d) d = vd[0]; }
-  return d;
+  return Math.min(d, Math.max(0, Math.hypot(x - PLAIN.x, z - PLAIN.z) - PLAIN.r));
 }
 export function floorH(x, z) {
   const shelf = shelfH(x, z), wob = fbm(x * 0.033 + 11, z * 0.033 + 5, 3) - 0.5;
@@ -40,8 +50,11 @@ export function floorH(x, z) {
   if (ab > 0) { const w2 = w * (1 + 1.7 * ab), k2 = 1 - smooth(w2 * 0.4, w2 * 1.1, dM); depth += 150 * ab * k2 * k2; }
   for (const v of VAL) {
     valDist(v, x, z); if (vd[0] < hand) hand = vd[0];
-    if (vd[0] < 90) { const wb = (v.w + (v.we - v.w) * smooth(v.e0, 1, vd[1])) * (1 + wob * 0.5); let kb = 1 - smooth(wb * 0.55, wb * 1.3, vd[0]); kb = kb * 0.4 + 0.6 * terr(kb, 2); depth = Math.max(depth, v.d * kb); }
+    if (vd[0] < 90) { const wb = (v.w + (v.we - v.w) * smooth(v.e0, 1, vd[1])) * (1 + wob * 0.5); let kb = 1 - smooth(wb * 0.55, wb * 1.3, vd[0]); kb = kb * 0.4 + 0.6 * terr(kb, 2); depth = Math.max(depth, (v.d1 ? v.d + (v.d1 - v.d) * smooth(0.05, 1, vd[1]) : v.d) * kb); }
   }
+  // Schnee-Ebene: Wände in Stufen, unten ein fast ebener, sanft gewellter Sandboden
+  const pr = plainR(x, z);
+  if (pr < 1.6) { let k = 1 - smooth(0.78, 1.08, pr); k = k * 0.3 + 0.7 * terr(k, 3); const fl = PLAIN.floor + (fbm(x * 0.017 + 2.2, z * 0.017 - 7.1, 2) - 0.5) * 3.2 + Math.sin(x * 0.05 + z * 0.03) * 0.5; depth = Math.max(depth, (shelf - fl) * k); hand = Math.min(hand, Math.max(0, pr - 1) * PLAIN.r); }
   // das weite Netz aus Schluchten und tiefen Becken ringsum
   const m = smooth(70, 150, hand);
   if (m > 0) {
