@@ -185,7 +185,11 @@ export function createLife(scene) {
           if (ty < 0.5) { p.xz *= 1.0 - 0.2 * beat * aK.x * aK.x; p.y *= 1.0 + 0.12 * beat; }
           else { float a = aK.x; p.xz *= 1.0 - 0.2 * beat * (1.0 - a); p.x += sin(t * 1.5 - a * 5.0 + ph) * 0.3 * a; p.z += cos(t * 1.2 - a * 4.0 + ph * 1.3) * 0.3 * a; p.y += -0.15 * beat * a; }
           vL = p; p *= s;
-          float ang = uTime * iQ.z + iQ.x; p += iP.xyz + vec3(cos(ang) * iQ.y, sin(uTime * 0.23 + iQ.x) * 1.6 + 0.25 * s * sin(t * 1.5 + iQ.x - 1.0), sin(ang) * iQ.y);
+          // Treiben in der Strömung: jede Qualle langsam in ihre eigene Richtung, über Minuten hin und her
+          float f1 = 0.026 + 0.02 * fract(iQ.x * 3.7), f2 = 0.022 + 0.018 * fract(iQ.x * 5.3);
+          vec3 drift = vec3(sin(uTime * f1 + iQ.x * 5.0) * 6.5 + sin(uTime * 0.011 + iQ.x * 2.0) * 3.0, sin(uTime * 0.017 + iQ.x * 4.0) * 1.2, cos(uTime * f2 + iQ.x * 3.0) * 6.5 + cos(uTime * 0.009 + iQ.x) * 3.0);
+          vec2 vel = vec2(cos(uTime * f1 + iQ.x * 5.0) * 6.5 * f1, -sin(uTime * f2 + iQ.x * 3.0) * 6.5 * f2); p.xz -= vel * p.y * 1.4;   // Schirm neigt sich leicht gegen die Strömung
+          float ang = uTime * iQ.z + iQ.x; p += iP.xyz + drift + vec3(cos(ang) * iQ.y, sin(uTime * 0.23 + iQ.x) * 1.6 + 0.25 * s * sin(t * 1.5 + iQ.x - 1.0), sin(ang) * iQ.y);
           vW = p; vK = vec2(aK.x, ty); gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0); }`,
       fragmentShader: /* glsl */ `precision highp float; ${COMMON} varying vec3 vW, vL; varying vec2 vK;
         void main(){ vec3 c; float a;
@@ -231,9 +235,7 @@ export function createLife(scene) {
     const g = new T.BufferGeometry(), ib = new T.InterleavedBuffer(F32(arr), stride); let o = 0; for (const [name, size] of layout) { g.setAttribute(name, new T.InterleavedBufferAttribute(ib, size, o)); o += size; }
     g.boundingSphere = BS(cx, cz); const m = quadPoints(g, mat); m.renderOrder = 6; return m;
   }
-  /** baut aus der Liste einer Kachel die Dinge zum Zeichnen */
-  // Kleinkram am Grund: drinnen in der Kabine sieht man ihn durchs Fenster kaum, dann wird er nicht gezeichnet
-  const small = new Set(); L.small = small; const tag = (m) => { if (m) { m.userData.small = true; m.visible = !L.inside; } return m; };
+  const tag = (m) => { if (m) m.userData.small = true; return m; };
   L.inside = false; L.setInside = (v) => { L.inside = v; };
   L.build = (it, cx, cz) => [
     iMesh(kelp, mKelp, it.kelp, 6, [['iP', 4], ['iR', 2]], cx, cz),

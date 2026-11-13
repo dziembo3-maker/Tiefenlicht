@@ -3,7 +3,7 @@ import { T, rng } from './util.js';
 import { uni, quadPoints } from './gfx.js';
 
 export function createSnow(scene) {
-  const R = rng(4242), SNOW = { value: 0 }, PX = { value: 600 }, N = 3400, p = new Float32Array(N * 3), s = new Float32Array(N);
+  const R = rng(4242), SNOW = { value: 0 }, PX = { value: 600 }, N = 14000, BASE = 3400, p = new Float32Array(N * 3), s = new Float32Array(N);
   for (let i = 0; i < N; i++) { p[i * 3] = R() * 40; p[i * 3 + 1] = R() * 40; p[i * 3 + 2] = R() * 40; s[i] = R(); }
   const g = new T.BufferGeometry(); g.setAttribute('position', new T.BufferAttribute(p, 3)); g.setAttribute('aS', new T.BufferAttribute(s, 1));
   const m = quadPoints(g, new T.ShaderMaterial({ uniforms: uni({ uPx: PX, uSnow: SNOW }), transparent: true, depthWrite: false, blending: T.AdditiveBlending,
@@ -16,5 +16,7 @@ export function createSnow(scene) {
         gl_PointSize = max(1.4, (0.055 + 0.085 * f) * uPx / max(d, 0.5)); gl_Position = projectionMatrix * mv; }`,
     fragmentShader: `precision highp float; varying float vA; void main(){ vec2 q = gl_PointCoord - 0.5; float r = length(q), a = 1.0 - smoothstep(0.15, 0.5, r); gl_FragColor = vec4(vec3(0.78, 0.9, 0.96) * a * vA, 1.0); }` }));
   m.frustumCulled = false; m.renderOrder = 6; m.visible = false; scene.add(m);
-  return { set(v, px) { SNOW.value = v; PX.value = px; m.visible = v > 0.01; } };
+  m.geometry.instanceCount = BASE; let dens = 1;
+  /** Dichte: 1 = normal (3400 Flocken), bis 4 */
+  return { set(v, px) { SNOW.value = v; PX.value = px; m.visible = v > 0.01 && dens > 0; }, get density() { return dens; }, set density(d) { dens = Math.max(0, Math.min(4, d)); m.geometry.instanceCount = Math.round(BASE * dens); } };
 }
