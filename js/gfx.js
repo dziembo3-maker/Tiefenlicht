@@ -132,11 +132,12 @@ export function createPost(renderer) {
   let main = null, a = null, b = null, c = null, w = 0, h = 0, ms = -1;
   const cam = new T.OrthographicCamera(-1, 1, 1, -1, 0, 1), quad = new T.Mesh(new T.PlaneGeometry(2, 2), null), sc = new T.Scene(); sc.add(quad); quad.frustumCulled = false;
   const mk = (fs, u) => new T.ShaderMaterial({ uniforms: u, vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`, fragmentShader: 'precision highp float; varying vec2 vUv;\n' + fs, depthTest: false, depthWrite: false });
-  const mBright = mk(`uniform sampler2D t; void main(){ vec3 c = texture2D(t, vUv).rgb; if (!(c.r == c.r && c.g == c.g && c.b == c.b)) c = vec3(0.0); c = clamp(c, 0.0, 64.0); float l = max(c.r, max(c.g, c.b)); gl_FragColor = vec4(min(c * max(l - 0.62, 0.0) / max(l, 0.001), vec3(5.0)), 1.0); }`, { t: { value: null } });
+  const UM = { value: 0 };   // Menü: 0 = klares Bild, 1 = ganz weichgezeichnet
+  const mBright = mk(`uniform sampler2D t; uniform float m; void main(){ vec3 c = texture2D(t, vUv).rgb; if (!(c.r == c.r && c.g == c.g && c.b == c.b)) c = vec3(0.0); c = clamp(c, 0.0, 64.0); float l = max(c.r, max(c.g, c.b)); gl_FragColor = vec4(mix(min(c * max(l - 0.62, 0.0) / max(l, 0.001), vec3(5.0)), min(c, vec3(4.0)), m), 1.0); }`, { t: { value: null }, m: UM });
   const mBlur = mk(`uniform sampler2D t; uniform vec2 d; void main(){ vec3 c = texture2D(t, vUv).rgb * 0.227; c += (texture2D(t, vUv + d * 1.385).rgb + texture2D(t, vUv - d * 1.385).rgb) * 0.316; c += (texture2D(t, vUv + d * 3.231).rgb + texture2D(t, vUv - d * 3.231).rgb) * 0.0703; gl_FragColor = vec4(c, 1.0); }`, { t: { value: null }, d: { value: new T.Vector2() } });
-  const UO = { t: { value: null }, b1: { value: null }, b2: { value: null }, time: U.uTime };
-  const mOut = mk(`uniform sampler2D t, b1, b2; uniform float time;
-    void main(){ vec3 c0 = texture2D(t, vUv).rgb; if (!(c0.r == c0.r && c0.g == c0.g && c0.b == c0.b)) c0 = vec3(0.0); vec3 c = clamp(c0, 0.0, 64.0) + texture2D(b1, vUv).rgb * 0.75 + texture2D(b2, vUv).rgb * 0.9;
+  const UO = { t: { value: null }, b1: { value: null }, b2: { value: null }, time: U.uTime, m: UM };
+  const mOut = mk(`uniform sampler2D t, b1, b2; uniform float time, m;
+    void main(){ vec3 c0 = texture2D(t, vUv).rgb; if (!(c0.r == c0.r && c0.g == c0.g && c0.b == c0.b)) c0 = vec3(0.0); vec3 c = clamp(c0, 0.0, 64.0) + (texture2D(b1, vUv).rgb * 0.75 + texture2D(b2, vUv).rgb * 0.9) * (1.0 - m); c = mix(c, texture2D(b2, vUv).rgb * 0.82, m);
       vec3 hi = max(c - 0.8, 0.0); c = min(c, 0.8) + hi / (1.0 + hi * 2.2);
       c = pow(max(c, 0.0), vec3(0.94)); c = (c - 0.5) * 1.06 + 0.5; vec2 q = vUv - 0.5; c *= 1.0 - dot(q, q) * 0.75;
       c += (fract(sin(dot(vUv * 913.0 + time, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.014;
@@ -148,6 +149,7 @@ export function createPost(renderer) {
     scene.traverse((o) => { const m = o.material; if (!m || m.__st === on) return; m.__st = on; m.stencilWrite = on; m.stencilFunc = T.NotEqualStencilFunc; m.stencilRef = 1; m.stencilZPass = T.KeepStencilOp; m.stencilFail = T.KeepStencilOp; m.stencilZFail = T.KeepStencilOp; });
   }
   const P = {
+    set blur(v) { UM.value = v; }, get blur() { return UM.value; },
     resize(pw, ph, msaa) {
       if (pw === w && ph === h && msaa === ms && main) return; w = pw; h = ph; ms = msaa;
       for (const r of [main, a, b, c]) if (r) r.dispose();
@@ -178,6 +180,7 @@ export function createPost(renderer) {
       const blur = (src, dst, dx, dy) => { mBlur.uniforms.t.value = src.texture; mBlur.uniforms.d.value.set(dx, dy); pass(mBlur, dst); };
       blur(a, b, 1.5 / a.width, 0); blur(b, a, 0, 1.5 / a.height);                 // enges Leuchten
       blur(a, c, 2.0 / c.width, 0); blur(c, b, 0, 4.0 / a.height); blur(b, c, 3.0 / c.width, 0);   // weiter Schein
+      if (UM.value > 0.005) { blur(c, b, 0, 7.0 / a.height); blur(b, c, 5.0 / c.width, 0); blur(c, b, 0, 4.0 / a.height); blur(b, c, 3.0 / c.width, 0); }   // Menü: ganzes Bild weich
       UO.t.value = main.texture; UO.b1.value = a.texture; UO.b2.value = c.texture; pass(mOut, null);
     },
   };
