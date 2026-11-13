@@ -6,7 +6,7 @@ const D = {
     boat_laterne: 'Laterne', boatd_laterne: 'Das Original. Rundlich, cremeweiß mit rostrotem Bauch.',
     boat_kupfer: 'Kupferfisch', boatd_kupfer: 'Lang und schlank, Kupfer und Messing, hoher Turm.',
     boat_hummel: 'Hummel', boatd_hummel: 'Klein und rund, gelb-schwarz, mit Schutzbügeln.',
-    help: [['Worum es geht', 'Du fährst mit einem kleinen U-Boot durch ein stilles Meer. Nichts ist gefährlich, nichts drängt. Fahr dorthin, wo es dich hinzieht, und finde besondere Orte: Kristallhaine, Korallergärten, warme Spalten, ein altes Wrack. Jeder Fund trägt sich von selbst ins Logbuch ein.'],
+    help: [['Worum es geht', 'Du fährst mit einem kleinen U-Boot durch ein stilles Meer. Nichts ist gefährlich, nichts drängt. Fahr dorthin, wo es dich hinzieht, und finde besondere Orte: Kristallhaine, Korallengärten, warme Spalten, ein altes Wrack. Jeder Fund trägt sich von selbst ins Logbuch ein.'],
       ['Steuerung', '*'],
       ['Sonar', 'Die grüne Scheibe zeigt Felswände in der Nähe. Ein Ping reicht viel weiter: Besondere Orte antworten mit einem Echo. Es erscheint als Raute, oder als Pfeil am Rand, wenn der Ort weiter weg ist.'],
       ['In der Kabine', 'Drinnen kannst du herumgehen, dich ans Steuer setzen und von dort aus fahren. Der Sonartisch zeigt alles im Umkreis von 500 m. Tippst du dort auf einen Fleck, setzt du einen Kurs, und ein bernsteinfarbener Pfeil führt dich hin. Tee, Ofen, Licht und Kassettenrekorder kann man benutzen.'],
