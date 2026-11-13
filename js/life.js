@@ -235,7 +235,7 @@ export function createLife(scene) {
     const g = new T.BufferGeometry(), ib = new T.InterleavedBuffer(F32(arr), stride); let o = 0; for (const [name, size] of layout) { g.setAttribute(name, new T.InterleavedBufferAttribute(ib, size, o)); o += size; }
     g.boundingSphere = BS(cx, cz); const m = quadPoints(g, mat); m.renderOrder = 6; return m;
   }
-  const tag = (m) => { if (m) m.userData.small = true; return m; };
+  const tag = (m) => { if (m) { m.userData.small = true; m.visible = !L.inside; } return m; };   // Kleinkram am Grund: aus der Kabine heraus nicht zeichnen
   L.inside = false; L.setInside = (v) => { L.inside = v; };
   L.build = (it, cx, cz) => [
     iMesh(kelp, mKelp, it.kelp, 6, [['iP', 4], ['iR', 2]], cx, cz),
