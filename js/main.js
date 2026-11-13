@@ -58,7 +58,7 @@ window.addEventListener('pointerdown', (e) => {
   if (!started || M.open) return;
   if (e.target.closest && e.target.closest('.btn,.pill,#sonar,#table,#menu,#log,#dev')) return; if (V.st === 'table' && V.mode === 'in') return;
   if (e.pointerType === 'mouse') {
-    if (lockOK && e.target === canvas) { if (document.pointerLockElement !== canvas) { try { const r = canvas.requestPointerLock(); if (r && r.catch) r.catch(() => { lockOK = false; }); } catch (x) { lockOK = false; } } else if (e.button === 2) ping(); return; }
+    if (lockOK && e.target === canvas && !devOpen()) { if (document.pointerLockElement !== canvas) { try { const r = canvas.requestPointerLock(); if (r && r.catch) r.catch(() => { lockOK = false; }); } catch (x) { lockOK = false; } } else if (e.button === 2) ping(); return; }
     if (I.lookId === null) { I.lookId = e.pointerId; I.lx = e.clientX; I.ly = e.clientY; } return;   // ohne Mausfang: Ziehen = umsehen
   }
   if (e.clientX < window.innerWidth * 0.5 && I.joyId === null) { I.joyId = e.pointerId; I.ox = e.clientX; I.oy = e.clientY; joy.style.left = e.clientX + 'px'; joy.style.top = e.clientY + 'px'; joy.style.opacity = 1; setJoy(0, 0); }
@@ -71,7 +71,7 @@ document.addEventListener('pointerlockchange', () => { const locked = document.p
   if (!locked && started && !M.open && !quietUnlock) { escT = performance.now(); openMenu(); }   // Esc gibt die Maus frei: das Menü geht auf
   if (!locked) quietUnlock = false; });
 function unlock() { if (document.pointerLockElement) { quietUnlock = true; document.exitPointerLock(); } }
-function lockMouse() { if (!PC || !lockOK || document.pointerLockElement === canvas) return; try { const r = canvas.requestPointerLock(); if (r && r.catch) r.catch(() => { grabEl.style.opacity = 1; }); } catch (x) { /* egal */ } }
+function lockMouse() { if (!PC || !lockOK || document.pointerLockElement === canvas || devOpen()) return; try { const r = canvas.requestPointerLock(); if (r && r.catch) r.catch(() => { grabEl.style.opacity = 1; }); } catch (x) { /* egal */ } }
 const grabEl = $('grab');
 document.addEventListener('mousemove', (e) => { if (document.pointerLockElement !== canvas) return; const dx = e.movementX || 0, dy = e.movementY || 0; if (Math.abs(dx) > 300 || Math.abs(dy) > 300) return;
   if (V.mode === 'in') { V.yaw -= dx * 0.0026; V.pitch = clamp(V.pitch - dy * 0.0022, -1.25, 1.25); } else { C.oy -= dx * 0.003; C.op = clamp(C.op + dy * 0.0024, -1.15, 1.1); C.idle = 0; } });
@@ -160,7 +160,7 @@ function props(dt) {   // Steuerrad, Tiefenruder, Tee: laufen immer mit, auch we
 function drive(dt) {
   const ctl = V.mode === 'out' || V.st === 'seat', K = ctl ? I.keys : {}; let jx = ctl ? I.jx : 0, jy = ctl ? I.jy : 0;
   if (K.KeyA || K.ArrowLeft) jx -= 1; if (K.KeyD || K.ArrowRight) jx += 1; if (K.KeyW || K.ArrowUp) jy -= 1; if (K.KeyS || K.ArrowDown) jy += 1;
-  const mag = Math.min(1, Math.hypot(jx, jy)), vIn = ctl ? (I.up || K.KeyE || K.Space ? 1 : 0) - (I.down || K.KeyQ || K.ShiftLeft ? 1 : 0) : 0;
+  const mag = Math.min(1, Math.hypot(jx, jy)), vIn = ctl ? (I.up || K.Space ? 1 : 0) - (I.down || K.KeyQ || K.ShiftLeft ? 1 : 0) : 0;
   let want = 0, thrust = 0;
   if (mag > 0.05) { const diff = wrapPi((V.mode === 'out' ? C.yaw + C.oy - S.h : 0) - Math.atan2(jx, -jy)); want = clamp(diff * 1.4, -0.72, 0.72) * (0.4 + 0.6 * mag); thrust = mag * clamp(Math.cos(diff) * 1.15 + 0.1, 0.12, 1); }
   S.yawV = damp(S.yawV, want, 2.6, dt); S.h = wrapPi(S.h + S.yawV * dt); S.thrust = damp(S.thrust, thrust, 2.2, dt);
@@ -325,9 +325,10 @@ function cabinStep(dt) {
 }
 window.addEventListener('keydown', (e) => { if (e.repeat) return;
   if (M.open) { if (e.code === 'Escape' && performance.now() - escT > 350) { if (M.panel !== 'main') showPanel('main'); else if (started) closeMenu(); } else if (e.code === 'Enter' && M.panel === 'main') goBtn(); return; }
+  if (e.code === 'KeyE' && devOn && started) { toggleDev(); return; }
   if (e.code === 'KeyC') setMode(V.mode === 'in' ? 'out' : 'in'); if (e.code === 'KeyF') actEl.dispatchEvent(new Event('pointerdown'));
   if (e.code === 'KeyR' && started) ping(); if (e.code === 'KeyL' && started) { if ($('log').classList.contains('open')) $('log').classList.remove('open'); else openLog(); }
-  if (e.code === 'Escape') { if ($('log').classList.contains('open')) $('log').classList.remove('open'); else if (V.st === 'table') setSt('walk'); else if (started) { escT = performance.now(); openMenu(); } } });
+  if (e.code === 'Escape') { if (devOpen()) toggleDev(false); else if ($('log').classList.contains('open')) $('log').classList.remove('open'); else if (V.st === 'table') setSt('walk'); else if (started) { escT = performance.now(); openMenu(); } } });
 
 // ---------- Schleife ----------
 let last = performance.now(), fpsT = 0, fpsN = 0, slowT = 0, hintT = 0;
@@ -414,6 +415,9 @@ window.__sub = { audio, M, openMenu, closeMenu, showPanel, setBoat, post, get bo
 // ---------- Entwicklermenü (unter ⚙, Passwort) ----------
 const DEV_PW = 'Entwicklung', devEl = $('dev'), pw = $('devPw');
 let devOn = false; try { devOn = localStorage.getItem('tiefenlicht.dev') === '1'; } catch (e) { /* egal */ }
+// am PC: E öffnet und schließt das Menü, solange es offen ist, bleibt die Maus frei (umsehen mit Klicken und Ziehen)
+function devOpen() { return devEl.classList.contains('open'); }
+function toggleDev(on = !devOpen()) { if (on) { devEl.classList.add('open'); buildDev(); unlock(); } else { devEl.classList.remove('open'); lockMouse(); } }
 $('devBtn').addEventListener('pointerdown', (e) => { e.preventDefault(); if (devOn) { devEl.classList.add('open'); buildDev(); closeMenu(); } else { pw.style.display = pw.style.display === 'inline-block' ? 'none' : 'inline-block'; pw.focus(); } });
 pw.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') { if (pw.value === DEV_PW) { devOn = true; try { localStorage.setItem('tiefenlicht.dev', '1'); } catch (x) { /* egal */ } pw.style.display = 'none'; pw.value = ''; devEl.classList.add('open'); buildDev(); closeMenu(); } else { pw.value = ''; pw.placeholder = '✗'; } } });
 const DEV_NAMES = ['Laternenschlinger', 'Riesenbarsch', 'Gleiter', 'Hai'];
@@ -440,11 +444,13 @@ function buildDev() {
       s.addEventListener('input', () => { set(+s.value); v.textContent = fmt(+s.value); devSave(); }); r.appendChild(l); r.appendChild(s); r.appendChild(v); };
     sl('Abstand', 6, 180, 1, () => wc.gap, (x) => { wc.gap = x; }, (x) => '≈' + x + ' s'); sl('Lautstärke', 0, 2.5, 0.05, () => wc.vol, (x) => { wc.vol = x; }, (x) => Math.round(x * 100) + '%');
     const r = row(); r.style.flexWrap = 'wrap'; const b = btn(wc.on ? 'an' : 'aus', () => { wc.on = !wc.on; b.textContent = wc.on ? 'an' : 'aus'; devSave(); }, r); btn('jetzt einer', () => audio.whale(true), r); }
+  h3('SCHNEE'); { const r = row(), l = document.createElement('span'), v = document.createElement('span'), s = document.createElement('input'); s.type = 'range'; s.min = 0; s.max = 4; s.step = 0.1; s.value = snow.density; l.textContent = 'Dichte'; v.textContent = Math.round(snow.density * 100) + '%';
+    s.addEventListener('input', () => { snow.density = +s.value; v.textContent = Math.round(+s.value * 100) + '%'; devSave(); }); r.appendChild(l); r.appendChild(s); r.appendChild(v); }
   h3('SONSTIGES'); { const r = row(); r.style.flexWrap = 'wrap';
-    btn('Tee sofort fertig', () => { tea.phase = 'ready'; }, r); btn('Logbuch leeren', () => { LOG.length = 0; seen.clear(); save(); }, r); btn('Menü sperren', () => { devOn = false; try { localStorage.removeItem('tiefenlicht.dev'); } catch (x) { /* egal */ } devEl.classList.remove('open'); }, r); btn('schließen', () => devEl.classList.remove('open'), r); }
+    btn('Tee sofort fertig', () => { tea.phase = 'ready'; }, r); btn('Logbuch leeren', () => { LOG.length = 0; seen.clear(); save(); }, r); btn('Menü sperren', () => { devOn = false; try { localStorage.removeItem('tiefenlicht.dev'); } catch (x) { /* egal */ } devEl.classList.remove('open'); }, r); btn('schließen', () => toggleDev(false), r); }
 }
-function devSave() { try { localStorage.setItem('tiefenlicht.devcfg', JSON.stringify({ n: fauna.cfg.map((c) => c.n), attract: fauna.attract, whale: audio.whaleCfg })); } catch (e) { /* egal */ } }
-try { const d = JSON.parse(localStorage.getItem('tiefenlicht.devcfg') || 'null'); if (d) { d.n.forEach((n, si) => fauna.setCount(si, n)); fauna.attract = !!d.attract; if (d.whale) Object.assign(audio.whaleCfg, d.whale); } } catch (e) { /* egal */ }
+function devSave() { try { localStorage.setItem('tiefenlicht.devcfg', JSON.stringify({ n: fauna.cfg.map((c) => c.n), attract: fauna.attract, whale: audio.whaleCfg, snow: snow.density })); } catch (e) { /* egal */ } }
+try { const d = JSON.parse(localStorage.getItem('tiefenlicht.devcfg') || 'null'); if (d) { d.n.forEach((n, si) => fauna.setCount(si, n)); fauna.attract = !!d.attract; if (d.whale) Object.assign(audio.whaleCfg, d.whale); if (d.snow !== undefined) snow.density = d.snow; } } catch (e) { /* egal */ }
 
 // ---------- Speichern: automatisch alle paar Sekunden und beim Verlassen ----------
 const SAVE_KEY = 'tiefenlicht.save.v1'; let noSave = false;
