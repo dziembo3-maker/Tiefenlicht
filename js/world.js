@@ -1,14 +1,15 @@
 // world.js – die große Welt: Gelände in Kacheln, die beim Fahren nachgeladen werden; was wo steht (Felsen, Tang, Kristalle, Korallen, Fundstellen)
 import { T, rng, ico, noise } from './util.js';
 import { rockMaterial } from './gfx.js';
-import { floorH, shelfH, handDist, steep, cxAt, halfW, GROTTO, WRECK } from './terrain.js';
+import { floorH, shelfH, handDist, steep, cxAt, halfW, GROTTO, WRECK, PLAIN, WHALE, BELL, plainK } from './terrain.js';
+import { buildWhale, buildBell, propMaterial } from './props.js';
 import { wreckFrame, buildWreck } from './wreck.js';
 
 export const CS = 64, NQ = 40, STEP = CS / NQ, SITE = 320, LOAD = 188, DROP = 236;
 export const PAL = { cyan: [0.25, 0.9, 1.0], blue: [0.3, 0.56, 1.0], violet: [0.62, 0.42, 1.0], lilac: [0.86, 0.52, 0.96], turq: [0.2, 1.0, 0.8], peach: [1.0, 0.56, 0.4], orange: [1.0, 0.42, 0.14] };
 const COOL = [PAL.cyan, PAL.cyan, PAL.blue, PAL.violet], DUSK = [PAL.violet, PAL.violet, PAL.blue, PAL.lilac], REEF = [PAL.turq, PAL.lilac, PAL.peach, PAL.violet, PAL.turq], WARM = [[1.0, 0.36, 0.08], PAL.peach, PAL.orange];
 const cell = (v) => Math.floor(v / CS), key = (ix, iz) => ix + ',' + iz, h2 = (a, b) => ((Math.imul(a, 73856093) ^ Math.imul(b, 19349663)) >>> 0) || 1;
-const newItems = () => ({ rocks: [], kelp: [], cry: [], coral: [[], [], [], [], []], peb: [], grass: [], jelly: [], fish: [], bub: [], dots: [], glows: [], spheres: [], wreck: null });
+const newItems = () => ({ rocks: [], kelp: [], cry: [], coral: [[], [], [], [], []], peb: [], grass: [], jelly: [], fish: [], bub: [], dots: [], glows: [], spheres: [], wreck: null, props: [] });
 const mainDist = (x, z) => (z > -185 && z < 172 ? Math.abs(x - cxAt(z)) : 999);
 
 // ---------- Bausteine: schreiben in die Liste einer Kachel ----------
@@ -23,7 +24,7 @@ function placer(R) {
   };
   P.blob = (it, x, y, z, rx, ry, rz, rot, seed, det, col) => it.rocks.push({ blob: [x, y, z, rx, ry, rz, rot, seed, det, col] });
   P.boulder = (it, x, z, s) => { const y = floorH(x, z); P.blob(it, x, y + s * 0.15, z, s * rr(0.8, 1.5), s * rr(0.6, 1.1), s * rr(0.8, 1.4), R() * 6.3, R() * 90, s > 2.6 ? 2 : 1, s > 1.6); };
-  P.kelp = (it, x, z, h) => { const y = floorH(x, z); if (y < -78 || steep(x, z) > 4.2) return; it.kelp.push(x, y - 0.3, z, h, R() * 6.3, R() * 6.3); };
+  P.kelp = (it, x, z, h) => { const y = floorH(x, z); if ((y < -78 && plainK(x, z) < 0.3) || steep(x, z) > 4.2) return; it.kelp.push(x, y - 0.3, z, h, R() * 6.3, R() * 6.3); };
   P.kelpPatch = (it, x, z, cnt, big) => { for (let i = 0; i < cnt; i++) { const a = R() * 6.3, d = Math.sqrt(R()) * 8; P.kelp(it, x + Math.cos(a) * d, z + Math.sin(a) * d, rr(3.5, 11.5) * big); } };
   // Kristallbüschel: schlanke Spitzen, außen kleiner und stärker geneigt
   P.tuft = (it, x, z, count, hMin, hMax, pal, power, spread = 1, yFix) => {
@@ -81,7 +82,8 @@ export function siteAt(cx, cz) {
   }
   siteCache.set(k, s); return s;
 }
-const STATIC = [{ x: GROTTO.x + 5, y: -38, z: GROTTO.z + 3, kind: 'grove' }, { x: WRECK.x, y: -52, z: WRECK.z, kind: 'wreck' }];
+const STATIC = [{ x: GROTTO.x + 5, y: -38, z: GROTTO.z + 3, kind: 'grove' }, { x: WRECK.x, y: -52, z: WRECK.z, kind: 'wreck' },
+  { x: PLAIN.x + 40, y: -88, z: PLAIN.z + 30, kind: 'plain', disc: 70 }, { x: WHALE.x, y: -90, z: WHALE.z, kind: 'whale', disc: 34 }, { x: BELL.x, y: -66, z: BELL.z, kind: 'bell', disc: 24 }];
 /** alles, was ein Ping im Umkreis finden kann */
 export function poisNear(x, z, range) {
   const out = []; for (const s of STATIC) if (Math.hypot(s.x - x, s.z - z) < range) out.push(s);
@@ -150,6 +152,23 @@ function handmade() {
     P.jelly(g, wx + 14, -34, wz - 12, 1.2); P.jelly(g, wx - 16, -40, wz + 4, 0.8); P.jelly(g, wx + 2, -30, wz + 20, 0.6);
     P.bubbles(g, wx + 6, wz - 4, 40); P.bubbles(g, wx - 12, wz + 8, 34);
   }
+  // Schnee-Ebene: kaum Farbe, nur dunkler Tang am Rand, ein paar Steine, und in der Mitte das Walskelett
+  { const px = PLAIN.x, pz = PLAIN.z;
+    for (let i = 0; i < 26; i++) { const a = R() * 6.3, d = rr(0.45, 1.0) * PLAIN.r, x = px + Math.cos(a) * d, z = pz + Math.sin(a) * d; if (floorH(x, z) > -80) continue; P.kelpPatch(at(x, z), x, z, 3 + Math.floor(R() * 7), 0.9); }
+    for (let i = 0; i < 6; i++) { const a = R() * 6.3, d = rr(10, 40), x = WHALE.x + Math.cos(a) * d, z = WHALE.z + Math.sin(a) * d; P.kelpPatch(at(x, z), x, z, 2 + Math.floor(R() * 3), 0.7); }
+    for (let i = 0; i < 18; i++) { const a = R() * 6.3, d = rr(0.15, 0.95) * PLAIN.r, x = px + Math.cos(a) * d, z = pz + Math.sin(a) * d; if (Math.hypot(x - WHALE.x, z - WHALE.z) < 16) continue; P.boulder(at(x, z), x, z, Math.pow(R(), 2.5) * 3 + 0.6); }
+    const g = at(WHALE.x, WHALE.z), W2 = buildWhale(WHALE.x, WHALE.z, WHALE.yaw); g.props.push(W2.geo); for (const s of W2.spheres) g.spheres.push(s);
+    // auf den Knochen: wenige kleine Korallen und Kristalle in kühlen Farben, ein paar Lichtpünktchen
+    W2.spots.forEach((p, i) => { if (i % 5 === 0 || i >= W2.spots.length - 3) P.coral(g, p[0], p[2], i >= W2.spots.length - 3 ? 3 : 1, 0.16, 0.34, [PAL.cyan, PAL.lilac, PAL.turq], 0.5, p[1] - 0.05); if (i % 2 === 0) P.dots(g, p[0], p[1] + 0.2, p[2], 3, 1.0, [PAL.cyan, PAL.blue]); });
+    g.glows.push({ x: WHALE.x, y: floorH(WHALE.x, WHALE.z) + 8, z: WHALE.z, col: [0.42, 0.66, 0.82], power: 3.6, size: 14 });
+    P.dots(g, WHALE.x, floorH(WHALE.x, WHALE.z) + 2, WHALE.z, 30, 12, [PAL.cyan, PAL.blue]);
+    P.jelly(g, WHALE.x + 10, -74, WHALE.z - 6, 1.1); P.jelly(g, WHALE.x - 14, -70, WHALE.z + 9, 0.7);
+  }
+  // Taucherglocke auf halbem Weg die Rampe hinab
+  { const g = at(BELL.x, BELL.z), Bl = buildBell(BELL.x, BELL.z, BELL.yaw); g.props.push(Bl.geo); for (const s of Bl.spheres) g.spheres.push(s);
+    P.kelpPatch(g, BELL.x + 7, BELL.z + 5, 5, 0.7); P.kelpPatch(g, BELL.x - 8, BELL.z - 4, 4, 0.6); g.glows.push({ x: BELL.x, y: floorH(BELL.x, BELL.z) + 5, z: BELL.z, col: [0.4, 0.62, 0.72], power: 1.4, size: 4 });
+    P.dots(g, Bl.top.x, Bl.top.y + 0.4, Bl.top.z, 6, 1.4, [PAL.cyan, PAL.turq]);
+  }
   return B;
 }
 
@@ -157,7 +176,7 @@ function handmade() {
 function procedural(ix, iz, it) {
   const R = rng(h2(ix, iz)), P = placer(R), rr = P.rr, x0 = ix * CS, z0 = iz * CS;
   const free = (x, z) => mainDist(x, z) > 48 && Math.hypot(x - GROTTO.x, z - GROTTO.z) > 36 && Math.hypot(x - WRECK.x, z - WRECK.z) > 52;
-  const pt = () => { const x = x0 + R() * CS, z = z0 + R() * CS, h = floorH(x, z); return { x, z, h, c: shelfH(x, z) - h, ok: free(x, z) }; };
+  const pt = () => { const x = x0 + R() * CS, z = z0 + R() * CS, h = floorH(x, z); return { x, z, h, c: shelfH(x, z) - h, ok: free(x, z) && plainK(x, z) < 0.15 && Math.hypot(x - BELL.x, z - BELL.z) > 16 }; };
   for (let i = 0; i < 3; i++) { const p = pt(); if (p.ok && p.c > 18 && p.h > -105) P.spire(it, p.x, p.z, rr(9, 27), rr(2.2, 4.8), rr(0.02, 0.2), R() * 40); }
   for (let i = 0; i < 7; i++) { const p = pt(); if (p.ok && p.h > -110) P.boulder(it, p.x, p.z, Math.pow(R(), 2) * 4.2 + 1.1); }
   for (let i = 0; i < 10; i++) { const p = pt(); if (p.ok && (p.c > 8 || R() < 0.45)) P.kelpPatch(it, p.x, p.z, 8 + Math.floor(R() * 16), p.h < -40 ? 1.35 : 1); }
@@ -253,6 +272,7 @@ export function createWorld(scene, life) {
       ch.spheres = it.spheres.slice();
       const g = buildRocks(it.rocks, ch.spheres); if (g) { const m = new T.Mesh(g, matR); scene.add(m); ch.meshes.push(m); ch.tris += g.index.count / 3; }
       if (it.wreck) for (const m of buildWreck(it.wreck)) { scene.add(m); ch.meshes.push(m); ch.tris += m.geometry.index.count / 3; }
+      for (const geo of it.props) { const m = new T.Mesh(geo, propMaterial()); m.frustumCulled = true; scene.add(m); ch.meshes.push(m); ch.tris += geo.index.count / 3; }
       ch.glows = it.glows;
     } else {                                                     // Leben
       for (const m of life.build(ch.items, ch.ix * CS + CS / 2, ch.iz * CS + CS / 2)) { scene.add(m); ch.meshes.push(m); }
