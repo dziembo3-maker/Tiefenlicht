@@ -7,7 +7,7 @@
 <link rel="icon" href="icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Tiefenlicht – Stimmungsprobe</title>
+<title>Tiefenlicht</title>
 <style>
   html, body { margin: 0; height: 100%; background: #021a2c; overflow: hidden; overscroll-behavior: none; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; font-family: Georgia, 'Times New Roman', serif; color: #cfe9ee; }
   #c { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
@@ -38,10 +38,8 @@
   #tableInfo { font: 12px/1 ui-monospace, Menlo, Consolas, monospace; letter-spacing: 0.12em; color: rgba(255, 215, 150, 0.9); height: 12px; }
   #tableBtns { display: flex; gap: 12px; }
   #fade { position: fixed; inset: 0; background: #020a10; opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 4; }
-  #gear { position: fixed; left: calc(12px + env(safe-area-inset-left)); top: calc(70px + env(safe-area-inset-top)); padding: 7px 12px; font-size: 15px; }
-  #opts { position: fixed; left: calc(12px + env(safe-area-inset-left)); top: calc(112px + env(safe-area-inset-top)); width: 220px; padding: 12px 14px; border-radius: 14px; background: rgba(6, 26, 38, 0.82); border: 1.5px solid rgba(190, 235, 240, 0.22); display: none; pointer-events: auto; font-size: 13px; letter-spacing: 0.05em; }
-  body.in #opts { background: rgba(36, 22, 10, 0.86); border-color: rgba(255, 215, 150, 0.3); }
-  #opts.open { display: block; } .optRow { display: flex; justify-content: space-between; margin-bottom: 8px; } #fovR { width: 100%; accent-color: #e8b86a; }
+  #gear { position: fixed; left: calc(12px + env(safe-area-inset-left)); top: calc(70px + env(safe-area-inset-top)); padding: 8px 13px; font-size: 15px; }
+  .optRow { display: flex; justify-content: space-between; margin-bottom: 8px; }
   #log { position: fixed; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 14px; background: rgba(10, 6, 2, 0.72); pointer-events: auto; z-index: 3; }
   #log.open { display: flex; }
   #logText { width: min(86vw, 520px); max-height: 70vh; overflow-y: auto; padding: 22px 24px; border-radius: 6px; background: linear-gradient(#e7dcc2, #d9caa6); color: #3a2a18; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6), inset 0 0 40px rgba(120, 90, 40, 0.35); font-size: 15px; line-height: 1.5; }
@@ -59,12 +57,33 @@
   #dev { position: fixed; right: calc(10px + env(safe-area-inset-right)); top: calc(160px + env(safe-area-inset-top)); bottom: calc(10px + env(safe-area-inset-bottom)); width: 250px; overflow-y: auto; padding: 12px 14px; border-radius: 14px; background: rgba(4, 16, 24, 0.9); border: 1.5px solid rgba(140, 220, 255, 0.3); display: none; pointer-events: auto; font-size: 12px; letter-spacing: 0.04em; z-index: 3; }
   #dev.open { display: block; } #dev h3 { margin: 10px 0 6px; font: 600 11px ui-monospace, monospace; letter-spacing: 0.14em; color: rgba(150, 230, 255, 0.8); } #dev h3:first-child { margin-top: 0; }
   #dev .row { display: flex; align-items: center; gap: 8px; margin: 4px 0; } #dev .row span:first-child { flex: 1; } #dev input[type=range] { width: 90px; accent-color: #7fd6ff; } #dev .pill.mini { margin: 3px 4px 3px 0; }
-  #title { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: radial-gradient(ellipse at 50% 35%, #0b4763, #031c2e 70%); transition: opacity 2.2s; z-index: 5; text-align: center; }
-  #title h1 { font-weight: normal; font-size: 34px; letter-spacing: 0.22em; margin: 0 0 10px 0.22em; color: #d7f1f3; }
-  #title p { margin: 4px 0; font-size: 13px; letter-spacing: 0.12em; color: rgba(200, 232, 238, 0.6); }
-  #title #go { margin-top: 30px; font-size: 14px; color: rgba(215, 240, 245, 0.0); transition: color 1s; }
-  #title.ready #go { color: rgba(215, 240, 245, 0.85); }
-  #title.gone { opacity: 0; pointer-events: none; }
+  #menu { position: fixed; inset: 0; z-index: 6; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.35s; }
+  #menu.open { opacity: 1; pointer-events: auto; } #menu.low { align-items: flex-end; }
+  .card { width: min(88vw, 340px); max-height: calc(100% - 36px); overflow-y: auto; padding: 26px 24px 22px; border-radius: 22px; box-sizing: border-box; text-align: center;
+    background: linear-gradient(165deg, rgba(160, 225, 240, 0.16), rgba(8, 40, 60, 0.34)); border: 1.5px solid rgba(205, 242, 250, 0.3); box-shadow: 0 14px 44px rgba(0, 10, 20, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.2); }
+  #menu.low .card { width: min(94vw, 560px); margin-bottom: calc(14px + env(safe-area-inset-bottom)); padding: 16px 16px 14px; background: rgba(6, 30, 45, 0.62); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+  #menu.wide .card { width: min(92vw, 470px); }
+  @media (max-height: 560px) { #menu.low .bd, #menu.low .foot { display: none; } #menu.low .card h2 { margin-bottom: 10px; font-size: 15px; } #menu.low .sw { width: 24px; height: 24px; margin-bottom: 5px; } #menu.low .boatCard { padding: 8px 6px; } #menu.low .mb.small { margin-top: 10px; padding: 7px 0; } }
+  .card > div { display: none; } .card > div.show { display: block; }
+  .card h1 { font-weight: normal; font-size: 30px; letter-spacing: 0.22em; margin: 2px 0 8px 0.22em; color: #e2f6f8; text-shadow: 0 0 24px rgba(140, 220, 240, 0.35); }
+  .card h2 { font-weight: normal; font-size: 17px; letter-spacing: 0.2em; margin: 0 0 16px; color: #e2f6f8; }
+  .card .sub { margin: 0 0 18px; font-size: 12px; letter-spacing: 0.12em; color: rgba(200, 232, 238, 0.6); }
+  .mb { display: block; margin: 10px auto 0; width: 230px; max-width: 100%; padding: 12px 0; border-radius: 24px; border: 1.5px solid rgba(195, 238, 245, 0.3); background: rgba(8, 40, 60, 0.38); font-size: 15px; letter-spacing: 0.1em; color: rgba(228, 246, 249, 0.94); cursor: pointer; transition: background 0.2s; }
+  .mb:hover { background: rgba(70, 150, 175, 0.3); } .mb.small { width: 150px; padding: 9px 0; font-size: 13px; margin-top: 16px; }
+  .mb.primary { background: rgba(232, 184, 106, 0.3); border-color: rgba(255, 218, 160, 0.62); color: #fff4e2; }
+  .mb.primary:hover { background: rgba(240, 195, 120, 0.42); } #menu:not(.ready) .mb.primary { opacity: 0.4; }
+  .foot { margin: 16px 0 0; font-size: 11px; letter-spacing: 0.1em; color: rgba(200, 232, 238, 0.52); } .foot:empty { display: none; }
+  #boats { display: flex; gap: 10px; justify-content: center; }
+  .boatCard { flex: 1; max-width: 170px; padding: 11px 8px 10px; border-radius: 14px; border: 1.5px solid rgba(190, 235, 240, 0.25); background: rgba(8, 40, 60, 0.4); cursor: pointer; }
+  .boatCard.on { border-color: rgba(255, 215, 150, 0.8); background: rgba(232, 184, 106, 0.24); }
+  .sw { display: block; width: 32px; height: 32px; border-radius: 50%; margin: 0 auto 7px; border: 2px solid rgba(255, 255, 255, 0.35); }
+  .bn { display: block; font-size: 14px; letter-spacing: 0.08em; color: #eef9fa; } .bd { display: block; font-size: 11px; color: rgba(210, 236, 240, 0.66); margin-top: 4px; line-height: 1.35; }
+  #pSet { text-align: left; font-size: 13px; letter-spacing: 0.05em; } #pSet h2, #pSet .mBack { text-align: center; }
+  .rng { width: 100%; margin: 0 0 14px; accent-color: #e8b86a; } .optRow.mid { align-items: center; margin: 4px 0 6px; }
+  #helpText { text-align: left; font-size: 14px; line-height: 1.5; color: rgba(225, 243, 246, 0.9); }
+  #helpText h4 { margin: 14px 0 3px; font-weight: normal; font-style: italic; font-size: 14px; letter-spacing: 0.06em; color: rgba(255, 222, 170, 0.92); } #helpText h4:first-child { margin-top: 0; }
+  body.menu #ui.on { opacity: 0; transition: opacity 0.3s; } body.menu #ui * { pointer-events: none !important; }
+  #gear svg { width: 12px; height: 12px; fill: rgba(225, 245, 248, 0.85); vertical-align: -1px; }
   #err { position: fixed; left: 8px; bottom: 8px; right: 8px; font: 11px monospace; color: #ffb0a0; white-space: pre-wrap; z-index: 9; pointer-events: none; }
 </style>
 </head>
@@ -80,18 +99,26 @@
   <div id="note"></div>
   <div id="fps"></div>
   <div id="mode" class="pill"><span id="modeL"></span><kbd>C</kbd></div>
-  <div id="gear" class="pill">⚙</div>
-  <div id="opts"><div class="optRow"><span id="fovL"></span><span id="fovV"></span></div><input id="fovR" type="range" min="45" max="95" step="1">
-    <div class="optRow" style="margin-top:12px"><span data-t="lang"></span><span id="langs"><span class="pill mini" data-l="de">DE</span> <span class="pill mini" data-l="en">EN</span></span></div>
-    <div class="optBtns"><div id="fsBtn" class="pill mini" data-t="fullscreen"></div><div id="resetBtn" class="pill mini" data-t="reset"></div></div>
-    <div class="optBtns"><div id="devBtn" class="pill mini">⚒</div><input id="devPw" type="password" placeholder="Passwort" autocomplete="off"></div></div>
+  <div id="gear" class="pill"><svg viewBox="0 0 12 12"><rect x="2" y="1.5" width="2.6" height="9" rx="0.8"/><rect x="7.4" y="1.5" width="2.6" height="9" rx="0.8"/></svg><kbd>Esc</kbd></div>
   <div id="dev"></div>
   <div id="log"><div id="logText"></div><div id="logClose" class="pill"><span data-t="close"></span><kbd>L</kbd></div></div>
   <div id="act" class="pill"><span id="actL"></span><kbd>F</kbd></div>
   <div id="table"><canvas id="tableCv" width="760" height="760"></canvas><div id="tableInfo"></div><div id="tableBtns"><div id="tableClear" class="pill" data-t="course_clear"></div><div id="tableClose" class="pill"><span data-t="back"></span><kbd>Esc</kbd></div></div></div>
 </div>
 <div id="fade"></div>
-<div id="title"><h1>TIEFENLICHT</h1><p data-t="title_sub"></p><p id="go"></p></div>
+<div id="menu" class="open"><div class="card">
+  <div id="mMain" class="show"><h1>TIEFENLICHT</h1><p class="sub" data-t="title_sub"></p>
+    <div class="mBtns"><div id="mGo" class="mb primary">…</div><div id="mBoat" class="mb" data-t="m_boat"></div><div id="mSet" class="mb" data-t="m_settings"></div><div id="mHelp" class="mb" data-t="m_help"></div></div>
+    <p id="mFoot" class="foot"></p></div>
+  <div id="pBoat"><h2 data-t="m_boat"></h2><div id="boats"></div><p class="foot" data-t="boat_note"></p><div class="mb mBack small" data-t="back"></div></div>
+  <div id="pSet"><h2 data-t="m_settings"></h2>
+    <div class="optRow"><span data-t="fov_out"></span><span id="fovOV"></span></div><input id="fovO" class="rng" type="range" min="45" max="95" step="1">
+    <div class="optRow"><span data-t="fov_in"></span><span id="fovIV"></span></div><input id="fovI" class="rng" type="range" min="45" max="95" step="1">
+    <div class="optRow mid"><span data-t="lang"></span><span id="langs"><span class="pill mini" data-l="de">DE</span> <span class="pill mini" data-l="en">EN</span></span></div>
+    <div class="optBtns"><div id="fsBtn" class="pill mini" data-t="fullscreen"></div><div id="resetBtn" class="pill mini" data-t="reset"></div><div id="devBtn" class="pill mini">⚒</div><input id="devPw" type="password" placeholder="Passwort" autocomplete="off"></div>
+    <div class="mb mBack small" data-t="back"></div></div>
+  <div id="pHelp"><h2 data-t="m_help"></h2><div id="helpText"></div><div class="mb mBack small" data-t="back"></div></div>
+</div></div>
 <div id="err"></div>
 <script>window.addEventListener('error', function (e) { var d = document.getElementById('err'); if (d) d.textContent += (e.message || e) + '\n'; });</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>

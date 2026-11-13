@@ -7,7 +7,7 @@ import { createLife } from './life.js';
 import { createFauna } from './fauna.js';
 import { t, setLang, getLang } from './i18n.js';
 const PC = window.matchMedia && window.matchMedia('(pointer: fine)').matches;
-import { createSub } from './sub.js';
+import { createSub, BOATS } from './sub.js';
 import { createAudio } from './audio.js';
 import { createCabin, SEAT, FLOOR_Y } from './cabin.js';
 import { createTable } from './sonartable.js';
@@ -19,9 +19,14 @@ renderer.autoClear = true; renderer.info.autoReset = false; renderer.setClearCol
 const scene = new T.Scene(), camera = new T.PerspectiveCamera(58, 1, 0.3, 700);
 U.uNoise.value = noiseTexture(256);
 createBackdrop(scene);
-const life = createLife(scene), fauna = createFauna(scene), world = createWorld(scene, life), boat = createSub(scene), post = createPost(renderer), audio = createAudio();
+let boatKind = 0; try { boatKind = +(localStorage.getItem('tiefenlicht.boat') || 0) || 0; } catch (e) { /* ohne Speicher */ }
+const life = createLife(scene), fauna = createFauna(scene), world = createWorld(scene, life), post = createPost(renderer), audio = createAudio();
+let boat = createSub(scene, boatKind);
 const cabin = createCabin(), cabinScene = new T.Scene(), camIn = new T.PerspectiveCamera(72, 1, 0.04, 40); cabinScene.add(cabin.group);
 // Ansicht: draußen hinter dem Boot oder drinnen in der Kabine (gehen, am Steuer sitzen, am Sonartisch stehen)
+// Menü: beim Start offen; im Spiel öffnet es sich über ❚❚, Esc oder wenn die Maus freigegeben wird – dann ruht die Welt
+const M = { open: true, panel: 'main', orb: 2.3, dirty: 60 };
+let homeT = 0, quietUnlock = false, hadLock = false, escT = 0;
 const V = { mode: 'out', st: 'walk', px: 0, pz: -0.55, yaw: 0, pitch: 0, hx: 0, hy: 1.56, hz: -0.55, bob: 0 }, nav = { course: null };
 
 // ---------- Bildgröße und Güte ----------
@@ -31,7 +36,7 @@ function resize() {
   const w = window.innerWidth, h = window.innerHeight; portrait = h > w;
   renderer.setPixelRatio(PR); renderer.setSize(w, h, false);
   camera.aspect = w / h; camera.fov = fovFor(V.mode); camera.updateProjectionMatrix(); camIn.aspect = camera.aspect; camIn.fov = camera.fov; camIn.updateProjectionMatrix();
-  const s = renderer.getDrawingBufferSize(new T.Vector2()); post.resize(s.x, s.y, MSAA); pxScale = s.y / (2 * Math.tan(camera.fov * Math.PI / 360));
+  const s = renderer.getDrawingBufferSize(new T.Vector2()); post.resize(s.x, s.y, MSAA); M.dirty = 60; pxScale = s.y / (2 * Math.tan(camera.fov * Math.PI / 360));
 }
 window.addEventListener('resize', resize); resize();
 
@@ -47,8 +52,8 @@ let started = false, frames = 0, tNote = 0;
 const joy = $('joy'), knob = $('knob'), JR = 54;
 function setJoy(dx, dy) { const l = Math.hypot(dx, dy), k = l > JR ? JR / l : 1; dx *= k; dy *= k; knob.style.transform = `translate(${dx}px,${dy}px)`; const m = Math.min(1, Math.hypot(dx, dy) / JR), dz = m < 0.1 ? 0 : (m - 0.1) / 0.9, a = Math.atan2(dy, dx); I.jx = Math.cos(a) * dz; I.jy = Math.sin(a) * dz; }
 window.addEventListener('pointerdown', (e) => {
-  if (!started) return;
-  if (e.target.closest && e.target.closest('.btn,.pill,#sonar,#table,#opts,#log,#dev')) return; if (V.st === 'table' && V.mode === 'in') return;
+  if (!started || M.open) return;
+  if (e.target.closest && e.target.closest('.btn,.pill,#sonar,#table,#menu,#log,#dev')) return; if (V.st === 'table' && V.mode === 'in') return;
   if (e.pointerType === 'mouse') {
     if (lockOK && e.target === canvas) { if (document.pointerLockElement !== canvas) { try { const r = canvas.requestPointerLock(); if (r && r.catch) r.catch(() => { lockOK = false; }); } catch (x) { lockOK = false; } } else if (e.button === 2) ping(); return; }
     if (I.lookId === null) { I.lookId = e.pointerId; I.lx = e.clientX; I.ly = e.clientY; } return;   // ohne Mausfang: Ziehen = umsehen
@@ -57,8 +62,13 @@ window.addEventListener('pointerdown', (e) => {
   else if (I.lookId === null) { I.lookId = e.pointerId; I.lx = e.clientX; I.ly = e.clientY; }
 });
 let lockOK = !!canvas.requestPointerLock; if (PC) document.body.classList.add('pc');
-document.addEventListener('pointerlockerror', () => { lockOK = false; });
-document.addEventListener('pointerlockchange', () => { grabEl.style.opacity = document.pointerLockElement === canvas || !started || !PC ? 0 : 1; });
+document.addEventListener('pointerlockerror', () => { if (!hadLock) lockOK = false; grabEl.style.opacity = started && PC && !M.open ? 1 : 0; });
+document.addEventListener('pointerlockchange', () => { const locked = document.pointerLockElement === canvas; if (locked) hadLock = true;
+  grabEl.style.opacity = locked || !started || !PC || M.open ? 0 : 1;
+  if (!locked && started && !M.open && !quietUnlock) { escT = performance.now(); openMenu(); }   // Esc gibt die Maus frei: das Menü geht auf
+  if (!locked) quietUnlock = false; });
+function unlock() { if (document.pointerLockElement) { quietUnlock = true; document.exitPointerLock(); } }
+function lockMouse() { if (!PC || !lockOK || document.pointerLockElement === canvas) return; try { const r = canvas.requestPointerLock(); if (r && r.catch) r.catch(() => { grabEl.style.opacity = 1; }); } catch (x) { /* egal */ } }
 const grabEl = $('grab');
 document.addEventListener('mousemove', (e) => { if (document.pointerLockElement !== canvas) return; const dx = e.movementX || 0, dy = e.movementY || 0; if (Math.abs(dx) > 300 || Math.abs(dy) > 300) return;
   if (V.mode === 'in') { V.yaw -= dx * 0.0026; V.pitch = clamp(V.pitch - dy * 0.0022, -1.25, 1.25); } else { C.oy -= dx * 0.003; C.op = clamp(C.op + dy * 0.0024, -1.15, 1.1); C.idle = 0; } });
@@ -74,7 +84,7 @@ for (const [id, key] of [['up', 'up'], ['down', 'down']]) {
 }
 window.addEventListener('keydown', (e) => { I.keys[e.code] = 1; }); window.addEventListener('keyup', (e) => { I.keys[e.code] = 0; });
 window.addEventListener('contextmenu', (e) => e.preventDefault());
-document.addEventListener('visibilitychange', () => { if (document.hidden) audio.suspend(); else audio.resume(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden) { audio.suspend(); if (started) openMenu(); } else if (!M.open) audio.resume(); });
 
 // ---------- Sonar: der Strahl kreist von selbst und zeigt nahe Wände; ein Ping reicht weit und holt Echos von Fundstellen ----------
 const scope = $('scope'), sc = scope.getContext('2d'), SR = 60, PING = 480, blips = [], marks = [], echoes = [];
@@ -132,7 +142,7 @@ function ping() {
   const ps = poisNear(S.x, S.z, PING).map((p) => ({ p, d: Math.hypot(p.x - S.x, p.z - S.z) })).sort((a, b) => a.d - b.d).slice(0, 5);
   for (const { p, d } of ps) echoes.push({ x: p.x, z: p.z, t: 0.3 + d / 85, vol: clamp(1.15 - d / 500, 0.2, 1) });
 }
-$('sonar').addEventListener('pointerdown', (e) => { e.preventDefault(); if (started) ping(); });
+$('sonar').addEventListener('pointerdown', (e) => { e.preventDefault(); if (started && !M.open) ping(); });
 
 // ---------- Fahren ----------
 const nT = { x: 0, y: 0, z: 0 }, CLEAR = 3.9, SOFT = 1.2;
@@ -196,7 +206,8 @@ function cameraStep(dt) {
   if (I.lookId === null && moving && C.idle > 1.4) { C.oy = damp(C.oy, 0, 1.1, dt); C.op = damp(C.op, 0, 1.1, dt); }
   if (I.lookId === null) C.yaw += wrapPi(S.h - C.yaw) * (1 - Math.exp(-(moving ? 1.25 : 0.25) * dt));
   C.oy = wrapPi(C.oy);
-  const yaw = C.yaw + C.oy, pit = clamp(0.27 + C.op, -1.0, 1.25), cp = Math.cos(pit), D = portrait ? 17 : 14;
+  if (homeT > 0) { homeT -= dt; C.oy = damp(C.oy, 0, 2.2, dt); C.op = damp(C.op, 0, 2.2, dt); }
+  const yaw = C.yaw + C.oy, pit = clamp(0.27 + C.op, -1.0, 1.25), cp = Math.cos(pit), D = (portrait ? 17 : 14) * (M.open && M.panel === 'boat' ? (portrait ? 0.85 : 0.8) : 1);
   dir.set(Math.sin(yaw) * cp, -Math.sin(pit), Math.cos(yaw) * cp);
   tgt.set(S.x + Math.sin(yaw) * 2.4 * cp, S.y + 1.0, S.z + Math.cos(yaw) * 2.4 * cp);
   let tMax = 1;
@@ -215,16 +226,16 @@ C.look.set(S.x, S.y + 1, S.z + 2);
 // ---------- Kabine: Ego-Perspektive ----------
 const table = createTable(S, nav, $('tableCv')), eyeL = new T.Vector3(), winCol = new T.Vector3(), tmpS = new T.Vector3(), fadeEl = $('fade'), actEl = $('act'), modeEl = $('mode');
 let switching = false;
-function ui() { document.body.className = (V.mode === 'in' ? 'in ' + V.st : 'out') + (PC ? ' pc' : ''); $('modeL').textContent = V.mode === 'in' ? t('to_out') : t('to_in'); }
+function ui() { document.body.className = (V.mode === 'in' ? 'in ' + V.st : 'out') + (PC ? ' pc' : '') + (M.open ? ' menu' : ''); $('modeL').textContent = V.mode === 'in' ? t('to_out') : t('to_in'); }
 function applyMode() {
-  const inn = V.mode === 'in'; for (const o of boat.outer) o.visible = !inn;
+  const inn = V.mode === 'in'; boatVis();
   if (inn) { V.st = 'walk'; V.px = 0; V.pz = -0.95; V.yaw = 0; V.pitch = 0; V.hx = 0; V.hy = 1.56; V.hz = -0.95; table.reset(); if (!PC) { hintEl.textContent = t('hint_in_touch'); hintEl.style.opacity = 1; hintT = 6; } }
   else { C.yaw = S.h; C.oy = C.op = 0; C.dist = 14; C.pos.set(S.x - Math.sin(S.h) * 14, S.y + 4, S.z - Math.cos(S.h) * 14); C.look.set(S.x, S.y + 1, S.z); }
   audio.setInside(inn); world.setSmall(!inn); life.setInside(inn); ui(); resize(); syncFov();
 }
 function setMode(m) { if (switching || !started || V.mode === m) return; switching = true; fadeEl.style.opacity = 1; setTimeout(() => { V.mode = m; applyMode(); fadeEl.style.opacity = 0; switching = false; }, 330); }
 function setSt(s) {
-  const was = V.st; V.st = s; if (s === 'table' && document.pointerLockElement) document.exitPointerLock();
+  const was = V.st; V.st = s; if (s === 'table') unlock();
   if (s === 'seat') { V.yaw = 0; V.pitch = 0; } else if (s === 'table') { V.yaw = -Math.PI / 2; V.pitch = -0.55; }
   else if (was === 'seat') { V.px = 0; V.pz = 0.2; } else if (was === 'table') { V.px = -0.15; V.pz = -1.3; }
   ui();
@@ -265,7 +276,7 @@ function discover() {
   for (const p of poisNear(S.x, S.z, 46)) { const k = Math.round(p.x) + ',' + Math.round(p.z); if (seen.has(k) || Math.hypot(p.x - S.x, p.z - S.z) > (p.kind === 'wreck' ? 46 : 32)) continue; seen.add(k); addLog({ kind: p.kind, n: LOG.filter((e) => e.kind === p.kind).length, dist: Math.round(Math.hypot(p.x, p.z) / 10) * 10, dir: DIR8(p.x, p.z) }); }
 }
 function openLog() {
-  if (document.pointerLockElement) document.exitPointerLock();
+  unlock();
   const box = $('logText'); box.innerHTML = ''; const h = document.createElement('div'); h.className = 'logHead'; h.textContent = t('log'); box.appendChild(h);
   const add = (title, when, text) => { const d = document.createElement('div'); d.className = 'logEntry'; const a = document.createElement('div'); a.className = 'logTitle'; a.textContent = title + (when ? '  ·  ' + when : ''); const p = document.createElement('div'); p.textContent = text; d.appendChild(a); d.appendChild(p); box.appendChild(d); };
   if (!LOG.length) add(t('log_empty_t'), '', t('log_empty'));
@@ -276,15 +287,15 @@ $('logClose').addEventListener('pointerdown', (e) => { e.preventDefault(); $('lo
 $('logClose').textContent = t('close');
 let noteT = 0; function note(t) { const n = $('note'); n.textContent = t; noteT = 4; }
 // ---------- Einstellungen: Sichtfeld ----------
-$('gear').addEventListener('pointerdown', (e) => { e.preventDefault(); if (document.pointerLockElement) document.exitPointerLock(); $('opts').classList.toggle('open'); syncFov(); });
+$('gear').addEventListener('pointerdown', (e) => { e.preventDefault(); openMenu(); });
 // Sprache, Vollbild, neu beginnen
-function texts() { for (const el of document.querySelectorAll('[data-t]')) el.textContent = t(el.dataset.t); ui(); syncFov(); for (const b of document.querySelectorAll('#langs .pill')) b.classList.toggle('on', b.dataset.l === getLang()); hintEl.textContent = PC ? t('hint_pc') : t('hint_touch'); }
+function texts() { for (const el of document.querySelectorAll('[data-t]')) el.textContent = t(el.dataset.t); ui(); syncFov(); goText(); if (M.panel === 'boat') fillBoats(); if (M.panel === 'help') fillHelp(); for (const b of document.querySelectorAll('#langs .pill')) b.classList.toggle('on', b.dataset.l === getLang()); hintEl.textContent = PC ? t('hint_pc') : t('hint_touch'); }
 for (const b of document.querySelectorAll('#langs .pill')) b.addEventListener('pointerdown', (e) => { e.preventDefault(); setLang(b.dataset.l); texts(); });
 if (!document.fullscreenEnabled) $('fsBtn').style.display = 'none';
 $('fsBtn').addEventListener('pointerdown', (e) => { e.preventDefault(); try { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen().then(() => { try { screen.orientation.unlock(); } catch (x) { /* egal */ } }).catch(() => {}); } catch (x) { /* egal */ } });
 let resetArm = 0; $('resetBtn').addEventListener('pointerdown', (e) => { e.preventDefault(); if (resetArm && performance.now() - resetArm < 4000) { try { localStorage.removeItem(SAVE_KEY); } catch (x) { /* egal */ } noSave = true; location.reload(); } else { resetArm = performance.now(); $('resetBtn').textContent = t('reset_sure'); setTimeout(() => { $('resetBtn').textContent = t('reset'); }, 4000); } });
-function syncFov() { const r = $('fovR'), v = V.mode === 'in' ? FOV.in : FOV.out; r.value = v; $('fovV').textContent = Math.round(fovFor(V.mode)) + '°'; $('fovL').textContent = V.mode === 'in' ? t('fov_in') : t('fov_out'); }
-$('fovR').addEventListener('input', (e) => { const v = +e.target.value; if (V.mode === 'in') FOV.in = v; else FOV.out = v; try { localStorage.setItem('tiefenlicht.fov', JSON.stringify(FOV)); } catch (x) { /* egal */ } resize(); syncFov(); });
+function syncFov() { $('fovO').value = FOV.out; $('fovI').value = FOV.in; $('fovOV').textContent = Math.round(fovFor('out')) + '°'; $('fovIV').textContent = Math.round(fovFor('in')) + '°'; }
+for (const [id, k] of [['fovO', 'out'], ['fovI', 'in']]) $(id).addEventListener('input', (e) => { FOV[k] = +e.target.value; try { localStorage.setItem('tiefenlicht.fov', JSON.stringify(FOV)); } catch (x) { /* egal */ } resize(); syncFov(); });
 modeEl.addEventListener('pointerdown', (e) => { e.preventDefault(); setMode(V.mode === 'in' ? 'out' : 'in'); });
 $('tableClose').addEventListener('pointerdown', (e) => { e.preventDefault(); setSt('walk'); });
 $('tableClear').addEventListener('pointerdown', (e) => { e.preventDefault(); nav.course = null; });
@@ -310,9 +321,10 @@ function cabinStep(dt) {
   else if (frames % 6 === 0) { table.draw(cabin.scopeCtx, 256); cabin.scopeTex.needsUpdate = true; }
 }
 window.addEventListener('keydown', (e) => { if (e.repeat) return;
+  if (M.open) { if (e.code === 'Escape' && performance.now() - escT > 350) { if (M.panel !== 'main') showPanel('main'); else if (started) closeMenu(); } else if (e.code === 'Enter' && M.panel === 'main') goBtn(); return; }
   if (e.code === 'KeyC') setMode(V.mode === 'in' ? 'out' : 'in'); if (e.code === 'KeyF') actEl.dispatchEvent(new Event('pointerdown'));
   if (e.code === 'KeyR' && started) ping(); if (e.code === 'KeyL' && started) { if ($('log').classList.contains('open')) $('log').classList.remove('open'); else openLog(); }
-  if (e.code === 'Escape') { $('log').classList.remove('open'); $('opts').classList.remove('open'); if (V.st === 'table') setSt('walk'); } });
+  if (e.code === 'Escape') { if ($('log').classList.contains('open')) $('log').classList.remove('open'); else if (V.st === 'table') setSt('walk'); else if (started) { escT = performance.now(); openMenu(); } } });
 
 // ---------- Schleife ----------
 let last = performance.now(), fpsT = 0, fpsN = 0, slowT = 0, hintT = 0;
@@ -320,17 +332,24 @@ const fpsEl = $('fps'), depthEl = $('depth'), echoEl = $('echo'), noteEl = $('no
 function frame(now) {
   requestAnimationFrame(frame);
   const raw = (now - last) / 1000, dt = Math.min(0.05, Math.max(0.001, raw)); last = now;
-  U.uTime.value += dt; frames++; if (started) playTime += dt;
-  if (started) { drive(dt); props(dt); sonarStep(dt); if (frames % 2 === 0 && (V.mode === 'out' || V.st === 'seat')) sonarDraw(); }
+  const run = !(started && M.open), showOut = M.open && M.panel === 'boat';
+  if (run) U.uTime.value += dt; frames++; if (started && run) playTime += dt;
+  if (showOut) { M.orb += dt * 0.3; C.oy += wrapPi(M.orb - C.oy) * (1 - Math.exp(-2.5 * dt)); C.op = damp(C.op, -0.1, 2, dt); C.idle = 0; }
+  if (started && run) { drive(dt); props(dt); sonarStep(dt); if (frames % 2 === 0 && (V.mode === 'out' || V.st === 'seat')) sonarDraw(); }
   else { boat.group.position.set(S.x, S.y, S.z); boat.group.rotation.set(0, S.h, 0); boat.group.updateMatrixWorld(true); U.uSubPos.value.set(S.x, S.y, S.z); U.uLampPos.value.copy(boat.lampLocal).applyMatrix4(boat.group.matrixWorld); U.uWarmPos.value.copy(boat.warmLocal).applyMatrix4(boat.group.matrixWorld); U.uLampDir.value.set(0, -0.1, 1).normalize().transformDirection(boat.group.matrixWorld); }
-  world.update(S.x, S.z, started ? 1 : 0); if (V.mode === 'in') cabinStep(dt); else cameraStep(dt); if (window.__cam) { camera.position.set(...window.__cam[0]); camera.lookAt(...window.__cam[1]); } life.update(dt, S, pxScale, world.glows); fauna.update(dt, S, U.uTime.value);
+  if (showOut) { const w = window.innerWidth, h = window.innerHeight, ch = $('menu').querySelector('.card').offsetHeight + 14; camera.setViewOffset(w, h, 0, Math.min(h * 0.4, ch * 0.5 + h * 0.1), w, h); } else if (camera.view && camera.view.enabled) camera.clearViewOffset();   // Boot über der Karte zeigen
+  if (run || showOut) { world.update(S.x, S.z, started ? 1 : 0); if (V.mode === 'in' && !showOut) cabinStep(dt); else cameraStep(dt); }
+  if (window.__cam) { camera.position.set(...window.__cam[0]); camera.lookAt(...window.__cam[1]); }
+  if (run) { life.update(dt, S, pxScale, world.glows); fauna.update(dt, S, U.uTime.value); }
   if (frames % 24 === 0) { let best = null; for (const m of marks) { const d = Math.hypot(m.x - S.x, m.z - S.z); if (!best || d < best) best = d; } if (nav.course) { const d = Math.hypot(nav.course.x - S.x, nav.course.z - S.z); if (d < 28) nav.course = null; else best = -d; } echoEl.className = best < 0 ? 'kurs' : ''; echoEl.textContent = best ? (best < 0 ? t('course') + ' ' : t('echo') + ' ') + String(Math.round(Math.abs(best) / 5) * 5).padStart(3, '0') + ' m' : '';
     const al = actLabel(), actL = $('actL'); if (actL.textContent !== al) { actL.textContent = al; actEl.style.display = al ? 'block' : 'none'; } }
-  renderer.info.reset(); if (V.mode === 'in') post.render(scene, camera, cabinScene, camIn); else post.render(scene, camera);
+  const bT = M.open ? (M.panel === 'boat' ? 0 : M.panel === 'set' ? 0.55 : 1) : 0, b0 = post.blur; post.blur = Math.abs(b0 - bT) < 0.004 ? bT : damp(b0, bT, 6, dt);
+  if (run || showOut || M.dirty > 0 || post.blur !== b0) {   // ruht das Spiel hinter dem Menü, wird das Bild nur noch fertig weichgezeichnet und dann stehen gelassen
+    M.dirty--; renderer.info.reset(); if (V.mode === 'in' && !showOut) post.render(scene, camera, cabinScene, camIn); else post.render(scene, camera); }
   fpsT += raw; fpsN++;
   if (fpsT >= 1) {
     const fps = fpsN / fpsT; fpsEl.textContent = Math.round(fps) + ' fps'; depthEl.textContent = t('depth') + ' ' + String(Math.round(-S.y)).padStart(3, '0') + ' m';
-    if (adapt && started && fps < 50) { slowT++; if (slowT >= 2) { slowT = 0; if (PR > 1.15) { PR = Math.max(1.1, PR - 0.25); resize(); } else if (MSAA) { MSAA = 0; resize(); } } } else slowT = 0;
+    if (adapt && started && run && fps < 50) { slowT++; if (slowT >= 2) { slowT = 0; if (PR > 1.15) { PR = Math.max(1.1, PR - 0.25); resize(); } else if (MSAA) { MSAA = 0; resize(); } } } else slowT = 0;
     fpsT = 0; fpsN = 0;
   }
   if (tNote > 0) { tNote -= dt; noteEl.textContent = t('too_deep'); noteEl.style.opacity = tNote > 0.5 ? 1 : 0; } else if (noteT > 0) { noteT -= dt; noteEl.style.opacity = noteT > 0.6 ? 1 : 0; }
@@ -340,17 +359,59 @@ function start() {
   if (started) return; started = true; audio.start();
   // einmal kurz in die Kabine und wieder hinaus, unter dem Titelbild: danach ist der Bildaufbau in demselben Zustand wie nach einem Besuch
   V.mode = 'in'; applyMode(); cabinStep(0.016); renderer.info.reset(); post.render(scene, camera, cabinScene, camIn); V.mode = 'out'; applyMode(); cameraStep(0.016); post.render(scene, camera);
-  $('title').classList.add('gone'); $('ui').classList.add('on'); last = performance.now(); ui(); texts();
-  if (PC) { hintT = 0; hintEl.style.opacity = 0; grabEl.style.opacity = 1; } else { hintEl.style.opacity = 1; hintT = 9; }
+  M.open = false; $('menu').classList.remove('open'); showPanel('main'); $('ui').classList.add('on'); last = performance.now(); ui(); texts(); homeT = 2.5;
+  if (PC) { hintT = 0; hintEl.style.opacity = 0; grabEl.style.opacity = 0; lockMouse(); } else { hintEl.style.opacity = 1; hintT = 9; }
 }
-$('title').addEventListener('pointerup', start);
-$('title').classList.add('ready');
-window.__sub = { save, load, texts, setLang, renderer, fauna, S, C, I, U, V, nav, setMode, setSt, table, cabin, tea, LOG, ACT, get target() { return target; }, start, ping, world, life, poisNear, floorH, get frames() { return frames; }, tp(x, y, z, h) { world.update(x, z, Infinity); S.x = x; S.y = y; S.z = z; S.h = h; S.vx = S.vy = S.vz = 0; C.yaw = h; C.oy = C.op = 0; C.pos.set(x - Math.sin(h) * 11, y + 3, z - Math.cos(h) * 11); C.look.set(x, y + 1, z); }, marks, info: () => ({ tris: renderer.info.render.triangles, calls: renderer.info.render.calls, PR, MSAA, chunks: world.chunks.size, near: world.near.length, glows: world.glows.length }) };
+// ---------- Menü ----------
+const PANELS = { main: 'mMain', boat: 'pBoat', set: 'pSet', help: 'pHelp' };
+function boatVis() { const v = V.mode !== 'in' || (M.open && M.panel === 'boat'); for (const o of boat.outer) o.visible = v; }
+function showPanel(p) {
+  const was = M.panel; M.panel = p; M.dirty = 60;
+  for (const k in PANELS) $(PANELS[k]).classList.toggle('show', k === p);
+  $('menu').classList.toggle('low', p === 'boat'); $('menu').classList.toggle('wide', p === 'help');
+  if (p === 'boat') { M.orb = 2.3; if (V.mode === 'in') { C.yaw = S.h; C.oy = C.op = 0; C.dist = 10; C.pos.set(S.x - Math.sin(S.h) * 10, S.y + 3, S.z - Math.cos(S.h) * 10); C.look.set(S.x, S.y + 1, S.z); } fillBoats(); }
+  else if (was === 'boat') homeT = 3;
+  if (p === 'help') fillHelp(); if (p === 'set') syncFov();
+  boatVis();
+}
+function goText() { $('mGo').textContent = started ? t('m_resume') : resumed ? t('m_continue') : t('m_dive'); $('mFoot').textContent = PC ? t('m_foot_pc') : ''; }
+function openMenu() {
+  if (M.open || !started) return; M.open = true; unlock();
+  I.jx = I.jy = I.up = I.down = 0; I.joyId = I.lookId = null; joy.style.opacity = 0; knob.style.transform = ''; for (const k in I.keys) I.keys[k] = 0; for (const b of [$('up'), $('down')]) b.classList.remove('on');
+  $('log').classList.remove('open'); if (V.st === 'table') setSt('walk');
+  showPanel('main'); goText(); $('menu').classList.add('open'); grabEl.style.opacity = 0; audio.suspend(); ui();
+}
+function closeMenu() {
+  if (!started) { start(); return; }
+  M.open = false; showPanel('main'); $('menu').classList.remove('open'); boatVis(); audio.resume(); ui(); last = performance.now(); lockMouse();
+}
+function goBtn() { if (!$('menu').classList.contains('ready')) return; closeMenu(); }
+function fillBoats() {
+  const box = $('boats'); box.innerHTML = '';
+  BOATS.forEach((b, i) => { const d = document.createElement('div'); d.className = 'boatCard' + (i === boatKind ? ' on' : '');
+    const sw = document.createElement('span'); sw.className = 'sw'; sw.style.background = `linear-gradient(135deg, ${b.swatch[0]} 56%, ${b.swatch[1]} 56%)`;
+    const n = document.createElement('span'); n.className = 'bn'; n.textContent = t('boat_' + b.id); const ds = document.createElement('span'); ds.className = 'bd'; ds.textContent = t('boatd_' + b.id);
+    d.appendChild(sw); d.appendChild(n); d.appendChild(ds); d.addEventListener('pointerdown', (e) => { e.preventDefault(); setBoat(i); fillBoats(); }); box.appendChild(d); });
+}
+function setBoat(i) {
+  if (i === boatKind) return; boatKind = i; try { localStorage.setItem('tiefenlicht.boat', String(i)); } catch (x) { /* egal */ }
+  boat.dispose(); boat = createSub(scene, i); boatVis();
+  boat.group.position.set(S.x, S.y, S.z); boat.group.rotation.set(S.pitch, S.h, S.roll); boat.group.updateMatrixWorld(true); M.dirty = 60;
+}
+function fillHelp() {
+  const box = $('helpText'); box.innerHTML = '';
+  for (const [h, tx] of t('help')) { const a = document.createElement('h4'); a.textContent = h; const p = document.createElement('div'); p.textContent = tx === '*' ? t(PC ? 'help_ctl_pc' : 'help_ctl_touch') : tx; box.appendChild(a); box.appendChild(p); }
+}
+$('mGo').addEventListener('pointerup', (e) => { e.preventDefault(); goBtn(); });
+for (const [id, p] of [['mBoat', 'boat'], ['mSet', 'set'], ['mHelp', 'help']]) $(id).addEventListener('pointerdown', (e) => { e.preventDefault(); showPanel(p); });
+for (const b of document.querySelectorAll('.mBack')) b.addEventListener('pointerdown', (e) => { e.preventDefault(); showPanel('main'); });
+$('menu').classList.add('ready');
+window.__sub = { M, openMenu, closeMenu, showPanel, setBoat, post, get boat() { return boat; }, save, load, texts, setLang, renderer, fauna, S, C, I, U, V, nav, setMode, setSt, table, cabin, tea, LOG, ACT, get target() { return target; }, start, ping, world, life, poisNear, floorH, get frames() { return frames; }, tp(x, y, z, h) { world.update(x, z, Infinity); S.x = x; S.y = y; S.z = z; S.h = h; S.vx = S.vy = S.vz = 0; C.yaw = h; C.oy = C.op = 0; C.pos.set(x - Math.sin(h) * 11, y + 3, z - Math.cos(h) * 11); C.look.set(x, y + 1, z); }, marks, info: () => ({ tris: renderer.info.render.triangles, calls: renderer.info.render.calls, PR, MSAA, chunks: world.chunks.size, near: world.near.length, glows: world.glows.length }) };
 // ---------- Entwicklermenü (unter ⚙, Passwort) ----------
 const DEV_PW = 'Entwicklung', devEl = $('dev'), pw = $('devPw');
 let devOn = false; try { devOn = localStorage.getItem('tiefenlicht.dev') === '1'; } catch (e) { /* egal */ }
-$('devBtn').addEventListener('pointerdown', (e) => { e.preventDefault(); if (devOn) { devEl.classList.toggle('open'); buildDev(); } else { pw.style.display = pw.style.display === 'inline-block' ? 'none' : 'inline-block'; pw.focus(); } });
-pw.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') { if (pw.value === DEV_PW) { devOn = true; try { localStorage.setItem('tiefenlicht.dev', '1'); } catch (x) { /* egal */ } pw.style.display = 'none'; pw.value = ''; devEl.classList.add('open'); buildDev(); } else { pw.value = ''; pw.placeholder = '✗'; } } });
+$('devBtn').addEventListener('pointerdown', (e) => { e.preventDefault(); if (devOn) { devEl.classList.add('open'); buildDev(); closeMenu(); } else { pw.style.display = pw.style.display === 'inline-block' ? 'none' : 'inline-block'; pw.focus(); } });
+pw.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') { if (pw.value === DEV_PW) { devOn = true; try { localStorage.setItem('tiefenlicht.dev', '1'); } catch (x) { /* egal */ } pw.style.display = 'none'; pw.value = ''; devEl.classList.add('open'); buildDev(); closeMenu(); } else { pw.value = ''; pw.placeholder = '✗'; } } });
 const DEV_NAMES = ['Laternenschlinger', 'Riesenbarsch', 'Gleiter', 'Hai'];
 function devTp(x, z, faceX, faceZ) { const h = faceX === undefined ? S.h : Math.atan2(faceX - x, faceZ - z), y = Math.min(-12, Math.max(floorH(x, z) + 6, faceX === undefined ? S.y : -40)); if (V.mode === 'in') { V.mode = 'out'; applyMode(); } tpTo(x, y, z, h); save(); }
 function tpTo(x, y, z, h) { world.update(x, z, Infinity); S.x = x; S.y = y; S.z = z; S.h = h; S.vx = S.vy = S.vz = 0; C.yaw = h; C.oy = C.op = 0; C.pos.set(x - Math.sin(h) * 14, y + 4, z - Math.cos(h) * 14); C.look.set(x, y + 1, z); }
@@ -385,6 +446,6 @@ function load() {
 }
 const resumed = load();
 setInterval(save, 5000); window.addEventListener('pagehide', save); document.addEventListener('visibilitychange', () => { if (document.hidden) save(); });
-$('go').dataset.t = resumed ? (PC ? 'go_cont_pc' : 'go_cont') : (PC ? 'go_pc' : 'go'); texts();
+texts();
 world.update(S.x, S.z, Infinity);
 requestAnimationFrame(frame);
