@@ -106,6 +106,50 @@ export function createAudio() {
     if (!whistle) { const o = ctx.createOscillator(), v = ctx.createOscillator(), vg = gain(18), g = gain(0), bf = filt('bandpass', 400, 0.8), bg = gain(0); o.frequency.value = 1750; v.frequency.value = 5.5; chain(v, vg, o.frequency); chain(o, g, DEST); chain(noise(0.6), bf, bg, DEST); o.start(); v.start(); whistle = { g, bg, o }; }
     whistle.g.gain.setTargetAtTime(b > 0.85 ? 0.006 + (b - 0.85) * 0.06 : 0, t, 0.4); whistle.o.frequency.setTargetAtTime(1500 + b * 300, t, 0.5); whistle.bg.gain.setTargetAtTime(b > 0.3 ? (b - 0.3) * 0.05 : 0, t, 0.5);
   };
+  // ---------- Walgesänge: ferne Rufe aus der Weite, live erzeugt; Gleittöne, Vibrato, Knurren, langer Hall ----------
+  // cfg.gap: mittlerer Abstand in Sekunden, cfg.vol: Lautstärke (1 = normal), cfg.on
+  A.whaleCfg = { gap: 38, vol: 1, on: true };
+  let whaleT = 12, wBus = null;
+  function whaleSetup() {
+    const il = Math.floor(ctx.sampleRate * 6.5), ir = ctx.createBuffer(2, il, ctx.sampleRate);
+    for (let c = 0; c < 2; c++) { const d = ir.getChannelData(c); let lp = 0; for (let i = 0; i < il; i++) { lp = lp * 0.8 + (Math.random() * 2 - 1) * 0.2; d[i] = lp * Math.pow(1 - i / il, 1.8) * (i < 2400 ? i / 2400 : 1); } }
+    const cv = ctx.createConvolver(); cv.buffer = ir; const wet = gain(1.6), dry = gain(0.32), lp = filt('lowpass', 1900, 0.5), out = gain(1);
+    chain(out, lp); lp.connect(dry); lp.connect(cv); chain(cv, wet, master); dry.connect(master); wBus = out;
+  }
+  // ein Laut: Grundton mit Obertönen, Tonhöhe folgt einer Kurve aus [Zeit, Hz]-Punkten
+  function wUnit(t0, curve, vol, dest, opt = {}) {
+    const dur = curve[curve.length - 1][0], o = ctx.createOscillator(), o2 = ctx.createOscillator(), o3 = ctx.createOscillator(), g = gain(0), g2 = gain(opt.h2 === undefined ? 0.32 : opt.h2), g3 = gain(opt.h3 === undefined ? 0.1 : opt.h3);
+    o.type = 'sine'; o2.type = 'sine'; o3.type = 'triangle';
+    o.frequency.setValueAtTime(curve[0][1], t0); o2.frequency.setValueAtTime(curve[0][1] * 2.01, t0); o3.frequency.setValueAtTime(curve[0][1] * 3, t0);
+    for (const [t, f] of curve.slice(1)) { o.frequency.linearRampToValueAtTime(f, t0 + t); o2.frequency.linearRampToValueAtTime(f * 2.01, t0 + t); o3.frequency.linearRampToValueAtTime(f * 3, t0 + t); }
+    const vib = ctx.createOscillator(), vg = gain(opt.vib || 0); vib.frequency.value = opt.vibRate || 4.5; chain(vib, vg); vg.connect(o.detune); vg.connect(o2.detune); vg.connect(o3.detune);
+    const bp = filt('bandpass', opt.formant || 700, 0.6), mix = gain(1); o.connect(mix); chain(o2, g2, mix); chain(o3, g3, bp, mix);
+    let src = mix;
+    if (opt.growl) { const am = ctx.createOscillator(), ag = gain(0.5), amg = gain(0.5); am.frequency.value = opt.growl; chain(am, ag, amg.gain); mix.connect(amg); src = amg; am.start(t0); am.stop(t0 + dur + 0.2); }
+    const att = Math.min(opt.att || 0.35, dur * 0.4), rel = Math.min(opt.rel || 0.6, dur * 0.5);
+    g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(vol, t0 + att); g.gain.setValueAtTime(vol, t0 + dur - rel); g.gain.linearRampToValueAtTime(0, t0 + dur);
+    chain(src, g, dest); for (const n of [o, o2, o3, vib]) { n.start(t0); n.stop(t0 + dur + 0.1); }
+    return dur;
+  }
+  // Bausteine eines Gesangs; k verschiebt die Tonlage (jeder Wal klingt etwas anders)
+  const W = {
+    moan: (t, k, v, d) => wUnit(t, [[0, 150 * k], [0.9, 205 * k], [2.2, 215 * k], [3.4, 120 * k]], v, d, { vib: 18, vibRate: 3.8, att: 0.6, rel: 1.0, formant: 480 }),
+    whoop: (t, k, v, d) => wUnit(t, [[0, 95 * k], [0.55, 380 * k], [0.9, 360 * k]], v * 0.9, d, { att: 0.15, rel: 0.3, vib: 8, formant: 900 }),
+    cry: (t, k, v, d) => wUnit(t, [[0, 560 * k], [0.5, 760 * k], [1.6, 820 * k], [2.4, 520 * k]], v * 0.55, d, { vib: 30, vibRate: 5.5, att: 0.3, rel: 0.7, h2: 0.18, h3: 0.05, formant: 1400 }),
+    groan: (t, k, v, d) => wUnit(t, [[0, 70 * k], [1.2, 82 * k], [2.4, 58 * k]], v * 1.1, d, { growl: 22 + Math.random() * 12, att: 0.3, rel: 0.6, h2: 0.6, h3: 0.35, formant: 320 }),
+    chirps: (t, k, v, d) => { let x = 0; const n = 3 + Math.floor(Math.random() * 4); for (let i = 0; i < n; i++) { wUnit(t + x, [[0, 280 * k], [0.16, 640 * k], [0.2, 600 * k]], v * 0.5, d, { att: 0.03, rel: 0.08, h2: 0.2, formant: 1100 }); x += rnd(0.22, 0.34); } return x; },
+    fall: (t, k, v, d) => wUnit(t, [[0, 420 * k], [0.5, 440 * k], [3.0, 115 * k]], v * 0.8, d, { vib: 12, vibRate: 3.2, att: 0.4, rel: 0.9, formant: 650 }),
+  };
+  const WK = Object.keys(W);
+  /** ein Gesang: ein kurzes Motiv aus 2 bis 4 Lauten, oft einmal wiederholt; leise und dumpf, wenn der Wal weiter weg ist */
+  A.whale = (force) => {
+    if (!ctx || !master) return; if (!wBus) whaleSetup();
+    const t = ctx.currentTime + 0.1, far = force ? rnd(0.75, 1) : rnd(0.3, 1), k = rnd(0.82, 1.2), pan = rnd(-0.75, 0.75), vol = 0.07 * far * A.whaleCfg.vol;
+    const lp = filt('lowpass', 500 + far * 1300, 0.6), pn = ctx.createStereoPanner ? ctx.createStereoPanner() : gain(1); if (pn.pan) pn.pan.value = pan; chain(lp, pn, wBus);
+    const motif = []; const n = 2 + Math.floor(Math.random() * 3); for (let i = 0; i < n; i++) motif.push(WK[Math.floor(Math.random() * WK.length)]);
+    let x = 0; const reps = Math.random() < 0.55 ? 2 : 1;
+    for (let r = 0; r < reps; r++) for (const u of motif) { x += W[u](t + x, k * (r ? rnd(0.97, 1.03) : 1), vol, lp) + rnd(0.5, 1.8); }
+  };
   A.update = (dt, thrust, speed) => {
     if (!ctx || !eng) return; const t = ctx.currentTime;
     if (mus && mus.on && t > mus.next - 0.4) { chord(Math.max(mus.next, t + 0.05)); mus.next = Math.max(mus.next, t + 0.05) + 8; }
@@ -116,6 +160,7 @@ export function createAudio() {
     bubT -= dt * (0.5 + thrust * 2.5);
     if (bubT <= 0) { bubT = rnd(0.25, 1.3); const f = rnd(320, 760), n = 1 + Math.floor(Math.random() * 3); for (let i = 0; i < n; i++) tone('sine', f * (1 + i * 0.12), f * 2.1 * (1 + i * 0.12), 0.006, rnd(0.05, 0.09), rnd(0.006, 0.02), 0.25, i * rnd(0.05, 0.09)); }
     groanT -= dt;
+    if (A.whaleCfg.on) { whaleT -= dt; if (whaleT <= 0) { whaleT = A.whaleCfg.gap * rnd(0.5, 1.5); A.whale(); } }
     if (groanT <= 0) {
       groanT = rnd(20, 50);
       if (Math.random() < 0.6) { const f = rnd(48, 80); tone('sine', f, f * 0.72, 1.6, 4.5, 0.075, 0.7); tone('triangle', f * 1.5, f * 1.02, 2.0, 3.5, 0.02, 0.7, 0.3); }
