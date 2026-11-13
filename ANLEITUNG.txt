@@ -1,0 +1,24 @@
+TIEFENLICHT – so bekommst du das Spiel auf eine eigene Webseite (GitHub Pages, kostenlos)
+
+Einmalig einrichten
+1. Auf github.com anmelden (oder kostenlos registrieren).
+2. Oben rechts auf „+“ → „New repository“. Name z. B. tiefenlicht, „Public“ auswählen, „Create repository“.
+3. Auf der neuen, leeren Seite auf „uploading an existing file“ klicken.
+4. Den INHALT dieses Zip-Ordners hineinziehen: index.html, manifest.json, wood.jpg, die beiden icon-PNGs und den Ordner js
+   (index.html muss ganz oben liegen, nicht in einem Unterordner). Unten auf „Commit changes“.
+5. Im Repository auf „Settings“ → links „Pages“. Bei „Source“: „Deploy from a branch“, Branch „main“, Ordner „/ (root)“, „Save“.
+6. Nach ein bis zwei Minuten steht oben auf der Pages-Seite dein Link, etwa:  https://DEINNAME.github.io/tiefenlicht/
+
+Auf dem Handy wie eine App
+- Den Link in Chrome öffnen → Menü (⋮) → „Zum Startbildschirm hinzufügen“ bzw. „App installieren“.
+- Danach startet das Spiel vom Startbildschirm im Vollbild, ohne Browserleiste, im Hoch- und Querformat.
+
+Neue Version einspielen
+- Im Repository wieder „Add file“ → „Upload files“, die neuen Dateien und den js-Ordner hineinziehen (gleich benannte Dateien
+  werden ersetzt), „Commit changes“. Nach ein bis zwei Minuten ist sie unter demselben Link da.
+- Falls noch die alte Version erscheint: die Seite einmal neu laden bzw. die App kurz schließen und neu öffnen.
+- Spielstände bleiben erhalten: Sie liegen im Browser auf deinem Gerät, nicht in den Dateien.
+
+Am PC
+- Klick ins Bild fängt die Maus (umsehen), Esc gibt sie wieder frei.
+- WASD fahren/gehen, Leertaste/Shift auf und ab, R Ping, C Kabine, F benutzen, L Logbuch.
