@@ -228,6 +228,20 @@ export function createAudio() {
     let x = 0; const reps = Math.random() < 0.55 ? 2 : 1;
     for (let r = 0; r < reps; r++) for (const u of motif) { x += W[u](t + x, k * (r ? rnd(0.97, 1.03) : 1), vol, lp) + rnd(0.5, 1.8); }
   };
+  // ---------- Taucheranzug: Luft zischt leise durch den Schlauch, beim Ausatmen blubbert es aus dem Ventil, Schritte dumpf, Ventil faucht ----------
+  let suitHiss = null, valveG = null, suitOn = false;
+  A.setSuit = (on) => { suitOn = on; if (!ctx) return; const t = ctx.currentTime;
+    if (!suitHiss) { suitHiss = gain(0); chain(noise(1.15), filt('bandpass', 2300, 0.45), suitHiss, BUS.kabine); valveG = gain(0); chain(noise(1.7), filt('highpass', 1600, 0.6), valveG, BUS.kabine); }
+    suitHiss.gain.setTargetAtTime(on ? 0.007 : 0, t, 0.5); if (!on) valveG.gain.setTargetAtTime(0, t, 0.05);
+    outLP.frequency.setTargetAtTime(on ? 2400 : inside ? 1500 : 5200, t, 0.3); };
+  A.valve = (v) => { if (ctx && valveG && suitOn) valveG.gain.setTargetAtTime(v * 0.022, ctx.currentTime, 0.08); };
+  A.exhale = () => { if (!ctx || !suitOn) return; const t = ctx.currentTime, s = ctx.createBufferSource(); s.buffer = noiseBuf; const g = gain(0), f = filt('lowpass', 650, 0.6);
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.05, t + 0.35); g.gain.exponentialRampToValueAtTime(0.0008, t + 1.3); chain(s, f, g, BUS.kabine); s.start(t, Math.random() * 2); s.stop(t + 1.4);
+    const n = 9 + Math.floor(Math.random() * 6); for (let i = 0; i < n; i++) { const f0 = rnd(260, 620), w = 0.25 + i * rnd(0.05, 0.11); tone('sine', f0, f0 * rnd(1.8, 2.5), 0.005, rnd(0.04, 0.08), rnd(0.012, 0.03), 0.3, w, BUS.blasen); } };
+  A.step = (k = 1) => { if (!ctx || !suitOn) return; const t = ctx.currentTime, o = ctx.createOscillator(), g = gain(0); o.type = 'sine'; o.frequency.setValueAtTime(rnd(62, 75), t); o.frequency.exponentialRampToValueAtTime(34, t + 0.22);
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.09 * k, t + 0.012); g.gain.exponentialRampToValueAtTime(0.0005, t + 0.32); chain(o, g, BUS.kabine); o.start(t); o.stop(t + 0.35);
+    const s = ctx.createBufferSource(); s.buffer = noiseBuf; const g2 = gain(0), f = filt('lowpass', 420, 0.7); g2.gain.setValueAtTime(0.03 * k, t); g2.gain.exponentialRampToValueAtTime(0.0005, t + 0.4); chain(s, f, g2, BUS.kabine); s.start(t, Math.random() * 2); s.stop(t + 0.45); };
+  A.hatch = () => { if (!ctx) return; click(1.1); const t = ctx.currentTime; tone('sine', 140, 90, 0.01, 0.5, 0.05, 0.4, 0.05, BUS.kabine); tone('triangle', 420, 380, 0.005, 0.25, 0.015, 0.6, 0.12, BUS.kabine); for (let i = 0; i < 14; i++) { const f0 = rnd(220, 700); tone('sine', f0, f0 * 2, 0.005, 0.07, 0.02, 0.4, 0.2 + i * 0.06, BUS.blasen); } };
   A.update = (dt, thrust, speed) => {
     if (!ctx || !eng) return; const t = ctx.currentTime;
     if (mus && mus.on && t > mus.next - 0.4) { const t0 = Math.max(mus.next, t + 0.05); mus.next = t0 + chord(t0); }
