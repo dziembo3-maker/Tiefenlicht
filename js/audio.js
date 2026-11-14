@@ -6,7 +6,7 @@ export function createAudio() {
   /** Mischpult: Lautstärke je Klanggruppe (1 = normal). Rauschen bewusst leise, Wasser und Blasen kräftiger */
   A.mix = { rausch: 0.25, wasser: 2.2, blasen: 2.4, motor: 1, grollen: 1, wale: 1, klicks: 1, sonar: 1, kassette: 1, kabine: 1 };
   const BUS = {}, ESEND = new Map(), MIX_D = Object.assign({}, A.mix);   // ESEND: Anteil einer Gruppe am langen Raumecho; folgt dem Regler, beim Grundwert wie früher
-  A.setMix = (k, v) => { A.mix[k] = v; if (!BUS[k]) return; const t = BUS[k].context.currentTime; BUS[k].gain.setTargetAtTime(v, t, 0.05); const e = ESEND.get(BUS[k]); if (e) e.gain.setTargetAtTime(v / MIX_D[k], t, 0.05); };
+  A.setMix = (k, v) => { A.mix[k] = v; if (!BUS[k]) return; const t = BUS[k].context.currentTime; BUS[k].gain.setTargetAtTime(k === 'wale' ? waleGain() : v, t, 0.05); const e = ESEND.get(BUS[k]); if (e) e.gain.setTargetAtTime(v / MIX_D[k], t, 0.05); };
   // Handys: kürzerer Hall, weil Faltungshall dort am meisten Rechenzeit kostet
   const LOW = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
   let cvP = null, cvW = null, cvPin = null, cvWin = null, hydroHiss = null; A.hall = true;
@@ -27,7 +27,7 @@ export function createAudio() {
     const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -14; comp.knee.value = 10; comp.ratio.value = 6; comp.attack.value = 0.005; comp.release.value = 0.25; comp.connect(ctx.destination); DEST = comp;
     const out = filt('lowpass', 5200, 0.5); out.connect(DEST); outLP = out;
     master = gain(0); master.connect(out); master.gain.setTargetAtTime(0.9, ctx.currentTime, 1.2);
-    for (const k of ['rausch', 'wasser', 'blasen', 'motor', 'grollen', 'wale']) { BUS[k] = gain(A.mix[k]); BUS[k].connect(master); }
+    for (const k of ['rausch', 'wasser', 'blasen', 'motor', 'grollen', 'wale']) { BUS[k] = gain(k === 'wale' ? waleGain() : A.mix[k]); BUS[k].connect(master); }
     for (const k of ['kassette', 'kabine', 'klicks']) { BUS[k] = gain(A.mix[k]); BUS[k].connect(DEST); }
     const len = ctx.sampleRate * 3; noiseBuf = ctx.createBuffer(1, len, ctx.sampleRate);
     const d = noiseBuf.getChannelData(0); let b = 0; for (let i = 0; i < len; i++) { b = b * 0.985 + (Math.random() * 2 - 1) * 0.12; d[i] = b * 3 + (Math.random() * 2 - 1) * 0.25; }
@@ -97,8 +97,11 @@ export function createAudio() {
     H.bear = bearWorld; if (open === H.open) return; H.open = open; if (!ctx) return; const t = ctx.currentTime;
     hydroHiss.gain.setTargetAtTime(open ? 0.05 : 0, t, 0.25); master.gain.setTargetAtTime(A.muted ? 0 : open ? 0.3 : 0.9, t, 0.3);
     for (const k of ['kassette', 'kabine']) BUS[k].gain.setTargetAtTime(A.mix[k] * (open ? 0.35 : 1), t, 0.3);
-    BUS.wale.gain.setTargetAtTime(A.mix.wale * (open ? 0.12 : 1), t, 0.3);   // Gesänge treten weit zurück, damit man die Klicks hört
+    BUS.wale.gain.setTargetAtTime(waleGain(), t, 0.3);   // Gesänge treten weit zurück, damit man die Klicks hört
   };
+  /** Walgesänge zusätzlich dämpfen (die Pottwalmission: halb so laut) */
+  let songK = 1; const waleGain = () => A.mix.wale * songK * (H.open ? 0.12 : 1);
+  A.setSongs = (k) => { if (k === songK) return; songK = k; if (ctx && BUS.wale) BUS.wale.gain.setTargetAtTime(waleGain(), ctx.currentTime, 0.8); };
   A.hydroLevel = () => H.lvl;
   const wrapA = (a) => Math.atan2(Math.sin(a), Math.cos(a));
   /** wie stark eine Quelle gerade ankommt: ohne Horcher nur nah (bis ~140 m), mit Horcher weit, aber nur im Hörkegel von etwa ±20° */
@@ -119,7 +122,7 @@ export function createAudio() {
   function codaTick(src, t) {
     if (src.next === undefined) src.next = t + 1 + Math.random() * 3;
     if (t < src.next) return; const h = heard(src), pat = CODAS[Math.floor(Math.random() * CODAS.length)]; let x = 0;
-    src.next = t + 2.5 + Math.random() * 4.5; if (h.g < 0.004) return;
+    src.next = t + (src.gap ? src.gap[0] + Math.random() * (src.gap[1] - src.gap[0]) : 2.5 + Math.random() * 4.5); if (h.g < 0.004) return; h.g *= src.loud || 1;
     const lp = H.open ? 7000 : inside ? 1500 : Math.max(900, 5000 - h.d * 25);
     for (let i = 0; i <= pat.length; i++) { const tt = t + 0.05 + x, k = 0.85 + Math.random() * 0.3; click1(tt, h.g * 0.5 * k, h.pan, lp); H.pend.push([tt, h.far * k]); if (i < pat.length) x += pat[i] * (0.9 + Math.random() * 0.2); }
   }
