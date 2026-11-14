@@ -72,3 +72,10 @@ export function floorN(x, z, out) {
   out.x = -dx / l; out.y = 2 * e / l; out.z = -dz / l; return out;
 }
 export const steep = (x, z) => Math.abs(floorH(x + 1.2, z) - floorH(x - 1.2, z)) + Math.abs(floorH(x, z + 1.2) - floorH(x, z - 1.2));
+/** Höhe des gezeichneten Bodens: dieselben Dreiecke wie im Gelände-Gitter (Raster 1,6 m), damit Dinge genau aufliegen */
+export function meshH(x, z) {
+  const S = 1.6, gx = Math.floor(x / S), gz = Math.floor(z / S), u = x / S - gx, v = z / S - gz;
+  const a = floorH(gx * S, gz * S), b = floorH((gx + 1) * S, gz * S), c = floorH(gx * S, (gz + 1) * S), d = floorH((gx + 1) * S, (gz + 1) * S);
+  if (Math.abs(a - d) < Math.abs(b - c)) return u > v ? a + (b - a) * u + (d - b) * v : a + (c - a) * v + (d - c) * u;
+  return u + v < 1 ? a + (b - a) * u + (c - a) * v : d + (c - d) * (1 - u) + (b - d) * (1 - v);
+}

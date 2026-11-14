@@ -2,7 +2,7 @@
 // Eigenes Material: poröser Knochen mit Rissen, Flecken und Bewuchs; Gusseisen mit Rost, Laufspuren und Patina; Messing, Glas, Schlauch.
 import { T, rng, ico, noise, smooth, clamp } from './util.js';
 import { uni, COMMON } from './gfx.js';
-import { floorH, floorN } from './terrain.js';
+import { floorH, floorN, meshH } from './terrain.js';
 
 // ---------- kleiner Baukasten: Position, Normale, Verdeckung (aO) und Art der Fläche (aTag) ----------
 // aTag: 0 Knochen, 1 Knochen mit Bewuchs, 2 Gusseisen, 3 Glas, 4 Messing, 5 Schlauch, 6 Kette
@@ -263,11 +263,25 @@ export function buildBell(x0, z0, yaw) {
   const tilt = 0.24, roll = 0.1 + Math.atan2(nT.x, nT.y) * 0.5;
   g.place(0, x0, fl - 0.35, z0, yaw, tilt, roll);
   const M = new T.Matrix4().makeRotationFromEuler(new T.Euler(tilt, yaw, roll, 'YXZ')).setPosition(x0, fl - 0.35, z0), w = (x, y, z) => new T.Vector3(x, y, z).applyMatrix4(M);
-  // Kette: von der Öse ein Stück nach oben, dann im Bogen in den Sand
+  // Kette: hängt durch die Öse, liegt über Schulter und Flanke der Glocke und läuft dann lose über den Grund aus.
+  // Ovale Glieder, abwechselnd um 90° gedreht und so eng gesetzt, dass jedes durch das nächste greift.
   {
-    const a = w(0, 3.5, 0), pts = []; let px = a.x, py = a.y, pz = a.z; const dir = rr(0, 6.3);
-    for (let i = 0; i < 60; i++) { const t = i / 59; px += Math.cos(dir + t * 1.8) * 0.13; pz += Math.sin(dir + t * 1.8) * 0.13; py = Math.max(floorH(px, pz) + 0.08, a.y + 0.35 * Math.sin(Math.min(1, t * 9) * Math.PI) - Math.max(0, t - 0.08) * 16); pts.push([px, py, pz]); }
-    for (let i = 0; i < pts.length - 1; i++) { const p = pts[i], q = pts[i + 1], s = g.c; g.ring(0, 0, 0, 0.075, 0.022, 5, 10, 6, i % 2 ? 'z' : 'y'); const yaw2 = Math.atan2(q[0] - p[0], q[2] - p[2]); g.place(s, (p[0] + q[0]) / 2, (p[1] + q[1]) / 2, (p[2] + q[2]) / 2, yaw2, 0, i % 2 ? 0 : 1.5707); }
+    const phi = 2.85, cp = Math.cos(phi), sp = Math.sin(phi), prof = [[0, 3.535], [0.14, 3.45], [0.27, 3.27], [0.36, 3.1]];
+    for (const y of [2.98, 2.86, 2.7, 2.5, 2.3, 2.0, 1.7, 1.4, 1.1, 0.8, 0.5, 0.3]) prof.push([rAtY(y) + 0.062, y + (y > 2.2 ? 0.035 : 0)]);
+    let path = []; for (const [r, y] of prof) { const q = w(cp * r, y, sp * r); if (path.length > 4 && q.y < meshH(q.x, q.z) + 0.06) break; path.push([q.x, q.y, q.z]); }
+    // am Grund weiter: von der Glocke weg, in weichen Bögen, immer knapp über dem Boden
+    { const l = path[path.length - 1], c0 = w(0, 0, 0); let h = Math.atan2(l[0] - c0.x, l[2] - c0.z), px = l[0], pz = l[2];
+      for (let i = 1; i <= 48; i++) { h += Math.sin(i * 0.31 + 1.0) * 0.11; px += Math.sin(h) * 0.1; pz += Math.cos(h) * 0.1; const gy = meshH(px, pz) + 0.058; path.push([px, i < 4 ? Math.max(gy, l[1] + (gy - l[1]) * (i / 4)) : gy, pz]); } }
+    for (let k = 0; k < 2; k++) { const q = [path[0]]; for (let i = 0; i < path.length - 1; i++) { const a2 = path[i], b2 = path[i + 1]; q.push([a2[0] * 0.75 + b2[0] * 0.25, a2[1] * 0.75 + b2[1] * 0.25, a2[2] * 0.75 + b2[2] * 0.25], [a2[0] * 0.25 + b2[0] * 0.75, a2[1] * 0.25 + b2[1] * 0.75, a2[2] * 0.25 + b2[2] * 0.75]); } q.push(path[path.length - 1]); path = q; }
+    for (const q of path) q[1] = Math.max(q[1], meshH(q[0], q[2]) + 0.058);
+    // gleichmäßig nach Bogenlänge abtasten: ein Glied je Teilung
+    const LA = 0.078, LB = 0.044, LR = 0.0155, PITCH = 2 * (LA - LR) - 0.004, cen = []; let acc = 0, need = 0;
+    for (let i = 0; i < path.length - 1; i++) { const a2 = path[i], b2 = path[i + 1], d = Math.hypot(b2[0] - a2[0], b2[1] - a2[1], b2[2] - a2[2]); while (need <= acc + d) { const u = (need - acc) / d; cen.push([a2[0] + (b2[0] - a2[0]) * u, a2[1] + (b2[1] - a2[1]) * u, a2[2] + (b2[2] - a2[2]) * u]); need += PITCH; } acc += d; }
+    const oval = []; for (let i = 0; i <= 6; i++) { const an = i / 6 * Math.PI; oval.push([Math.cos(an) * LB, 0, (LA - LB) + Math.sin(an) * LB, LR]); } for (let i = 0; i <= 6; i++) { const an = Math.PI + i / 6 * Math.PI; oval.push([Math.cos(an) * LB, 0, -(LA - LB) + Math.sin(an) * LB, LR]); } oval.push(oval[0].slice());
+    for (let i = 0; i < cen.length; i++) {
+      const p = cen[Math.max(0, i - 1)], q = cen[Math.min(cen.length - 1, i + 1)], c = cen[i], dx = q[0] - p[0], dy = q[1] - p[1], dz = q[2] - p[2], dl = Math.hypot(dx, dy, dz) || 1, s = g.c;
+      g.tube(oval, 5, 6, 1, [0, 1, 0], false); g.place(s, c[0], c[1], c[2], Math.atan2(dx, dz), -Math.asin(dy / dl), i % 2 ? 1.5708 : 0.12 * Math.sin(i * 1.7));
+    }
   }
   // Schlauch: vom Anschluss hinunter und in Windungen über den Grund, am Ende abgerissen
   {
@@ -279,6 +293,23 @@ export function buildBell(x0, z0, yaw) {
   g.occlude(0.9);
   const c = w(0, 1.2, 0);
   return { geo: g.build(), spheres: [{ x: c.x, y: c.y, z: c.z, r: 1.45 }, { x: c.x, y: c.y + 0.9, z: c.z, r: 1.0 }], top: w(0, 3.1, 0) };
+}
+
+// ---------- Messingdose des Kapitäns: verschraubter Zylinder mit Tragring, daneben ein Stab mit einer kleinen Lampe ----------
+export function buildCanister(x0, z0, yaw = 0) {
+  const g = new B();
+  g.lathe(0, 0, 0, [[0, 0.0], [0, 0.25], [0.04, 0.27], [0.12, 0.27], [0.14, 0.255], [0.78, 0.255], [0.8, 0.27], [0.9, 0.27], [0.92, 0.25], [0.94, 0.12], [0.95, 0.0]], 18, 4);
+  for (const y of [0.3, 0.62]) g.ring(0, y, 0, 0.258, 0.016, 5, 20, 4);
+  for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; g.blob(Math.cos(a) * 0.2, 0.955, Math.sin(a) * 0.2, 0.028, 0.02, 0.028, 0, 2, 0.05, i); }
+  { const s = g.c; g.ring(0, 0, 0, 0.09, 0.018, 6, 14, 2, 'z'); g.place(s, 0, 1.01, 0, 0.5, 0, 0); }
+  g.tube([[0.36, -0.2, 0.1, 0.022], [0.37, 0.6, 0.1, 0.02], [0.385, 1.32, 0.1, 0.016]], 6, 2, 1, [1, 0, 0]);
+  g.lathe(0.385, 1.3, 0.1, [[0, 0.03], [0.02, 0.05], [0.04, 0.05], [0.05, 0.0]], 8, 4);
+  g.blob(0.385, 1.42, 0.1, 0.06, 0.075, 0.06, 1, 3, 0.02, 2);
+  g.lathe(0.385, 1.48, 0.1, [[0, 0.045], [0.03, 0.02], [0.04, 0.0]], 8, 4);
+  const y = meshH(x0, z0) - 0.1; g.place(0, x0, y, z0, yaw, 0.1, -0.07);
+  const lamp = new T.Vector3(0.385, 1.42, 0.1).applyMatrix4(new T.Matrix4().makeRotationFromEuler(new T.Euler(0.1, yaw, -0.07, 'YXZ')).setPosition(x0, y, z0));
+  g.occlude(0.7);
+  return { geo: g.build(), lamp };
 }
 
 // ---------- Lichtsäule über der Schnee-Ebene: ein paar weiche, senkrechte Bahnen, die langsam atmen ----------
@@ -294,7 +325,7 @@ export function createShaft(scene, x, z, yTop, yBot, rad) {
         vec3 sd = normalize(cross(vec3(0.0, 1.0, 0.0), cameraPosition - p0)); vec3 p = p0 + sd * position.x * iP.w * (1.0 - position.y * 0.55);
         vQ = position.xy; vW = p; vI = iQ.z * (0.7 + 0.3 * sin(uTime * 0.21 + iQ.y * 2.0)); gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0); }`,
     fragmentShader: `precision highp float; uniform float uFogK; varying vec2 vQ; varying vec3 vW; varying float vI;
-      void main(){ float e = 1.0 - 4.0 * vQ.x * vQ.x, d = distance(vW, cameraPosition); float a = e * e * smoothstep(0.0, 0.25, vQ.y) * smoothstep(1.0, 0.55, vQ.y) * smoothstep(3.0, 18.0, d) * exp(-d * uFogK * 0.35);
+      void main(){ float e = 1.0 - 4.0 * vQ.x * vQ.x, d = distance(vW, cameraPosition); float a = e * e * smoothstep(0.0, 0.25, vQ.y) * (1.0 - smoothstep(0.55, 1.0, vQ.y)) * smoothstep(3.0, 18.0, d) * exp(-d * uFogK * 0.35);
         gl_FragColor = vec4(vec3(0.10, 0.32, 0.42) * a * vI * 0.55, 1.0); }` }));
   m.frustumCulled = false; m.renderOrder = 3; scene.add(m); return m;
 }
