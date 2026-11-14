@@ -215,6 +215,9 @@ export function createCabin() {
   { const c = [0.77, 0.772, -0.22]; tube(g, [[c[0], c[1], c[2]], [c[0] + 0.12, c[1] + 0.005, c[2] + 0.06]], 0.006, 0.004, 6, [0.15, 0.1, 0.06]); lathe(g, [0.72, 0.767, 0.16], 'y', [[0, 0.03], [0.05, 0.035], [0.06, 0.02], [0.06, 0]], 10, [0.08, 0.1, 0.14]); }   // Feder und Tintenfass
   // Logbuch: aufgeschlagen, Ledereinband
   { const c = [0.9, 0.77, -0.25]; box(g, [c[0], c[1] + 0.004, c[2]], [0.24, 0.008, 0.34], 0.15, [0.36, 0.12, 0.08]); for (const s of [-1, 1]) grid(g, 6, 2, (i, j) => { const u = i / 6, v = j / 2, a = 0.15, lx = -0.11 + v * 0.22, lz = s * (0.005 + u * 0.155), y = c[1] + 0.012 + Math.sin(u * PI) * 0.012 * (1 - u * 0.3); return [c[0] + lx * Math.cos(a) + lz * Math.sin(a), y, c[2] - lx * Math.sin(a) + lz * Math.cos(a)]; }, PAPER); }
+  // Kassettenregal: kleines Holzgestell hinten auf dem Schreibtisch, unter dem Funkgestell; sechs Fächer
+  box(g, [1.135, 0.772, 0.0], [0.1, 0.012, 0.3], 0, WT2, 0, 0, WOOD); box(g, [1.182, 0.83, 0.0], [0.008, 0.125, 0.3], 0, WT3, 0, 0, WOOD);
+  for (const z of [-0.146, 0.146]) box(g, [1.135, 0.83, z], [0.1, 0.125, 0.012], 0, WT1, 0, 0, WOOD); tube(g, [[1.086, 0.782, -0.146], [1.086, 0.782, 0.146]], 0.005, 0.005, 4, BRASS, 0, MET);
   { const y0 = 1.02, y1 = 1.66, xw = wallX(y1, 0.02), xf = 1.06, yc = (y0 + y1) / 2, F = (y, z, d = 0) => [xf - 0.01 - d, y, z];
     // Gehäuse aus Brettern, dunkelgrün lackierte Frontplatte mit Messingrahmen und Schrauben
     box(g, [(xw + xf) / 2 + 0.04, yc, 0.14], [xw - xf + 0.08, y1 - y0, 0.96], 0, WT2, 0, 0, WOOD);
@@ -307,6 +310,11 @@ export function createCabin() {
   { const q = new CGeo(); for (const s of [-1, 1]) box(q, [0.32 + s * 0.03, 0.84, 1.2], [0.012, 0.06, 0.14], 0, BRASS, 0, 0, MET); lathe(q, [0.32, 0.84, 1.2], 'x', [[-0.03, 0.02], [0.03, 0.02]], 8, IRON, 0, MET); box(q, [0.32, 0.835, 1.2], [0.05, 0.012, 0.16], 0, [0.1, 0.1, 0.1]); const m = new T.Mesh(withAO(q.build()), mat); m.frustumCulled = false; inner.add(m); }
   const reels = [-0.035, 0.075].map((z) => part((q) => { disc(q, [0, 0, 0], [-1, 0, 0], 0.024, [0.75, 0.7, 0.6], 0, 12); for (let k = 0; k < 3; k++) { const a = k * 2.094; box(q, [-0.002, Math.cos(a) * 0.016, Math.sin(a) * 0.016], [0.004, 0.006, 0.022], -0, [0.1, 0.1, 0.1], 0, a); } }, [1.06 - 0.06, 1.22, z]));
   const tapeLed = part((q) => disc(q, [0, 0, 0], [-1, 0, 0], 0.009, [1.0, 0.3, 0.15], 1.6, 8), [1.06 - 0.055, 1.14, 0.2]); tapeLed.visible = false;
+  // Kassetten im Regal (nur die, die man besitzt und die nicht gerade im Deck liegen) und die lose Logbuchseite des Kapitäns
+  const CASZ = (k) => -0.105 + k * 0.042, CASC = [[0.5, 0.17, 0.12], [0.16, 0.36, 0.36], [0.62, 0.68, 0.74], [0.5, 0.4, 0.16], [0.3, 0.2, 0.42], [0.2, 0.3, 0.16]];
+  const cass = CASC.map((c, k) => { const p = part((q) => { box(q, [0, 0, 0], [0.068, 0.104, 0.027], 0, c); box(q, [-0.0345, 0.004, 0], [0.002, 0.074, 0.021], 0, PAPER); box(q, [-0.0358, 0.026, 0], [0.002, 0.012, 0.022], 0, sh(c, 1.5)); for (let i = 0; i < 3; i++) box(q, [-0.0358, -0.004 - i * 0.012, 0], [0.002, 0.002, 0.014], 0, [0.25, 0.18, 0.12]); }, [1.132, 0.83, CASZ(k)]); p.rotation.x = k % 3 === 1 ? 0.05 : k % 3 === 2 ? -0.04 : 0; p.visible = false; return p; });
+  const page = part((q) => { const a = 0.25, ca = Math.cos(a), sa = Math.sin(a), at = (lx, lz) => [lx * ca + lz * sa, 0.0048, -lx * sa + lz * ca]; box(q, [0, 0.002, 0], [0.2, 0.004, 0.275], a, [0.88, 0.79, 0.58]);
+    for (let i = 0; i < 9; i++) box(q, at(i === 8 ? -0.03 : 0, -0.105 + i * 0.022), [i === 8 ? 0.09 : 0.155 - (i % 3) * 0.012, 0.0008, 0.0035], a, [0.24, 0.16, 0.1]); disc(q, at(0.062, 0.108), [0, 1, 0], 0.014, [0.55, 0.1, 0.08], 0, 10); }, [0.83, 0.7725, 0.04]);
   const cupGeo = (q) => { lathe(q, [0, 0, 0], 'y', [[0, 0.036], [0.005, 0.04], [0.07, 0.045], [0.08, 0.044], [0.08, 0.038], [0.012, 0.034], [0.012, 0]], 12, [0.82, 0.8, 0.74]); disc(q, [0, 0.07, 0], [0, 1, 0], 0.038, [0.38, 0.19, 0.08], 0, 12); ring(q, [0.052, 0.04, 0], [0, 0, 1], 0.018, 0.006, 10, 4, [0.82, 0.8, 0.74]); };
   const cupDesk = part(cupGeo, [0.74, 0.769, 0.32]), cupPult = part(cupGeo, [0.66, 0.795, 1.02]); cupDesk.visible = cupPult.visible = false;
   const kettle = part((q) => { lathe(q, [0, 0, 0], 'y', [[0, 0.085], [0.02, 0.115], [0.1, 0.118], [0.14, 0.085], [0.155, 0.04], [0.16, 0.035], [0.17, 0.02], [0.175, 0]], 14, COPPER, 0, MET); tube(q, [[0.1, 0.06, 0], [0.18, 0.12, 0], [0.22, 0.17, 0]], 0.024, 0.01, 8, COPPER, 0, MET); const hp = []; for (let k = 0; k <= 10; k++) { const a = k / 10 * PI; hp.push([0, 0.15 + Math.sin(a) * 0.12, -0.08 + k * 0.016]); } tube(q, hp, 0.01, 0.01, 6, IRON, 0, MET); soft(q, [0, 0.27, 0], [0.04, 0.03, 0.12], 3, [0.12, 0.08, 0.06], 1, 0); }, [-0.82, 0.76, 0.22]);
@@ -336,18 +344,20 @@ export function createCabin() {
   const head = new T.Object3D(); head.rotation.order = 'YXZ'; group.add(head);
 
   // Stellen, an denen man etwas tun kann (Kabinenkoordinaten)
-  const TG = { seat: [0, 0.75, 0.72], table: [0.9, 1.02, -1.42], kettle: [-0.82, 0.92, 0.22], stove: [-0.6, 0.42, 0.25], cupDesk: [0.74, 0.82, 0.32], cupPult: [0.66, 0.84, 1.02], deck: [1.0, 1.19, 0.05], light: [0.45, 1.3, ZA + 0.05], log: [0.9, 0.8, -0.25] };
+  const TG = { seat: [0, 0.75, 0.72], table: [0.9, 1.02, -1.42], kettle: [-0.82, 0.92, 0.22], stove: [-0.6, 0.42, 0.25], cupDesk: [0.74, 0.82, 0.32], cupPult: [0.66, 0.84, 1.02], deck: [1.0, 1.19, 0.05], light: [0.45, 1.3, ZA + 0.05], log: [0.9, 0.8, -0.25], page: [0.83, 0.79, 0.04] }; for (let k = 0; k < 6; k++) TG['cas' + k] = [1.09, 0.835, CASZ(k)];
+  const pglow = new T.Sprite(new T.SpriteMaterial({ map: gt, color: 0xffd9a0, transparent: true, opacity: 0, blending: T.AdditiveBlending, depthWrite: false })); pglow.position.set(0.83, 0.8, 0.04); pglow.scale.set(0.3, 0.3, 1); pglow.layers.set(1); inner.add(pglow);
   const C = { group, head, scopeCtx: scv.getContext('2d'), scopeTex: stex, uni: UC, TG, inner };
-  const st = { fire: 1, fireT: 1, lamp: 1, lampT: 1, boil: 0, cup: 'none', cupHeat: 0, tape: false, wheel: 0, lever: 0 };
+  const st = { fire: 1, fireT: 1, lamp: 1, lampT: 1, boil: 0, cup: 'none', cupHeat: 0, tape: false, wheel: 0, lever: 0, own: [true, false, false, false, false, false], tapeIn: 0, pageNew: false };
   C.state = st;
   C.toWorld = (k, out) => out.set(TG[k][0], TG[k][1], TG[k][2]).applyMatrix4(inner.matrixWorld);
-  C.highlight = (k) => { if (!k) { hint.material.opacity = Math.max(0, hint.material.opacity - 0.08); return; } hint.position.set(...TG[k]); const s = k === 'seat' || k === 'table' ? 0.32 : 0.16; hint.scale.set(s, s, 1); hint.material.opacity = 0.16 + 0.07 * Math.sin(U.uTime.value * 3); };
+  C.highlight = (k) => { if (!k) { hint.material.opacity = Math.max(0, hint.material.opacity - 0.08); return; } hint.position.set(...TG[k]); const s = k === 'seat' || k === 'table' ? 0.32 : k.startsWith('cas') ? 0.09 : 0.16; hint.scale.set(s, s, 1); hint.material.opacity = 0.16 + 0.07 * Math.sin(U.uTime.value * 3); };
   C.update = (dt, eyeLocal, winCol, pxScale) => {
     UC.uEye.value.copy(eyeLocal); UC.uWin.value.copy(winCol); dust.material.uniforms.uPx.value = pxScale;
     st.fire += (st.fireT - st.fire) * Math.min(1, dt * 0.8); st.lamp += (st.lampT - st.lamp) * Math.min(1, dt * 6); UC.uFire.value = st.fire; UC.uLamp.value = st.lamp;
     for (let i = 0; i < 3; i++) UC.uLC.value[i].copy(LC0[i]).multiplyScalar(st.lamp); UC.uLC.value[4].copy(LC0[4]).multiplyScalar(st.fire);
     wheel.quaternion.setFromUnitVectors(new T.Vector3(0, 0, -1), wn); wheel.rotateZ(st.wheel);
     lever.rotation.x = st.lever;
+    for (let k = 0; k < 6; k++) cass[k].visible = st.own[k] && st.tapeIn !== k; pglow.material.opacity = st.pageNew ? 0.1 + 0.07 * Math.sin(U.uTime.value * 2.2) : 0;
     if (st.tape) for (const r of reels) r.rotation.x += dt * 2.6; tapeLed.visible = st.tape;
     for (const s of steamK) { s.userData.t = (s.userData.t + dt * (0.22 + 0.25 * st.boil)) % 1; const t = s.userData.t; s.position.set(-0.6 + Math.sin(t * 5 + s.id) * 0.03 + t * 0.06, 0.95 + t * (0.4 + 0.4 * st.boil), 0.22 + Math.cos(t * 4 + s.id) * 0.03); const k = 0.06 + t * (0.2 + 0.2 * st.boil); s.scale.set(k, k, 1); s.material.opacity = Math.sin(t * PI) * (0.05 + 0.2 * st.boil); }
     const cp = st.cup === 'desk' ? cupDesk : st.cup === 'pult' ? cupPult : null; cupDesk.visible = st.cup === 'desk'; cupPult.visible = st.cup === 'pult';
