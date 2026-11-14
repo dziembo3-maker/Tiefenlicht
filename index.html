@@ -84,6 +84,17 @@
   #helpText h4 { margin: 14px 0 3px; font-weight: normal; font-style: italic; font-size: 14px; letter-spacing: 0.06em; color: rgba(255, 222, 170, 0.92); } #helpText h4:first-child { margin-top: 0; }
   body.menu #ui.on { opacity: 0; transition: opacity 0.3s; } body.menu #ui * { pointer-events: none !important; }
   #gear svg { width: 12px; height: 12px; fill: rgba(225, 245, 248, 0.85); vertical-align: -1px; }
+  #banner { position: fixed; left: 0; right: 0; top: 33%; text-align: center; color: #fff; text-shadow: 0 2px 18px rgba(0, 20, 35, 0.9), 0 0 3px rgba(0, 20, 35, 0.6); opacity: 0; transition: opacity 1.4s; pointer-events: none; }
+  #banner .b1 { display: block; font-size: 13px; letter-spacing: 0.34em; text-transform: uppercase; margin-left: 0.34em; color: rgba(255, 255, 255, 0.82); } #banner .b2 { display: block; margin-top: 9px; font-size: 26px; letter-spacing: 0.14em; font-style: italic; }
+  #logTabs { display: flex; gap: 10px; } #log.page #logTabs { display: none; } #logBtns { display: flex; gap: 12px; } #logGo { display: none; background: rgba(232, 184, 106, 0.32); border-color: rgba(255, 218, 160, 0.7); color: #fff4e2; } #log.page #logGo.show { display: block; }
+  #logGo.run { background: rgba(8, 40, 60, 0.4); border-color: rgba(190, 235, 240, 0.28); color: rgba(220, 242, 246, 0.75); }
+  .logP { white-space: pre-line; } .logSign { margin-top: 12px; text-align: right; font-style: italic; color: #6b4a26; } .logEntry.sep { padding-bottom: 14px; border-bottom: 1px solid rgba(90, 59, 28, 0.25); }
+  #misList { text-align: left; } .mis { padding: 10px 12px; margin-bottom: 8px; border-radius: 12px; border: 1.5px solid rgba(190, 235, 240, 0.2); background: rgba(8, 40, 60, 0.32); }
+  .mis .mn { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 14px; letter-spacing: 0.06em; color: #eef9fa; } .mis .ms2 { font: 10px ui-monospace, Menlo, Consolas, monospace; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(200, 232, 238, 0.6); white-space: nowrap; }
+  .mis .md { margin-top: 5px; font-size: 12px; line-height: 1.45; color: rgba(210, 236, 240, 0.72); } .mis.run { border-color: rgba(255, 215, 150, 0.7); background: rgba(232, 184, 106, 0.18); } .mis.run .ms2 { color: rgba(255, 222, 170, 0.95); }
+  .mis.done .mn { color: rgba(225, 243, 246, 0.8); } .mis.hid { opacity: 0.42; text-align: center; letter-spacing: 0.5em; padding: 7px 12px; font-size: 13px; }
+  #pSet hr { border: 0; border-top: 1px solid rgba(205, 242, 250, 0.16); margin: 4px 0 12px; }
+  @media (max-height: 480px) { .card { padding: 14px 22px 12px; } .card h1 { font-size: 24px; margin-bottom: 4px; } .card .sub { margin-bottom: 8px; } .mb { padding: 8px 0; margin-top: 7px; font-size: 14px; } .foot { margin-top: 8px; } }
   #err { position: fixed; left: 8px; bottom: 8px; right: 8px; font: 11px monospace; color: #ffb0a0; white-space: pre-wrap; z-index: 9; pointer-events: none; }
 </style>
 </head>
@@ -97,26 +108,31 @@
   <div id="hint"></div>
   <div id="grab" data-t="grab_mouse"></div>
   <div id="note"></div>
+  <div id="banner"><span class="b1"></span><span class="b2"></span></div>
   <div id="fps"></div>
   <div id="mode" class="pill"><span id="modeL"></span><kbd>C</kbd></div>
   <div id="gear" class="pill"><svg viewBox="0 0 12 12"><rect x="2" y="1.5" width="2.6" height="9" rx="0.8"/><rect x="7.4" y="1.5" width="2.6" height="9" rx="0.8"/></svg><kbd>Esc</kbd></div>
   <div id="dev"></div>
-  <div id="log"><div id="logText"></div><div id="logClose" class="pill"><span data-t="close"></span><kbd>L</kbd></div></div>
+  <div id="log"><div id="logTabs"><div class="pill mini" data-tab="own" data-t="log_own"></div><div class="pill mini" data-tab="cap" data-t="log_cap"></div></div><div id="logText"></div><div id="logBtns"><div id="logGo" class="pill"></div><div id="logClose" class="pill"><span data-t="close"></span><kbd>L</kbd></div></div></div>
   <div id="act" class="pill"><span id="actL"></span><kbd>F</kbd></div>
   <div id="table"><canvas id="tableCv" width="760" height="760"></canvas><div id="tableInfo"></div><div id="tableBtns"><div id="tableClear" class="pill" data-t="course_clear"></div><div id="tableClose" class="pill"><span data-t="back"></span><kbd>Esc</kbd></div></div></div>
 </div>
 <div id="fade"></div>
 <div id="menu" class="open"><div class="card">
   <div id="mMain" class="show"><h1>TIEFENLICHT</h1><p class="sub" data-t="title_sub"></p>
-    <div class="mBtns"><div id="mGo" class="mb primary">…</div><div id="mBoat" class="mb" data-t="m_boat"></div><div id="mSet" class="mb" data-t="m_settings"></div><div id="mHelp" class="mb" data-t="m_help"></div></div>
+    <div class="mBtns"><div id="mGo" class="mb primary">…</div><div id="mMis" class="mb" data-t="m_missions"></div><div id="mBoat" class="mb" data-t="m_boat"></div><div id="mSet" class="mb" data-t="m_settings"></div><div id="mHelp" class="mb" data-t="m_help"></div></div>
     <p id="mFoot" class="foot"></p></div>
   <div id="pBoat"><h2 data-t="m_boat"></h2><div id="boats"></div><p class="foot" data-t="boat_note"></p><div class="mb mBack small" data-t="back"></div></div>
   <div id="pSet"><h2 data-t="m_settings"></h2>
     <div class="optRow"><span data-t="fov_out"></span><span id="fovOV"></span></div><input id="fovO" class="rng" type="range" min="45" max="95" step="1">
     <div class="optRow"><span data-t="fov_in"></span><span id="fovIV"></span></div><input id="fovI" class="rng" type="range" min="45" max="95" step="1">
+    <hr><div class="optRow"><span data-t="wh_vol"></span><span id="whVV"></span></div><input id="whV" class="rng" type="range" min="0" max="2" step="0.05">
+    <div class="optRow"><span data-t="wh_gap"></span><span id="whGV"></span></div><input id="whG" class="rng" type="range" min="0" max="1" step="0.01">
+    <div class="optRow mid"><span data-t="wh_on"></span><span id="whOn" class="pill mini"></span></div><hr>
     <div class="optRow mid"><span data-t="lang"></span><span id="langs"><span class="pill mini" data-l="de">DE</span> <span class="pill mini" data-l="en">EN</span></span></div>
     <div class="optBtns"><div id="fsBtn" class="pill mini" data-t="fullscreen"></div><div id="resetBtn" class="pill mini" data-t="reset"></div><div id="devBtn" class="pill mini">⚒</div><input id="devPw" type="password" placeholder="Passwort" autocomplete="off"></div>
     <div class="mb mBack small" data-t="back"></div></div>
+  <div id="pMis"><h2 data-t="m_missions"></h2><div id="misList"></div><div class="mb mBack small" data-t="back"></div></div>
   <div id="pHelp"><h2 data-t="m_help"></h2><div id="helpText"></div><div class="mb mBack small" data-t="back"></div></div>
 </div></div>
 <div id="err"></div>

@@ -13,6 +13,7 @@ import { createSub, BOATS } from './sub.js';
 import { createAudio } from './audio.js';
 import { createCabin, SEAT, FLOOR_Y } from './cabin.js';
 import { createTable } from './sonartable.js';
+import { MISSIONS, HINTED, REACH, createCanisters } from './missions.js';
 
 const Q = new URLSearchParams(location.search), $ = (id) => document.getElementById(id);
 const canvas = $('c');
@@ -24,7 +25,7 @@ createBackdrop(scene);
 let boatKind = 0; try { boatKind = +(localStorage.getItem('tiefenlicht.boat') || 0) || 0; } catch (e) { /* ohne Speicher */ }
 const life = createLife(scene), fauna = createFauna(scene), world = createWorld(scene, life), post = createPost(renderer), audio = createAudio();
 let boat = createSub(scene, boatKind);
-createShaft(scene, PLAIN.x + 6, PLAIN.z + 4, -8, PLAIN.floor - 1, 46); const snow = createSnow(scene);
+createShaft(scene, PLAIN.x + 6, PLAIN.z + 4, -8, PLAIN.floor - 1, 46); const snow = createSnow(scene), cans = createCanisters(scene, world);
 const cabin = createCabin(), cabinScene = new T.Scene(), camIn = new T.PerspectiveCamera(72, 1, 0.04, 40); cabinScene.add(cabin.group);
 // Ansicht: draußen hinter dem Boot oder drinnen in der Kabine (gehen, am Steuer sitzen, am Sonartisch stehen)
 // Menü: beim Start offen; im Spiel öffnet es sich über ❚❚, Esc oder wenn die Maus freigegeben wird – dann ruht die Welt
@@ -144,6 +145,7 @@ function ping() {
   if (sonar.cool > 0) return; sonar.cool = 3.2; sonar.pingR = 0; sonar.pingAt = { x: S.x, y: S.y, z: S.z }; audio.ping();
   const ps = poisNear(S.x, S.z, PING).map((p) => ({ p, d: Math.hypot(p.x - S.x, p.z - S.z) })).sort((a, b) => a.d - b.d).slice(0, 5);
   for (const { p, d } of ps) echoes.push({ x: p.x, z: p.z, t: 0.3 + d / 85, vol: clamp(1.15 - d / 500, 0.2, 1) });
+  if (MS.active) { const l = cans.lamp(misIdx(MS.active)), d = Math.hypot(l.x - S.x, l.z - S.z); if (d < 170) echoes.push({ x: l.x, z: l.z, t: 0.3 + d / 85, vol: 1 }); }   // die Messingdose antwortet erst aus der Nähe
 }
 $('sonar').addEventListener('pointerdown', (e) => { e.preventDefault(); if (started && !M.open) ping(); });
 
@@ -251,15 +253,17 @@ const LABEL = {
   kettle: () => (tea.phase === 'cold' ? t('kettle_on') : tea.phase === 'ready' ? t('kettle_pour') : ''),
   stove: () => (cabin.state.fireT > 1.2 ? '' : t('stove')),
   cupDesk: () => (cabin.state.cup === 'desk' ? t('cup_take') : ''), cupPult: () => (cabin.state.cup === 'pult' ? (cabin.state.cupHeat > 0.05 ? t('cup_drink') : t('cup_away')) : ''),
-  deck: () => (cabin.state.tape ? t('tape_stop') : t('tape_play')), light: () => (cabin.state.lampT > 0.5 ? t('light_dim') : t('light_on')), log: () => t('log_read'),
+  deck: () => (cabin.state.tape ? t('tape_stop') : t('tape_play')), light: () => (cabin.state.lampT > 0.5 ? t('light_dim') : t('light_on')), log: () => t('log_read'), page: () => t('page_read'),
 };
+for (let k = 0; k < 6; k++) LABEL['cas' + k] = () => (cabin.state.own[k] && cabin.state.tapeIn !== k ? t('tape_put', { n: t('tape_n')[k] || '?' }) : '');
 const ACT = {
   seat: () => setSt('seat'), table: () => setSt('table'),
   kettle: () => { if (tea.phase === 'cold') { tea.phase = 'heat'; tea.t = 0; audio.click(0.6); } else if (tea.phase === 'ready') { tea.phase = 'cool'; tea.t = 0; cabin.state.cup = 'desk'; cabin.state.cupHeat = 1; audio.pour(); } },
   stove: () => { cabin.state.fireT = 1.7; setTimeout(() => { cabin.state.fireT = 1; }, 45000); audio.click(0.8); },
   cupDesk: () => { cabin.state.cup = 'pult'; audio.click(0.3); }, cupPult: () => { if (cabin.state.cupHeat > 0.05) { cabin.state.cupHeat = Math.max(0, cabin.state.cupHeat - 0.34); if (cabin.state.cupHeat <= 0.05) note(t('tea_done')); } else cabin.state.cup = 'none'; audio.click(0.25); },
-  deck: () => { cabin.state.tape = !cabin.state.tape; audio.tape(cabin.state.tape); }, light: () => { cabin.state.lampT = cabin.state.lampT > 0.5 ? 0.12 : 1; audio.click(0.9); }, log: () => openLog(),
+  deck: () => { cabin.state.tape = !cabin.state.tape; audio.tape(cabin.state.tape); }, light: () => { cabin.state.lampT = cabin.state.lampT > 0.5 ? 0.12 : 1; audio.click(0.9); }, log: () => openLog(), page: () => openPage(),
 };
+for (let k = 0; k < 6; k++) ACT['cas' + k] = () => playTape(k);
 function pickTarget() {
   if (V.mode !== 'in' || V.st === 'table') return null;
   camera.getWorldDirection(fwd); let best = null, bs = 0;
@@ -267,38 +271,86 @@ function pickTarget() {
   for (const k of keys) { if (!LABEL[k]()) continue; cabin.toWorld(k, wv); const d = wv.sub(camera.position), l = d.length(), reach = k === 'seat' || k === 'table' ? 1.9 : 1.45; if (l > reach) continue; const c = d.dot(fwd) / l, need = k === 'seat' || k === 'table' ? 0.86 : 0.93; if (c > need && c - l * 0.02 > bs) { bs = c - l * 0.02; best = k; } }
   return best;
 }
-const actLabel = () => (V.mode !== 'in' || V.st === 'table' ? '' : target ? LABEL[target]() : V.st === 'seat' ? t('stand') : '');
-actEl.addEventListener('pointerdown', (e) => { e.preventDefault(); if (target && LABEL[target]()) ACT[target](); else if (V.st === 'seat') setSt('walk'); });
+const canHere = () => nearCan && (V.mode === 'out' || (V.st === 'seat' && !target));   // die Dose birgt man vom Steuer aus: draußen oder am Steuerrad
+const actLabel = () => (canHere() ? t('can_take') : V.mode !== 'in' || V.st === 'table' ? '' : target ? LABEL[target]() : V.st === 'seat' ? t('stand') : '');
+actEl.addEventListener('pointerdown', (e) => { e.preventDefault(); if (canHere()) takeCan(); else if (V.mode !== 'in') return; else if (target && LABEL[target]()) ACT[target](); else if (V.st === 'seat') setSt('walk'); });
+// ---------- Missionen: beginnen an der Seite auf dem Schreibtisch; gestartet liegt draußen eine Messingdose, die man birgt ----------
+const MS = { active: null, done: [], pageSeen: -1 }, bannerEl = $('banner'); let nearCan = false, bannerT = 0;
+const misIdx = (id) => MISSIONS.findIndex((m) => m.id === id), nextMis = () => MISSIONS[MS.done.length] || null, curPage = () => Math.min(MS.done.length, t('pages').length - 1);
+function banner(a, b) { bannerEl.children[0].textContent = a; bannerEl.children[1].textContent = b; bannerEl.style.opacity = 1; bannerT = 5; }
+function syncMis() {
+  const st = cabin.state; st.own = [true, false, false, false, false, false]; for (const id of MS.done) { const m = MISSIONS[misIdx(id)]; if (m) st.own[m.tape] = true; } if (!st.own[st.tapeIn]) st.tapeIn = 0;
+  cans.show(MS.active ? misIdx(MS.active) : -1); st.pageNew = MS.pageSeen < curPage();   // ungelesene Seite: schimmert leicht
+  if (!MS.active) nearCan = false;
+}
+function startMission() { const m = nextMis(); if (!m || MS.active) return; MS.active = m.id; $('log').classList.remove('open'); banner(t('mis_started'), t('mis_' + m.id)); audio.click(0.7); syncMis(); save(); lockMouse(); }
+function takeCan() {
+  const m = MISSIONS[misIdx(MS.active)]; if (!m) return; MS.done.push(m.id); MS.active = null; nearCan = false; syncMis();
+  banner(t('mis_done'), t('mis_' + m.id)); playTape(m.tape, true);
+  addLog({ kind: 'find', id: m.id, dist: Math.round(Math.hypot(m.x, m.z) / 10) * 10, dir: DIR8(m.x, m.z) }); save();
+}
+/** legt eine Kassette ins Deck und spielt sie: Herausnehmen aus dem Regal heißt abspielen */
+function playTape(k, quiet) { const st = cabin.state; if (!st.own[k]) return; st.tapeIn = k; audio.tapeTrack(k); st.tape = true; audio.tape(true); if (!quiet) note(t('tape_now', { n: t('tape_n')[k] })); save(); }
+function fillMis() {
+  const box = $('misList'); box.innerHTML = '';
+  const add = (cls, name, state, desc) => { const d = document.createElement('div'); d.className = 'mis ' + cls; if (name) { const a = document.createElement('div'); a.className = 'mn'; const n = document.createElement('span'); n.textContent = name; const s2 = document.createElement('span'); s2.className = 'ms2'; s2.textContent = state; a.appendChild(n); a.appendChild(s2); d.appendChild(a); const p = document.createElement('div'); p.className = 'md'; p.textContent = desc; d.appendChild(p); } else d.textContent = '· · ·'; box.appendChild(d); };
+  for (const id of MS.done) add('done', t('mis_' + id), '✓ ' + t('mis_s_done'), t('misd_' + id));
+  const nx = nextMis();
+  if (MS.active) add('run', t('mis_' + MS.active), t('mis_s_run'), t('mish_' + MS.active)); else if (nx) add('', '?', t('mis_s_open'), MS.done.length ? t('mis_open') : t('mis_intro'));
+  const rest = MISSIONS.length - MS.done.length - (MS.active || nx ? 1 : 0) + HINTED; for (let i = 0; i < Math.min(rest, 4); i++) add('hid');
+}
 // ---------- Logbuch: füllt sich von selbst, wenn man etwas findet ----------
 const LOG = [], seen = new Set(); let playTime = 0;
 const DIR8 = (dx, dz) => Math.round(((Math.atan2(dx, dz) + 2 * Math.PI) % (2 * Math.PI)) / (Math.PI / 4)) % 8;
 function addLog(e) { e.min = Math.round(playTime / 60); e.depth = Math.round(-S.y); LOG.push(e); note(t('log_note', { t: entryTitle(e) })); save(); }
 const entryTitle = (e) => (e.kind === 'shark' ? '—' : t('n_' + e.kind) + (e.n ? ' (' + (e.n + 1) + '.)' : ''));
-const entryText = (e) => { if (e.kind === 'shark') return t('shark'); const tx = t(e.kind); return tx[e.n % tx.length] + ' ' + t('where', { d: e.dist, dir: t('dirs')[e.dir] }); };
+const entryText = (e) => { if (e.kind === 'shark') return t('shark'); if (e.kind === 'find') return t('find_' + e.id) + ' ' + t('where', { d: e.dist, dir: t('dirs')[e.dir] }); const tx = t(e.kind); return tx[e.n % tx.length] + ' ' + t('where', { d: e.dist, dir: t('dirs')[e.dir] }); };
 function discover() {
   for (const p of poisNear(S.x, S.z, 80)) { const k = Math.round(p.x) + ',' + Math.round(p.z); if (seen.has(k) || Math.hypot(p.x - S.x, p.z - S.z) > (p.disc || (p.kind === 'wreck' ? 46 : 32))) continue; seen.add(k); addLog({ kind: p.kind, n: LOG.filter((e) => e.kind === p.kind).length, dist: Math.round(Math.hypot(p.x, p.z) / 10) * 10, dir: DIR8(p.x, p.z) }); }
 }
-function openLog() {
-  unlock();
-  const box = $('logText'); box.innerHTML = ''; const h = document.createElement('div'); h.className = 'logHead'; h.textContent = t('log'); box.appendChild(h);
-  const add = (title, when, text) => { const d = document.createElement('div'); d.className = 'logEntry'; const a = document.createElement('div'); a.className = 'logTitle'; a.textContent = title + (when ? '  ·  ' + when : ''); const p = document.createElement('div'); p.textContent = text; d.appendChild(a); d.appendChild(p); box.appendChild(d); };
-  if (!LOG.length) add(t('log_empty_t'), '', t('log_empty'));
-  for (const e of LOG.slice().reverse()) add(entryTitle(e), (e.min < 1 ? t('now') : t('after', { m: e.min })) + ', ' + e.depth + ' m', entryText(e));
+// Logbuch: zwei Reiter. „Eigenes“ füllt sich von selbst; „Kapitän“ sammelt die gefundenen Seiten. Die lose Seite auf dem Schreibtisch öffnet sich einzeln, dort startet man die Mission.
+let logTab = 'own';
+function logPage(box, i, sep) { const pg = t('pages')[i]; if (!pg) return; const d = document.createElement('div'); d.className = 'logEntry' + (sep ? ' sep' : ''); const a = document.createElement('div'); a.className = 'logTitle'; a.textContent = pg[0]; const p = document.createElement('div'); p.className = 'logP'; p.textContent = pg[1]; const g = document.createElement('div'); g.className = 'logSign'; g.textContent = pg[2]; d.appendChild(a); d.appendChild(p); d.appendChild(g); box.appendChild(d); }
+function openLog(tab) {
+  unlock(); if (tab) logTab = tab; $('log').classList.remove('page');
+  const box = $('logText'); box.innerHTML = ''; box.scrollTop = 0; const h = document.createElement('div'); h.className = 'logHead'; h.textContent = logTab === 'cap' ? t('log_cap_h') : t('log'); box.appendChild(h);
+  for (const b of document.querySelectorAll('#logTabs .pill')) b.classList.toggle('on', b.dataset.tab === logTab);
+  if (logTab === 'cap') { for (let i = curPage(); i >= 0; i--) logPage(box, i, i > 0); }
+  else {
+    const add = (title, when, text) => { const d = document.createElement('div'); d.className = 'logEntry'; const a = document.createElement('div'); a.className = 'logTitle'; a.textContent = title + (when ? '  ·  ' + when : ''); const p = document.createElement('div'); p.textContent = text; d.appendChild(a); d.appendChild(p); box.appendChild(d); };
+    if (!LOG.length) add(t('log_empty_t'), '', t('log_empty'));
+    for (const e of LOG.slice().reverse()) add(entryTitle(e), (e.min < 1 ? t('now') : t('after', { m: e.min })) + ', ' + e.depth + ' m', entryText(e));
+  }
   $('log').classList.add('open');
 }
-$('logClose').addEventListener('pointerdown', (e) => { e.preventDefault(); $('log').classList.remove('open'); });
+function openPage() {
+  unlock(); const box = $('logText'); box.innerHTML = ''; box.scrollTop = 0; const h = document.createElement('div'); h.className = 'logHead'; h.textContent = t('log_cap_h'); box.appendChild(h); logPage(box, curPage(), false);
+  const nx = nextMis(), go = $('logGo'), mine = nx && nx.page === curPage(); go.classList.toggle('show', !!mine); go.classList.toggle('run', !!MS.active); go.textContent = MS.active ? t('mis_running') : t('mis_start');
+  MS.pageSeen = curPage(); syncMis(); save(); $('log').classList.add('page'); $('log').classList.add('open');
+}
+for (const b of document.querySelectorAll('#logTabs .pill')) b.addEventListener('pointerdown', (e) => { e.preventDefault(); openLog(b.dataset.tab); });
+$('logGo').addEventListener('pointerup', (e) => { e.preventDefault(); if (!MS.active) startMission(); });
+$('logClose').addEventListener('pointerdown', (e) => { e.preventDefault(); $('log').classList.remove('open'); lockMouse(); });
 $('logClose').textContent = t('close');
 let noteT = 0; function note(t) { const n = $('note'); n.textContent = t; noteT = 4; }
 // ---------- Einstellungen: Sichtfeld ----------
 $('gear').addEventListener('pointerdown', (e) => { e.preventDefault(); openMenu(); });
 // Sprache, Vollbild, neu beginnen
-function texts() { for (const el of document.querySelectorAll('[data-t]')) el.textContent = t(el.dataset.t); ui(); syncFov(); goText(); if (M.panel === 'boat') fillBoats(); if (M.panel === 'help') fillHelp(); for (const b of document.querySelectorAll('#langs .pill')) b.classList.toggle('on', b.dataset.l === getLang()); hintEl.textContent = PC ? t('hint_pc') : t('hint_touch'); }
+function texts() { for (const el of document.querySelectorAll('[data-t]')) el.textContent = t(el.dataset.t); ui(); syncFov(); goText(); if (M.panel === 'boat') fillBoats(); if (M.panel === 'help') fillHelp(); if (M.panel === 'mis') fillMis(); syncWhale(); for (const b of document.querySelectorAll('#langs .pill')) b.classList.toggle('on', b.dataset.l === getLang()); hintEl.textContent = PC ? t('hint_pc') : t('hint_touch'); }
 for (const b of document.querySelectorAll('#langs .pill')) b.addEventListener('pointerdown', (e) => { e.preventDefault(); setLang(b.dataset.l); texts(); });
 if (!document.fullscreenEnabled) $('fsBtn').style.display = 'none';
 $('fsBtn').addEventListener('pointerdown', (e) => { e.preventDefault(); try { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen().then(() => { try { screen.orientation.unlock(); } catch (x) { /* egal */ } }).catch(() => {}); } catch (x) { /* egal */ } });
 let resetArm = 0; $('resetBtn').addEventListener('pointerdown', (e) => { e.preventDefault(); if (resetArm && performance.now() - resetArm < 4000) { try { localStorage.removeItem(SAVE_KEY); } catch (x) { /* egal */ } noSave = true; location.reload(); } else { resetArm = performance.now(); $('resetBtn').textContent = t('reset_sure'); setTimeout(() => { $('resetBtn').textContent = t('reset'); }, 4000); } });
 function syncFov() { $('fovO').value = FOV.out; $('fovI').value = FOV.in; $('fovOV').textContent = Math.round(fovFor('out')) + '°'; $('fovIV').textContent = Math.round(fovFor('in')) + '°'; }
 for (const [id, k] of [['fovO', 'out'], ['fovI', 'in']]) $(id).addEventListener('input', (e) => { FOV[k] = +e.target.value; try { localStorage.setItem('tiefenlicht.fov', JSON.stringify(FOV)); } catch (x) { /* egal */ } resize(); syncFov(); });
+// Walgesänge: Lautstärke, Häufigkeit, an/aus (gespeichert; dieselben Werte stehen auch im Entwicklermenü)
+const WH_KEY = 'tiefenlicht.whale', whGap = (s) => Math.round(120 * Math.pow(8 / 120, s)), whPos = (g) => clamp(Math.log(g / 120) / Math.log(8 / 120), 0, 1);
+try { const w = JSON.parse(localStorage.getItem(WH_KEY) || 'null'); if (w) { if (w.gap > 0) audio.whaleCfg.gap = w.gap; if (w.vol >= 0) audio.whaleCfg.vol = Math.min(2, w.vol); audio.whaleCfg.on = w.on !== false; } } catch (e) { /* egal */ }
+function saveWhale() { try { localStorage.setItem(WH_KEY, JSON.stringify(audio.whaleCfg)); } catch (e) { /* egal */ } }
+function syncWhale() { const w = audio.whaleCfg; $('whV').value = w.vol; $('whVV').textContent = Math.round(w.vol * 100) + ' %'; $('whG').value = whPos(w.gap); $('whGV').textContent = t('wh_every', { s: Math.round(w.gap) }); $('whOn').textContent = w.on ? t('on') : t('off'); $('whOn').classList.toggle('on', w.on); }
+$('whV').addEventListener('input', (e) => { audio.whaleCfg.vol = +e.target.value; saveWhale(); syncWhale(); });
+$('whG').addEventListener('input', (e) => { audio.whaleCfg.gap = whGap(+e.target.value); saveWhale(); syncWhale(); });
+$('whOn').addEventListener('pointerdown', (e) => { e.preventDefault(); audio.whaleCfg.on = !audio.whaleCfg.on; saveWhale(); syncWhale(); });
 modeEl.addEventListener('pointerdown', (e) => { e.preventDefault(); setMode(V.mode === 'in' ? 'out' : 'in'); });
 $('tableClose').addEventListener('pointerdown', (e) => { e.preventDefault(); setSt('walk'); });
 $('tableClear').addEventListener('pointerdown', (e) => { e.preventDefault(); nav.course = null; });
@@ -344,9 +396,11 @@ function frame(now) {
   if (showOut) { const w = window.innerWidth, h = window.innerHeight, ch = $('menu').querySelector('.card').offsetHeight + 14; camera.setViewOffset(w, h, 0, Math.min(h * 0.4, ch * 0.5 + h * 0.1), w, h); } else if (camera.view && camera.view.enabled) camera.clearViewOffset();   // Boot über der Karte zeigen
   if (run || showOut) { world.update(S.x, S.z, started ? 1 : 0); if (V.mode === 'in' && !showOut) cabinStep(dt); else cameraStep(dt); }
   if (window.__cam) { camera.position.set(...window.__cam[0]); camera.lookAt(...window.__cam[1]); }
-  if (run) { life.update(dt, S, pxScale, world.glows); fauna.update(dt, S, U.uTime.value); }
+  if (run) { life.update(dt, S, pxScale, world.glows); fauna.update(dt, S, U.uTime.value); cans.update(); }
+  if (bannerT > 0 && run) { bannerT -= dt; if (bannerT <= 0) bannerEl.style.opacity = 0; }
   if (frames % 4 === 0) { const cp = camera.position, d = Math.hypot(cp.x - PLAIN.x, cp.z - PLAIN.z) / PLAIN.r; snow.set((1 - smooth(0.9, 1.7, d)) * (1 - smooth(-72, -48, cp.y)), pxScale); }   // Schnee nur unten über der Ebene
   if (frames % 24 === 0) { let best = null; for (const m of marks) { const d = Math.hypot(m.x - S.x, m.z - S.z); if (!best || d < best) best = d; } if (nav.course) { const d = Math.hypot(nav.course.x - S.x, nav.course.z - S.z); if (d < 28) nav.course = null; else best = -d; } echoEl.className = best < 0 ? 'kurs' : ''; echoEl.textContent = best ? (best < 0 ? t('course') + ' ' : t('echo') + ' ') + String(Math.round(Math.abs(best) / 5) * 5).padStart(3, '0') + ' m' : '';
+    if (MS.active) { const l = cans.lamp(misIdx(MS.active)); nearCan = Math.hypot(l.x - S.x, l.z - S.z) < REACH && Math.abs(l.y - S.y) < REACH + 4; }
     const al = actLabel(), actL = $('actL'); if (actL.textContent !== al) { actL.textContent = al; actEl.style.display = al ? 'block' : 'none'; } }
   const bT = M.open ? (M.panel === 'boat' ? 0 : M.panel === 'set' ? 0.55 : 1) : 0, b0 = post.blur; post.blur = Math.abs(b0 - bT) < 0.004 ? bT : damp(b0, bT, 6, dt);
   if (run || showOut || M.dirty > 0 || post.blur !== b0) {   // ruht das Spiel hinter dem Menü, wird das Bild nur noch fertig weichgezeichnet und dann stehen gelassen
@@ -368,15 +422,15 @@ function start() {
   if (PC) { hintT = 0; hintEl.style.opacity = 0; grabEl.style.opacity = 0; lockMouse(); } else { hintEl.style.opacity = 1; hintT = 9; }
 }
 // ---------- Menü ----------
-const PANELS = { main: 'mMain', boat: 'pBoat', set: 'pSet', help: 'pHelp' };
+const PANELS = { main: 'mMain', boat: 'pBoat', set: 'pSet', help: 'pHelp', mis: 'pMis' };
 function boatVis() { const v = V.mode !== 'in' || (M.open && M.panel === 'boat'); for (const o of boat.outer) o.visible = v; }
 function showPanel(p) {
   const was = M.panel; M.panel = p; M.dirty = 60;
   for (const k in PANELS) $(PANELS[k]).classList.toggle('show', k === p);
-  $('menu').classList.toggle('low', p === 'boat'); $('menu').classList.toggle('wide', p === 'help');
+  $('menu').classList.toggle('low', p === 'boat'); $('menu').classList.toggle('wide', p === 'help' || p === 'mis');
   if (p === 'boat') { M.orb = 2.3; if (V.mode === 'in') { C.yaw = S.h; C.oy = C.op = 0; C.dist = 10; C.pos.set(S.x - Math.sin(S.h) * 10, S.y + 3, S.z - Math.cos(S.h) * 10); C.look.set(S.x, S.y + 1, S.z); } fillBoats(); }
   else if (was === 'boat') homeT = 3;
-  if (p === 'help') fillHelp(); if (p === 'set') syncFov();
+  if (p === 'help') fillHelp(); if (p === 'mis') fillMis(); if (p === 'set') { syncFov(); syncWhale(); }
   boatVis();
 }
 function goText() { $('mGo').textContent = started ? t('m_resume') : resumed ? t('m_continue') : t('m_dive'); $('mFoot').textContent = PC ? t('m_foot_pc') : ''; }
@@ -408,10 +462,10 @@ function fillHelp() {
   for (const [h, tx] of t('help')) { const a = document.createElement('h4'); a.textContent = h; const p = document.createElement('div'); p.textContent = tx === '*' ? t(PC ? 'help_ctl_pc' : 'help_ctl_touch') : tx; box.appendChild(a); box.appendChild(p); }
 }
 $('mGo').addEventListener('pointerup', (e) => { e.preventDefault(); goBtn(); });
-for (const [id, p] of [['mBoat', 'boat'], ['mSet', 'set'], ['mHelp', 'help']]) $(id).addEventListener('pointerdown', (e) => { e.preventDefault(); showPanel(p); });
+for (const [id, p] of [['mBoat', 'boat'], ['mSet', 'set'], ['mHelp', 'help'], ['mMis', 'mis']]) $(id).addEventListener('pointerdown', (e) => { e.preventDefault(); showPanel(p); });
 for (const b of document.querySelectorAll('.mBack')) b.addEventListener('pointerdown', (e) => { e.preventDefault(); showPanel('main'); });
 $('menu').classList.add('ready');
-window.__sub = { audio, M, openMenu, closeMenu, showPanel, setBoat, post, get boat() { return boat; }, save, load, texts, setLang, renderer, fauna, S, C, I, U, V, nav, setMode, setSt, table, cabin, tea, LOG, ACT, get target() { return target; }, start, ping, world, life, poisNear, floorH, get frames() { return frames; }, tp(x, y, z, h) { world.update(x, z, Infinity); S.x = x; S.y = y; S.z = z; S.h = h; S.vx = S.vy = S.vz = 0; C.yaw = h; C.oy = C.op = 0; C.pos.set(x - Math.sin(h) * 11, y + 3, z - Math.cos(h) * 11); C.look.set(x, y + 1, z); }, marks, info: () => ({ tris: renderer.info.render.triangles, calls: renderer.info.render.calls, PR, MSAA, chunks: world.chunks.size, near: world.near.length, glows: world.glows.length }) };
+window.__sub = { audio, M, MS, cans, startMission, takeCan, openPage, openLog, playTape, MISSIONS, openMenu, closeMenu, showPanel, setBoat, post, get boat() { return boat; }, save, load, texts, setLang, renderer, fauna, S, C, I, U, V, nav, setMode, setSt, table, cabin, tea, LOG, ACT, get target() { return target; }, start, ping, world, life, poisNear, floorH, get frames() { return frames; }, tp(x, y, z, h) { world.update(x, z, Infinity); S.x = x; S.y = y; S.z = z; S.h = h; S.vx = S.vy = S.vz = 0; C.yaw = h; C.oy = C.op = 0; C.pos.set(x - Math.sin(h) * 11, y + 3, z - Math.cos(h) * 11); C.look.set(x, y + 1, z); }, marks, info: () => ({ tris: renderer.info.render.triangles, calls: renderer.info.render.calls, PR, MSAA, chunks: world.chunks.size, near: world.near.length, glows: world.glows.length }) };
 // ---------- Entwicklermenü (unter ⚙, Passwort) ----------
 const DEV_PW = 'Entwicklung', devEl = $('dev'), pw = $('devPw');
 let devOn = false; try { devOn = localStorage.getItem('tiefenlicht.dev') === '1'; } catch (e) { /* egal */ }
@@ -420,6 +474,7 @@ function devOpen() { return devEl.classList.contains('open'); }
 function toggleDev(on = !devOpen()) { if (on) { devEl.classList.add('open'); buildDev(); unlock(); } else { devEl.classList.remove('open'); lockMouse(); } }
 $('devBtn').addEventListener('pointerdown', (e) => { e.preventDefault(); if (devOn) { devEl.classList.add('open'); buildDev(); closeMenu(); } else { pw.style.display = pw.style.display === 'inline-block' ? 'none' : 'inline-block'; pw.focus(); } });
 pw.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') { if (pw.value === DEV_PW) { devOn = true; try { localStorage.setItem('tiefenlicht.dev', '1'); } catch (x) { /* egal */ } pw.style.display = 'none'; pw.value = ''; devEl.classList.add('open'); buildDev(); closeMenu(); } else { pw.value = ''; pw.placeholder = '✗'; } } });
+const MIX0 = Object.assign({}, audio.mix);
 const DEV_NAMES = ['Laternenschlinger', 'Riesenbarsch', 'Gleiter', 'Hai'];
 function devTp(x, z, faceX, faceZ) { const h = faceX === undefined ? S.h : Math.atan2(faceX - x, faceZ - z), y = Math.min(-12, faceX === undefined ? Math.max(floorH(x, z) + 6, S.y) : floorH(x, z) + 10); if (V.mode === 'in') { V.mode = 'out'; applyMode(); } tpTo(x, y, z, h); save(); }
 function tpTo(x, y, z, h) { world.update(x, z, Infinity); S.x = x; S.y = y; S.z = z; S.h = h; S.vx = S.vy = S.vz = 0; C.yaw = h; C.oy = C.op = 0; C.pos.set(x - Math.sin(h) * 14, y + 4, z - Math.cos(h) * 14); C.look.set(x, y + 1, z); }
@@ -441,26 +496,33 @@ function buildDev() {
     btn('Kristallhain', () => goTo(nearest('grove'))); btn('Korallengarten', () => goTo(nearest('garden'))); btn('Warmer Spalt', () => goTo(nearest('vent'))); }
   h3('WALGESÄNGE'); { const wc = audio.whaleCfg;
     const sl = (label, min, max, step, get, set, fmt) => { const r = row(), l = document.createElement('span'), v = document.createElement('span'), s = document.createElement('input'); s.type = 'range'; s.min = min; s.max = max; s.step = step; s.value = get(); l.textContent = label; v.textContent = fmt(get());
-      s.addEventListener('input', () => { set(+s.value); v.textContent = fmt(+s.value); devSave(); }); r.appendChild(l); r.appendChild(s); r.appendChild(v); };
-    sl('Abstand', 6, 180, 1, () => wc.gap, (x) => { wc.gap = x; }, (x) => '≈' + x + ' s'); sl('Lautstärke', 0, 2.5, 0.05, () => wc.vol, (x) => { wc.vol = x; }, (x) => Math.round(x * 100) + '%');
-    const r = row(); r.style.flexWrap = 'wrap'; const b = btn(wc.on ? 'an' : 'aus', () => { wc.on = !wc.on; b.textContent = wc.on ? 'an' : 'aus'; devSave(); }, r); btn('jetzt einer', () => audio.whale(true), r); }
-  h3('SCHNEE'); { const r = row(), l = document.createElement('span'), v = document.createElement('span'), s = document.createElement('input'); s.type = 'range'; s.min = 0; s.max = 4; s.step = 0.1; s.value = snow.density; l.textContent = 'Dichte'; v.textContent = Math.round(snow.density * 100) + '%';
-    s.addEventListener('input', () => { snow.density = +s.value; v.textContent = Math.round(+s.value * 100) + '%'; devSave(); }); r.appendChild(l); r.appendChild(s); r.appendChild(v); }
+      s.addEventListener('input', () => { set(+s.value); v.textContent = fmt(+s.value); saveWhale(); }); r.appendChild(l); r.appendChild(s); r.appendChild(v); };
+    sl('Abstand', 6, 180, 1, () => wc.gap, (x) => { wc.gap = x; }, (x) => '≈' + x + ' s'); sl('Lautstärke', 0, 2, 0.05, () => wc.vol, (x) => { wc.vol = x; }, (x) => Math.round(x * 100) + '%');
+    const r = row(); r.style.flexWrap = 'wrap'; const b = btn(wc.on ? 'an' : 'aus', () => { wc.on = !wc.on; b.textContent = wc.on ? 'an' : 'aus'; saveWhale(); }, r); btn('jetzt einer', () => audio.whale(true), r); }
+  h3('KLANG · MISCHPULT'); { const NM = { rausch: 'Rauschen der Tiefe', wasser: 'Wasser am Rumpf', blasen: 'Blasen', motor: 'Motor', grollen: 'fernes Grollen', sonar: 'Sonar', kassette: 'Kassetten', kabine: 'Kabine (Kessel, Ofen, Klicks)' };
+    for (const k in NM) { const r = row(), l = document.createElement('span'), v = document.createElement('span'), s = document.createElement('input'); s.type = 'range'; s.min = 0; s.max = 3; s.step = 0.05; s.value = audio.mix[k]; l.textContent = NM[k]; v.textContent = Math.round(audio.mix[k] * 100) + '%';
+      s.addEventListener('input', () => { audio.setMix(k, +s.value); v.textContent = Math.round(+s.value * 100) + '%'; devSave(); }); r.appendChild(l); r.appendChild(s); r.appendChild(v); }
+    const r = row(); btn('Mischpult zurücksetzen', () => { for (const [k, v] of Object.entries(MIX0)) audio.setMix(k, v); devSave(); buildDev(); }, r); }
+  h3('MISSIONEN'); { const r = row(); r.style.flexWrap = 'wrap';
+    btn('zur Dose', () => { if (!MS.active) return; const l = cans.lamp(misIdx(MS.active)); devTp(l.x + 6, l.z + 5, l.x, l.z); }, r);
+    btn('nächste starten', () => { startMission(); buildDev(); }, r); btn('alle zurücksetzen', () => { MS.active = null; MS.done.length = 0; MS.pageSeen = -1; cabin.state.tapeIn = 0; audio.tapeTrack(0); syncMis(); save(); }, r); }
   h3('SONSTIGES'); { const r = row(); r.style.flexWrap = 'wrap';
     btn('Tee sofort fertig', () => { tea.phase = 'ready'; }, r); btn('Logbuch leeren', () => { LOG.length = 0; seen.clear(); save(); }, r); btn('Menü sperren', () => { devOn = false; try { localStorage.removeItem('tiefenlicht.dev'); } catch (x) { /* egal */ } devEl.classList.remove('open'); }, r); btn('schließen', () => toggleDev(false), r); }
 }
-function devSave() { try { localStorage.setItem('tiefenlicht.devcfg', JSON.stringify({ n: fauna.cfg.map((c) => c.n), attract: fauna.attract, whale: audio.whaleCfg, snow: snow.density })); } catch (e) { /* egal */ } }
-try { const d = JSON.parse(localStorage.getItem('tiefenlicht.devcfg') || 'null'); if (d) { d.n.forEach((n, si) => fauna.setCount(si, n)); fauna.attract = !!d.attract; if (d.whale) Object.assign(audio.whaleCfg, d.whale); if (d.snow !== undefined) snow.density = d.snow; } } catch (e) { /* egal */ }
+function devSave() { try { localStorage.setItem('tiefenlicht.devcfg', JSON.stringify({ n: fauna.cfg.map((c) => c.n), attract: fauna.attract, mix: audio.mix, mixV: 1 })); } catch (e) { /* egal */ } }
+try { const d = JSON.parse(localStorage.getItem('tiefenlicht.devcfg') || 'null'); if (d) { d.n.forEach((n, si) => fauna.setCount(si, n)); fauna.attract = !!d.attract; if (d.mix && d.mixV === 1) for (const k in d.mix) if (k in audio.mix) audio.setMix(k, +d.mix[k]); } } catch (e) { /* egal */ }
 
 // ---------- Speichern: automatisch alle paar Sekunden und beim Verlassen ----------
 const SAVE_KEY = 'tiefenlicht.save.v1'; let noSave = false;
-function save() { if (noSave || !started) return; try { localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 1, s: [S.x, S.y, S.z, S.h], log: LOG, seen: [...seen], course: nav.course, lamp: cabin.state.lampT, play: playTime, at: Date.now() })); } catch (e) { /* ohne Speicher */ } }
+function save() { if (noSave || !started) return; try { localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 1, s: [S.x, S.y, S.z, S.h], log: LOG, seen: [...seen], course: nav.course, lamp: cabin.state.lampT, play: playTime, ms: { a: MS.active, d: MS.done, p: MS.pageSeen, t: cabin.state.tapeIn }, at: Date.now() })); } catch (e) { /* ohne Speicher */ } }
 function load() {
   try { const d = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); if (!d || d.v !== 1 || !Array.isArray(d.s)) return false;
     [S.x, S.y, S.z, S.h] = d.s; C.yaw = S.h; C.pos.set(S.x - Math.sin(S.h) * 14, S.y + 4, S.z - Math.cos(S.h) * 14); C.look.set(S.x, S.y + 1, S.z);
-    for (const e of d.log || []) LOG.push(e); for (const k of d.seen || []) seen.add(k); nav.course = d.course || null; cabin.state.lampT = cabin.state.lamp = d.lamp == null ? 1 : d.lamp; playTime = d.play || 0; return true; } catch (e) { return false; }
+    for (const e of d.log || []) LOG.push(e); for (const k of d.seen || []) seen.add(k); nav.course = d.course || null; cabin.state.lampT = cabin.state.lamp = d.lamp == null ? 1 : d.lamp; playTime = d.play || 0;
+    if (d.ms) { MS.done = (d.ms.d || []).filter((id) => misIdx(id) >= 0); MS.active = misIdx(d.ms.a) >= 0 && !MS.done.includes(d.ms.a) ? d.ms.a : null; MS.pageSeen = d.ms.p == null ? -1 : d.ms.p; cabin.state.tapeIn = d.ms.t || 0; audio.tapeTrack(cabin.state.tapeIn); }
+    return true; } catch (e) { return false; }
 }
-const resumed = load();
+const resumed = load(); syncMis();
 setInterval(save, 5000); window.addEventListener('pagehide', save); document.addEventListener('visibilitychange', () => { if (document.hidden) save(); });
 texts();
 world.update(S.x, S.z, Infinity);
