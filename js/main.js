@@ -28,6 +28,7 @@ const life = createLife(scene), fauna = createFauna(scene), world = createWorld(
 let boat = createSub(scene, boatKind);
 createShaft(scene, PLAIN.x + 6, PLAIN.z + 4, -8, PLAIN.floor - 1, 46); const snow = createSnow(scene), cans = createCanisters(scene, world), whales = createWhales(scene);
 const cabin = createCabin(), cabinScene = new T.Scene(), camIn = new T.PerspectiveCamera(72, 1, 0.04, 40); cabinScene.add(cabin.group);
+cabin.group.traverse((o) => { const p = o.position; if (Math.abs(p.x - 0.83) < 0.005 && Math.abs(p.z - 0.04) < 0.005) { if (o.isSprite) p.set(0.9, 0.82, -0.25); else if (Math.abs(p.y - 0.7725) < 0.005) o.visible = false; } });   // keine lose Seite mehr: neue Seiten kommen direkt ins Logbuch, das dann schimmert
 // Ansicht: draußen hinter dem Boot oder drinnen in der Kabine (gehen, am Steuer sitzen, am Sonartisch stehen)
 // Menü: beim Start offen; im Spiel öffnet es sich über ❚❚, Esc oder wenn die Maus freigegeben wird – dann ruht die Welt
 const M = { open: true, panel: 'main', orb: 2.3, dirty: 60 };
@@ -37,6 +38,11 @@ const V = { mode: 'out', st: 'walk', px: 0, pz: -0.55, yaw: 0, pitch: 0, hx: 0, 
 // ---------- Bildgröße und Güte ----------
 const FOV = { in: 64, out: 58 }; try { const f = JSON.parse(localStorage.getItem('tiefenlicht.fov') || '{}'); if (f.in) FOV.in = f.in; if (f.out) FOV.out = f.out; } catch (e) { /* ohne Speicher */ }
 let PR = Q.get('q') === 'low' ? 1 : Math.min(window.devicePixelRatio || 1, 2), MSAA = Q.get('q') === 'low' ? 0 : 4, portrait = false, pxScale = 600;
+// Leistung: ein Regler. 0 = frei, 1 = 60 Bilder/s, 2 = 60 und schlichtere Grafik, 3 = 30 und schlichtere Grafik (am kühlsten)
+const PERF = [{ cap: 0, lo: false }, { cap: 60, lo: false }, { cap: 60, lo: true }, { cap: 30, lo: true }];
+let perf = 1; try { const v = localStorage.getItem('tiefenlicht.perf'); if (v !== null && PERF[+v]) perf = +v; } catch (e) { /* egal */ }
+function applyPerf() { const P = PERF[perf], top = Q.get('q') === 'low' ? 1 : Math.min(window.devicePixelRatio || 1, 2); PR = P.lo ? Math.min(top, 1.25) : top; MSAA = Q.get('q') === 'low' || P.lo ? 0 : 4; }
+applyPerf();
 function resize() {
   const w = window.innerWidth, h = window.innerHeight; portrait = h > w;
   renderer.setPixelRatio(PR); renderer.setSize(w, h, false);
@@ -58,7 +64,7 @@ const joy = $('joy'), knob = $('knob'), JR = 54;
 function setJoy(dx, dy) { const l = Math.hypot(dx, dy), k = l > JR ? JR / l : 1; dx *= k; dy *= k; knob.style.transform = `translate(${dx}px,${dy}px)`; const m = Math.min(1, Math.hypot(dx, dy) / JR), dz = m < 0.1 ? 0 : (m - 0.1) / 0.9, a = Math.atan2(dy, dx); I.jx = Math.cos(a) * dz; I.jy = Math.sin(a) * dz; }
 window.addEventListener('pointerdown', (e) => {
   if (!started || M.open) return;
-  if (e.target.closest && e.target.closest('.btn,.pill,#sonar,#table,#menu,#log,#dev,#tapes,#camUI,#horch')) return; if (V.st === 'table' && V.mode === 'in' && !CAMV.on) return;
+  if (e.target.closest && e.target.closest('.btn,.pill,#sonar,#table,#menu,#log,#dev,#tapes,#camUI,#horch,#photoBig')) return; if (V.st === 'table' && V.mode === 'in' && !CAMV.on) return;
   if (CAMV.on) {   // im Sucher: jeder Finger sieht sich um; mit gefangener Maus löst ein Klick aus
     if (e.pointerType === 'mouse' && lockOK && e.target === canvas) { if (document.pointerLockElement !== canvas) { try { const r = canvas.requestPointerLock(); if (r && r.catch) r.catch(() => {}); } catch (x) { /* egal */ } } else if (e.button === 0) shoot(); return; }
     if (I.lookId === null) { I.lookId = e.pointerId; I.lx = e.clientX; I.ly = e.clientY; } return;
@@ -121,10 +127,10 @@ function sonarStep(dt) {
   for (let i = echoes.length - 1; i >= 0; i--) {
     const e = echoes[i]; e.t -= dt; if (e.t > 0) continue; echoes.splice(i, 1); audio.echo(e.vol, clamp(Math.sin(wrapPi(S.h - Math.atan2(e.x - S.x, e.z - S.z))), -1, 1) * 0.8);
     if (e.sector) { sectors.length = 0; sectors.push({ th: e.th, half: e.half, life: 1 }); continue; }
-    for (let j = marks.length - 1; j >= 0; j--) if (marks[j].x === e.x && marks[j].z === e.z) marks.splice(j, 1); marks.push({ x: e.x, z: e.z, life: 1, born: U.uTime.value });
+    for (let j = marks.length - 1; j >= 0; j--) if (marks[j].x === e.x && marks[j].z === e.z) marks.splice(j, 1); marks.push({ x: e.x, z: e.z, life: 1, born: U.uTime.value, gold: !!e.gold });
   }
   for (let i = marks.length - 1; i >= 0; i--) { marks[i].life -= dt / 75; if (marks[i].life <= 0) marks.splice(i, 1); }
-  for (let i = sectors.length - 1; i >= 0; i--) { sectors[i].life -= dt / 35; if (sectors[i].life <= 0) sectors.splice(i, 1); }
+  for (let i = sectors.length - 1; i >= 0; i--) { sectors[i].life -= dt / 12; if (sectors[i].life <= 0) sectors.splice(i, 1); }
   if (sonar.pingR >= 0) { sonar.pingR += dt * 60; U.uPing.value.set(sonar.pingAt.x, sonar.pingAt.y, sonar.pingAt.z, sonar.pingR); U.uPingFade.value = Math.pow(Math.max(0, 1 - sonar.pingR / 230), 1.5); if (sonar.pingR > 230) { sonar.pingR = -1; U.uPing.value.w = -1; } }
 }
 function sonarDraw() {
@@ -143,7 +149,7 @@ function sonarDraw() {
   if (sonar.pingR >= 0 && sonar.pingR < SR * 1.5) { const q = rel(sonar.pingAt.x, sonar.pingAt.z); sc.strokeStyle = `rgba(150,255,190,${0.8 * (1 - sonar.pingR / (SR * 1.5))})`; sc.lineWidth = 3; sc.beginPath(); sc.arc(c + q[0] * k, c - q[1] * k, sonar.pingR * k, 0, 6.2832); sc.stroke(); }
   // Echos: in Reichweite als Raute, sonst als Pfeil am Rand in ihrer Richtung
   for (const m of marks) {
-    const q = rel(m.x, m.z), d = Math.hypot(q[0], q[1]), al = Math.min(1, m.life * 4) * (0.6 + 0.4 * Math.sin((U.uTime.value - m.born) * 3)); sc.fillStyle = `rgba(200,255,220,${al})`; sc.shadowColor = '#6fffa0'; sc.shadowBlur = 16;
+    const q = rel(m.x, m.z), d = Math.hypot(q[0], q[1]), al = Math.min(1, m.life * 4) * (0.6 + 0.4 * Math.sin((U.uTime.value - m.born) * 3)); sc.fillStyle = m.gold ? `rgba(255,205,110,${al})` : `rgba(200,255,220,${al})`; sc.shadowColor = m.gold ? '#ffb040' : '#6fffa0'; sc.shadowBlur = 16;
     if (d < SR - 5) { const px = c + q[0] * k, py = c - q[1] * k, s = 9; sc.beginPath(); sc.moveTo(px, py - s); sc.lineTo(px + s * 0.7, py); sc.lineTo(px, py + s); sc.lineTo(px - s * 0.7, py); sc.closePath(); sc.fill(); }
     else { const ux = q[0] / d, uy = -q[1] / d, s = 13 - 6 * Math.min(1, d / PING), px = c + ux * (R - 4), py = c + uy * (R - 4); sc.beginPath(); sc.moveTo(px, py); sc.lineTo(px - ux * s * 1.9 - uy * s * 0.75, py - uy * s * 1.9 + ux * s * 0.75); sc.lineTo(px - ux * s * 1.9 + uy * s * 0.75, py - uy * s * 1.9 - ux * s * 0.75); sc.closePath(); sc.fill(); }
     sc.shadowBlur = 0;
@@ -159,11 +165,6 @@ function sonarDraw() {
     else { const ux = q[0] / d, uy = -q[1] / d; for (const o of [5, 22]) { const px = c + ux * (R - o), py = c + uy * (R - o), s = 14; sc.beginPath(); sc.moveTo(px - ux * s - uy * s * 0.8, py - uy * s + ux * s * 0.8); sc.lineTo(px, py); sc.lineTo(px - ux * s + uy * s * 0.8, py - uy * s - ux * s * 0.8); sc.stroke(); } }
   }
   sc.restore();
-  // Peilungsring wie am Horchgerät: 0° voraus, im Uhrzeigersinn, 90° Steuerbord
-  sc.lineCap = 'butt';
-  for (let d = 0; d < 360; d += 10) { const big = d % 30 === 0, a = d * Math.PI / 180, s1 = Math.sin(a), c1 = Math.cos(a), r0 = R - (big ? 13 : 7); sc.strokeStyle = big ? 'rgba(170,255,200,0.75)' : 'rgba(120,230,160,0.4)'; sc.lineWidth = big ? 3 : 2; sc.beginPath(); sc.moveTo(c + s1 * r0, c - c1 * r0); sc.lineTo(c + s1 * R, c - c1 * R); sc.stroke(); }
-  sc.font = 'bold 25px ui-monospace, Menlo, monospace'; sc.textAlign = 'center'; sc.textBaseline = 'middle';
-  for (let d = 0; d < 360; d += 30) { const a = d * Math.PI / 180, r1 = R - 32; sc.fillStyle = d % 90 === 0 ? 'rgba(200,255,220,0.9)' : 'rgba(150,240,180,0.6)'; sc.fillText(String(d), c + Math.sin(a) * r1, c - Math.cos(a) * r1); }
   sc.fillStyle = 'rgba(200,255,220,0.95)'; sc.beginPath(); sc.moveTo(c, c - 9); sc.lineTo(c + 6, c + 7); sc.lineTo(c - 6, c + 7); sc.closePath(); sc.fill();
 }
 function ping() {
@@ -172,8 +173,8 @@ function ping() {
   for (const { p, d } of ps) echoes.push({ x: p.x, z: p.z, t: 0.3 + d / 85, vol: clamp(1.15 - d / 500, 0.2, 1) });
   if (MS.active && !MISSIONS[misIdx(MS.active)].pod) {   // die Messingdose: aus der Ferne nur als Fächer in ihrer Richtung, der mit der Nähe schmaler wird; erst ab 170 m als genaue Raute
     const i = misIdx(MS.active), l = MS.stage === 'photo' ? photoTarget() : cans.lamp(i), d = Math.hypot(l.x - S.x, l.z - S.z), half = clamp(d / 10, 8, 45) * Math.PI / 180;
-    echoes.push({ sector: true, th: Math.atan2(l.x - S.x, l.z - S.z) + (MISSIONS[i].off || 0.6) * half, half, x: l.x, z: l.z, t: 0.3 + Math.min(d, 600) / 85, vol: 0.55 });
-    if (d < 170) echoes.push({ x: l.x, z: l.z, t: 0.3 + d / 85, vol: 1 });
+    if (d < SR - 5) { sectors.length = 0; echoes.push({ x: l.x, z: l.z, t: 0.3 + d / 85, vol: 1, gold: true }); }   // im Sonarbild: kein Fächer mehr, das Ziel selbst als goldene Raute
+    else echoes.push({ sector: true, th: Math.atan2(l.x - S.x, l.z - S.z) + (MISSIONS[i].off || 0.6) * half, half, x: l.x, z: l.z, t: 0.3 + Math.min(d, 600) / 85, vol: 0.55 });
   }
 }
 $('sonar').addEventListener('pointerdown', (e) => { e.preventDefault(); if (started && !M.open) ping(); });
@@ -265,6 +266,7 @@ let switching = false;
 function ui() { document.body.className = (V.mode === 'in' ? 'in ' + V.st : 'out') + (PC ? ' pc' : '') + (M.open ? ' menu' : '') + (CAMV.on ? ' cam' : ''); $('modeL').textContent = V.mode === 'in' ? t('to_out') : t('to_in'); }
 function applyMode() {
   const inn = V.mode === 'in'; boatVis();
+  if (inn && MS.pageSeen < curPage() && started) setTimeout(() => note(t('page_new')), 1200);
   if (inn) { V.st = 'walk'; V.px = 0; V.pz = -0.95; V.yaw = 0; V.pitch = 0; V.hx = 0; V.hy = 1.56; V.hz = -0.95; table.reset(); if (!PC) { hintEl.textContent = t('hint_in_touch'); hintEl.style.opacity = 1; hintT = 6; } }
   else { if (hintEl.textContent === t('hint_in_touch')) { hintEl.style.opacity = 0; hintT = 0; } C.yaw = S.h; C.oy = C.op = 0; C.dist = 14; C.pos.set(S.x - Math.sin(S.h) * 14, S.y + 4, S.z - Math.cos(S.h) * 14); C.look.set(S.x, S.y + 1, S.z); }
   if (!inn) sonHint(); audio.setInside(inn); world.setSmall(!inn); life.setInside(inn); ui(); resize(); syncFov();
@@ -284,14 +286,14 @@ const LABEL = {
   kettle: () => (tea.phase === 'cold' ? t('kettle_on') : tea.phase === 'ready' ? t('kettle_pour') : ''),
   stove: () => (cabin.state.fireT > 1.2 ? '' : t('stove')),
   cupDesk: () => (cabin.state.cup === 'desk' ? t('cup_take') : ''), cupPult: () => (cabin.state.cup === 'pult' ? (cabin.state.cupHeat > 0.05 ? t('cup_drink') : t('cup_away')) : ''),
-  deck: () => t('tape_menu'), light: () => (cabin.state.lampT > 0.5 ? t('light_dim') : t('light_on')), log: () => t('log_read'), page: () => t('page_read'), horch: () => t('horch'),
+  deck: () => t('tape_menu'), light: () => (cabin.state.lampT > 0.5 ? t('light_dim') : t('light_on')), log: () => t('log_read'), horch: () => t('horch'),
 };
 const ACT = {
   seat: () => setSt('seat'), table: () => setSt('table'),
   kettle: () => { if (tea.phase === 'cold') { tea.phase = 'heat'; tea.t = 0; audio.click(0.6); } else if (tea.phase === 'ready') { tea.phase = 'cool'; tea.t = 0; cabin.state.cup = 'desk'; cabin.state.cupHeat = 1; audio.pour(); } },
   stove: () => { cabin.state.fireT = 1.7; setTimeout(() => { cabin.state.fireT = 1; }, 45000); audio.click(0.8); },
   cupDesk: () => { cabin.state.cup = 'pult'; audio.click(0.3); }, cupPult: () => { if (cabin.state.cupHeat > 0.05) { cabin.state.cupHeat = Math.max(0, cabin.state.cupHeat - 0.34); if (cabin.state.cupHeat <= 0.05) note(t('tea_done')); } else cabin.state.cup = 'none'; audio.click(0.25); },
-  deck: () => openTapes(), light: () => { cabin.state.lampT = cabin.state.lampT > 0.5 ? 0.12 : 1; audio.click(0.9); }, log: () => openLog(), page: () => openPage(), horch: () => openHorch(),
+  deck: () => openTapes(), light: () => { cabin.state.lampT = cabin.state.lampT > 0.5 ? 0.12 : 1; audio.click(0.9); }, log: () => openLog(), horch: () => openHorch(),
 };
 function pickTarget() {
   if (V.mode !== 'in' || V.st === 'table') return null;
@@ -335,7 +337,7 @@ function takeCan() {
 }
 function finishMission(m, pid) {
   MS.done.push(m.id); MS.active = null; MS.stage = null; nearCan = false; syncMis(); banner(t('mis_done'), t('mis_' + m.id));
-  if (m.pod) { setTimeout(() => addLog({ kind: 'diary', id: m.id, pid }), 2500); setTimeout(() => note(t('env_open')), 6000); }   // der erste lange eigene Eintrag, dann der Umschlag aus der dritten Dose
+  if (m.pod) { setTimeout(() => addLog({ kind: 'diary', id: m.id, pid }), 2500); setTimeout(() => note(t('env_open')), 6000); } else if (MS.pageSeen < curPage()) setTimeout(() => note(t('page_new')), 5500);   // der erste lange eigene Eintrag, dann der Umschlag aus der dritten Dose
   save();
 }
 /** legt eine Kassette ins Deck und spielt sie: Herausnehmen aus dem Regal heißt abspielen */
@@ -403,9 +405,12 @@ function openHorch() { unlock(); closeTapes(); horchOpen = true; $('horch').clas
 function closeHorch(esc) { if (!horchOpen) return; horchOpen = false; horchDrag = null; $('horch').classList.remove('open'); audio.hydro(false, 0); if (esc) relockEsc = true; else lockMouse(); }
 const hcv = $('horchCv'), hcx = hcv.getContext('2d');
 const horchAng = (e) => { const r = hcv.getBoundingClientRect(); return Math.atan2(e.clientX - r.left - r.width / 2, -(e.clientY - r.top - r.height / 2)) * 180 / Math.PI; };
-hcv.addEventListener('pointerdown', (e) => { e.preventDefault(); horchDrag = { id: e.pointerId, a: horchAng(e) }; try { hcv.setPointerCapture(e.pointerId); } catch (x) { /* egal */ } });
-hcv.addEventListener('pointermove', (e) => { if (!horchDrag || e.pointerId !== horchDrag.id) return; const a = horchAng(e); let d = a - horchDrag.a; d = ((d + 540) % 360) - 180; horchDeg = (horchDeg + d + 360) % 360; horchDrag.a = a; });
-for (const ev of ['pointerup', 'pointercancel']) hcv.addEventListener(ev, () => { horchDrag = null; });
+hcv.addEventListener('pointerdown', (e) => { e.preventDefault(); if (horchDrag) return; horchDrag = { id: e.pointerId, a: horchAng(e), x: e.clientX, touch: e.pointerType !== 'mouse' }; try { hcv.setPointerCapture(e.pointerId); } catch (x) { /* egal */ } });
+hcv.addEventListener('pointermove', (e) => { if (!horchDrag || e.pointerId !== horchDrag.id) return;
+  if (horchDrag.touch) { const dx = e.clientX - horchDrag.x; horchDrag.x = e.clientX; horchDeg = (horchDeg + dx * 0.45 + 360) % 360; return; }   // Finger: wischen wie an einem Drehknopf, egal wo
+  const r = hcv.getBoundingClientRect(), rr = Math.hypot(e.clientX - r.left - r.width / 2, e.clientY - r.top - r.height / 2) / (r.width / 2), a = horchAng(e); if (rr < 0.3) { horchDrag.a = a; return; }   // nah an der Mitte springt der Winkel: dort nicht drehen
+  let d = a - horchDrag.a; d = ((d + 540) % 360) - 180; horchDeg = (horchDeg + d + 360) % 360; horchDrag.a = a; });
+for (const ev of ['pointerup', 'pointercancel']) hcv.addEventListener(ev, (e) => { if (horchDrag && e.pointerId === horchDrag.id) horchDrag = null; });
 $('horchClose').addEventListener('pointerdown', (e) => { e.preventDefault(); closeHorch(); });
 function drawHorch() {
   const N = hcv.width, c = N / 2, R = c - 10, x = hcx, lvl = audio.hydroLevel(); x.clearRect(0, 0, N, N);
@@ -475,37 +480,47 @@ function discover() {
 let logTab = 'own';
 function logPage(box, i, sep) { const pg = t('pages')[i]; if (!pg) return; const d = document.createElement('div'); d.className = 'logEntry' + (sep ? ' sep' : ''); const a = document.createElement('div'); a.className = 'logTitle'; a.textContent = pg[0]; const p = document.createElement('div'); p.className = 'logP'; p.textContent = pg[1]; const g = document.createElement('div'); g.className = 'logSign'; g.textContent = pg[2]; d.appendChild(a); d.appendChild(p); d.appendChild(g); box.appendChild(d); }
 function openLog(tab) {
-  unlock(); if (tab) logTab = tab; $('log').classList.remove('page');
+  unlock(); logTab = tab || (MS.pageSeen < curPage() ? 'cap' : logTab); $('log').classList.remove('page');   // ungelesene Seite: das Logbuch schlägt sie gleich auf
   const box = $('logText'); box.innerHTML = ''; box.scrollTop = 0; const h = document.createElement('div'); h.className = 'logHead'; h.textContent = logTab === 'cap' ? t('log_cap_h') : logTab === 'pho' ? t('log_pho') : t('log'); box.appendChild(h);
   for (const b of document.querySelectorAll('#logTabs .pill')) b.classList.toggle('on', b.dataset.tab === logTab);
-  if (logTab === 'cap') { for (let i = curPage(); i >= 0; i--) logPage(box, i, i > 0); }
+  if (logTab === 'cap') {
+    for (let i = curPage(); i >= 0; i--) {
+      logPage(box, i, i > 0);
+      const nx = nextMis(); if (i === curPage() && nx && nx.page === i) {   // unter der neuesten Seite: hier beginnt die Mission
+        const go = document.createElement('div'); go.className = 'pill logStart' + (MS.active ? ' run' : ''); go.textContent = MS.active ? t('mis_running') : t('mis_start');
+        go.addEventListener('pointerup', (e) => { e.preventDefault(); if (!MS.active) startMission(); }); box.appendChild(go);
+      }
+    }
+    if (MS.pageSeen < curPage()) { MS.pageSeen = curPage(); syncMis(); save(); }
+  }
   else if (logTab === 'pho') {
     if (!PHOTOS.length) { const p = document.createElement('div'); p.textContent = t('photo_none'); box.appendChild(p); }
-    else { const gd = document.createElement('div'); gd.id = 'photoGrid'; for (const ph of PHOTOS.slice().reverse()) { const im = document.createElement('img'); im.src = ph.src; gd.appendChild(im); } box.appendChild(gd); }
+    else { const gd = document.createElement('div'); gd.id = 'photoGrid'; for (const ph of PHOTOS.slice().reverse()) { const im = document.createElement('img'); im.src = ph.src; im.addEventListener('pointerup', () => showBig(ph.src)); gd.appendChild(im); } box.appendChild(gd); }
   } else {
-    const add = (title, when, text, img, both) => { const d = document.createElement('div'); d.className = 'logEntry'; const a = document.createElement('div'); a.className = 'logTitle'; a.textContent = title + (when ? '  ·  ' + when : ''); d.appendChild(a); if (img) { const im = document.createElement('img'); im.className = 'logPhoto'; im.src = img; d.appendChild(im); } if (!img || both) { const p = document.createElement('div'); p.className = both ? 'logP' : ''; p.textContent = text; d.appendChild(p); } box.appendChild(d); };
+    const add = (title, when, text, img, both) => { const d = document.createElement('div'); d.className = 'logEntry'; const a = document.createElement('div'); a.className = 'logTitle'; a.textContent = title + (when ? '  ·  ' + when : ''); d.appendChild(a); if (img) { const im = document.createElement('img'); im.className = 'logPhoto'; im.src = img; im.addEventListener('pointerup', () => showBig(img)); d.appendChild(im); } if (!img || both) { const p = document.createElement('div'); p.className = both ? 'logP' : ''; p.textContent = text; d.appendChild(p); } box.appendChild(d); };
     if (!LOG.length) add(t('log_empty_t'), '', t('log_empty'));
     for (const e of LOG.slice().reverse()) add(entryTitle(e), (e.min < 1 ? t('now') : t('after', { m: e.min })) + ', ' + e.depth + ' m', entryText(e), e.kind === 'photo' || e.kind === 'diary' ? photoSrc(e.pid) : null, e.kind === 'diary');
   }
   $('log').classList.add('open');
 }
-function openPage() {
-  unlock(); const box = $('logText'); box.innerHTML = ''; box.scrollTop = 0; const h = document.createElement('div'); h.className = 'logHead'; h.textContent = t('log_cap_h'); box.appendChild(h); logPage(box, curPage(), false);
-  const nx = nextMis(), go = $('logGo'), mine = nx && nx.page === curPage(); go.classList.toggle('show', !!mine); go.classList.toggle('run', !!MS.active); go.textContent = MS.active ? t('mis_running') : t('mis_start');
-  MS.pageSeen = curPage(); syncMis(); save(); $('log').classList.add('page'); $('log').classList.add('open');
-}
+/** alter Name: öffnet das Logbuch beim Kapitän */
+function openPage() { openLog('cap'); }
 for (const b of document.querySelectorAll('#logTabs .pill')) b.addEventListener('pointerdown', (e) => { e.preventDefault(); openLog(b.dataset.tab); });
-$('logGo').addEventListener('pointerup', (e) => { e.preventDefault(); if (!MS.active) startMission(); });
 $('logClose').addEventListener('pointerdown', (e) => { e.preventDefault(); $('log').classList.remove('open'); lockMouse(); });
+/** ein Foto groß zeigen; ein Tipp (oder Esc) schließt es wieder */
+const bigEl = $('photoBig'); function showBig(src) { bigEl.querySelector('img').src = src; bigEl.classList.add('open'); }
+bigEl.addEventListener('pointerup', (e) => { e.preventDefault(); bigEl.classList.remove('open'); });
 let noteT = 0; function note(t) { const n = $('note'); n.textContent = t; noteT = 4; }
 // ---------- Einstellungen: Sichtfeld ----------
 $('gear').addEventListener('pointerdown', (e) => { e.preventDefault(); openMenu(); });
 // Sprache, Vollbild, neu beginnen
-function texts() { for (const el of document.querySelectorAll('[data-t]')) el.textContent = t(el.dataset.t); ui(); syncFov(); goText(); if (M.panel === 'boat') fillBoats(); if (M.panel === 'help') fillHelp(); if (M.panel === 'mis') fillMis(); if (tapesOpen) fillTapes(); syncWhale(); for (const b of document.querySelectorAll('#langs .pill')) b.classList.toggle('on', b.dataset.l === getLang()); hintEl.textContent = PC ? t('hint_pc') : t('hint_touch'); }
+function texts() { for (const el of document.querySelectorAll('[data-t]')) el.textContent = t(el.dataset.t); ui(); syncFov(); goText(); if (M.panel === 'boat') fillBoats(); if (M.panel === 'help') fillHelp(); if (M.panel === 'mis') fillMis(); if (tapesOpen) fillTapes(); syncWhale(); syncPerf(); for (const b of document.querySelectorAll('#langs .pill')) b.classList.toggle('on', b.dataset.l === getLang()); hintEl.textContent = PC ? t('hint_pc') : t('hint_touch'); }
 for (const b of document.querySelectorAll('#langs .pill')) b.addEventListener('pointerdown', (e) => { e.preventDefault(); setLang(b.dataset.l); texts(); });
 if (!document.fullscreenEnabled) $('fsBtn').style.display = 'none';
 $('fsBtn').addEventListener('pointerdown', (e) => { e.preventDefault(); try { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen().then(() => { try { screen.orientation.unlock(); } catch (x) { /* egal */ } }).catch(() => {}); } catch (x) { /* egal */ } });
 let resetArm = 0; $('resetBtn').addEventListener('pointerdown', (e) => { e.preventDefault(); if (resetArm && performance.now() - resetArm < 4000) { try { localStorage.removeItem(SAVE_KEY); localStorage.removeItem(PH_KEY); } catch (x) { /* egal */ } noSave = true; location.reload(); } else { resetArm = performance.now(); $('resetBtn').textContent = t('reset_sure'); setTimeout(() => { $('resetBtn').textContent = t('reset'); }, 4000); } });
+function syncPerf() { $('perf').value = perf; $('perfV').textContent = t('perf_n')[perf]; $('perfD').textContent = t('perf_d')[perf]; }
+$('perf').addEventListener('input', (e) => { perf = +e.target.value; try { localStorage.setItem('tiefenlicht.perf', String(perf)); } catch (x) { /* egal */ } applyPerf(); resize(); syncPerf(); });
 function syncFov() { $('fovO').value = FOV.out; $('fovI').value = FOV.in; $('fovOV').textContent = Math.round(fovFor('out')) + '°'; $('fovIV').textContent = Math.round(fovFor('in')) + '°'; }
 for (const [id, k] of [['fovO', 'out'], ['fovI', 'in']]) $(id).addEventListener('input', (e) => { FOV[k] = +e.target.value; try { localStorage.setItem('tiefenlicht.fov', JSON.stringify(FOV)); } catch (x) { /* egal */ } resize(); syncFov(); });
 // Walgesänge: Lautstärke, Häufigkeit, an/aus (gespeichert; dieselben Werte stehen auch im Entwicklermenü)
@@ -541,6 +556,7 @@ function cabinStep(dt) {
   else if (frames % 6 === 0) { table.draw(cabin.scopeCtx, 256); cabin.scopeTex.needsUpdate = true; }
 }
 window.addEventListener('keydown', (e) => { if (e.repeat) return;
+  if (bigEl.classList.contains('open')) { if (e.code === 'Escape') bigEl.classList.remove('open'); return; }
   if (M.open) { if (e.code === 'Escape' && performance.now() - escT > 350) { if (M.panel !== 'main') showPanel('main'); else if (started) closeMenu(); } else if (e.code === 'Enter' && M.panel === 'main') goBtn(); return; }
   if (e.code === 'KeyE' && devOn && started) { toggleDev(); return; }
   if (tapesOpen && (e.code === 'Escape' || e.code === 'KeyF')) { closeTapes(e.code === 'Escape'); return; }
@@ -554,8 +570,11 @@ window.addEventListener('keydown', (e) => { if (e.repeat) return;
 // ---------- Schleife ----------
 let last = performance.now(), fpsT = 0, fpsN = 0, slowT = 0, hintT = 0;
 const fpsEl = $('fps'), depthEl = $('depth'), echoEl = $('echo'), noteEl = $('note'), hintEl = $('hint'), adapt = !Q.has('nopr');
+let tick = 0;
 function frame(now) {
   requestAnimationFrame(frame);
+  const capMs = PERF[perf].cap ? 1000 / PERF[perf].cap : 0;   // Bildrate begrenzen: Bilder, die zu früh kommen, werden ausgelassen
+  if (capMs) { if (now - tick < capMs - 2) return; tick = now - tick > capMs * 2 ? now : tick + capMs; }
   const raw = (now - last) / 1000, dt = Math.min(0.05, Math.max(0.001, raw)); last = now;
   const run = !(started && M.open), showOut = M.open && M.panel === 'boat';
   if (run) U.uTime.value += dt; frames++; if (started && run) playTime += dt;
@@ -585,7 +604,7 @@ function frame(now) {
   fpsT += raw; fpsN++;
   if (fpsT >= 1) {
     const fps = fpsN / fpsT; fpsEl.textContent = Math.round(fps) + ' fps'; depthEl.textContent = t('depth') + ' ' + String(Math.round(-S.y)).padStart(3, '0') + ' m';
-    if (adapt && started && run && fps < 50) { slowT++; if (slowT >= 2) { slowT = 0; if (PR > 1.15) { PR = Math.max(1.1, PR - 0.25); resize(); } else if (MSAA) { MSAA = 0; resize(); } } } else slowT = 0;
+    if (adapt && started && run && fps < (PERF[perf].cap ? PERF[perf].cap * 0.83 : 50)) { slowT++; if (slowT >= 2) { slowT = 0; if (PR > 1.15) { PR = Math.max(1.1, PR - 0.25); resize(); } else if (MSAA) { MSAA = 0; resize(); } } } else slowT = 0;
     fpsT = 0; fpsN = 0;
   }
   if (tNote > 0) { tNote -= dt; noteEl.textContent = t('too_deep'); noteEl.style.opacity = tNote > 0.5 ? 1 : 0; } else if (noteT > 0) { noteT -= dt; noteEl.style.opacity = noteT > 0.6 ? 1 : 0; }
@@ -607,7 +626,7 @@ function showPanel(p) {
   $('menu').classList.toggle('low', p === 'boat'); $('menu').classList.toggle('wide', p === 'help' || p === 'mis');
   if (p === 'boat') { M.orb = 2.3; if (V.mode === 'in') { C.yaw = S.h; C.oy = C.op = 0; C.dist = 10; C.pos.set(S.x - Math.sin(S.h) * 10, S.y + 3, S.z - Math.cos(S.h) * 10); C.look.set(S.x, S.y + 1, S.z); } fillBoats(); }
   else if (was === 'boat') homeT = 3;
-  if (p === 'help') fillHelp(); if (p === 'mis') fillMis(); if (p === 'set') { syncFov(); syncWhale(); }
+  if (p === 'help') fillHelp(); if (p === 'mis') fillMis(); if (p === 'set') { syncFov(); syncWhale(); syncPerf(); }
   boatVis();
 }
 function goText() { $('mGo').textContent = started ? t('m_resume') : resumed ? t('m_continue') : t('m_dive'); $('mFoot').textContent = PC ? t('m_foot_pc') : ''; }
