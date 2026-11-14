@@ -109,6 +109,29 @@
   #tBtns { display: flex; justify-content: center; gap: 22px; } #tBtns span { cursor: pointer; padding: 4px; } #tBtns svg { width: 18px; height: 18px; fill: none; stroke: rgba(225, 195, 140, 0.75); stroke-width: 1.8; stroke-linejoin: round; } #tBtns span.on svg { stroke: #ffe2a8; }
   @media (max-height: 480px) { .tRow { padding: 5px 12px; margin-bottom: 2px; font-size: 14px; } .tCard { padding: 10px 12px; } #tReel { width: 50px; height: 50px; } }
   .press { box-shadow: inset 0 0 0 200px rgba(225, 245, 250, 0.2) !important; border-color: rgba(235, 250, 252, 0.6) !important; } #scope.press { filter: brightness(1.35); }
+  #camBtn { position: fixed; left: calc(12px + env(safe-area-inset-left)); top: calc(114px + env(safe-area-inset-top)); padding: 7px 12px; display: none; }
+  #camBtn svg, #camShut svg { width: 18px; height: 15px; fill: none; stroke: rgba(225, 245, 248, 0.9); stroke-width: 1.6; vertical-align: -3px; }
+  body.cam #ui > :not(#camUI):not(#banner):not(#note) { display: none !important; }
+  #camUI { position: fixed; inset: 0; display: none; pointer-events: none; } body.cam #camUI { display: block; }
+  #camFrame { position: absolute; inset: 9% 12%; } #camFrame i { position: absolute; width: 34px; height: 34px; border: 0 solid rgba(235, 248, 250, 0.75); transition: border-color 0.3s; }
+  #camFrame i:nth-child(1) { left: 0; top: 0; border-width: 2px 0 0 2px; } #camFrame i:nth-child(2) { right: 0; top: 0; border-width: 2px 2px 0 0; } #camFrame i:nth-child(3) { left: 0; bottom: 0; border-width: 0 0 2px 2px; } #camFrame i:nth-child(4) { right: 0; bottom: 0; border-width: 0 2px 2px 0; }
+  #camFrame.ok i { border-color: rgba(255, 205, 110, 0.98); filter: drop-shadow(0 0 6px rgba(255, 190, 80, 0.7)); }
+  #camDot { position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%; background: rgba(235, 248, 250, 0.7); }
+  #camInfo { position: absolute; left: 12%; bottom: calc(9% - 22px); font: 11px/1 ui-monospace, Menlo, Consolas, monospace; letter-spacing: 0.16em; color: rgba(235, 248, 250, 0.75); }
+  #camShut { position: absolute; right: calc(24px + env(safe-area-inset-right)); top: 50%; width: 66px; height: 66px; margin-top: -33px; border-radius: 50%; border: 3px solid rgba(240, 250, 252, 0.85); background: rgba(240, 250, 252, 0.18); pointer-events: auto; display: flex; align-items: center; justify-content: center; }
+  #camShut kbd { position: absolute; top: 74px; margin: 0; }
+  #camClose { position: absolute; left: calc(12px + env(safe-area-inset-left)); top: calc(26px + env(safe-area-inset-top)); pointer-events: auto; }
+  #camFlash { position: absolute; inset: 0; background: #fff; opacity: 0; transition: opacity 0.5s; }
+  #camThumb { position: absolute; left: calc(14px + env(safe-area-inset-left)); bottom: calc(14px + env(safe-area-inset-bottom)); width: 132px; opacity: 0; transform: rotate(-4deg) translateY(20px); transition: opacity 0.5s, transform 0.5s; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5); }
+  #camThumb.show { opacity: 1; transform: rotate(-4deg) translateY(0); }
+  .logPhoto { display: block; width: min(78%, 300px); margin: 10px auto 4px; box-shadow: 0 4px 12px rgba(60, 40, 20, 0.35); transform: rotate(-1.6deg); }
+  .logEntry:nth-child(even) .logPhoto { transform: rotate(1.4deg); }
+  #photoGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 16px; padding: 4px; } #photoGrid img { width: 100%; box-shadow: 0 3px 10px rgba(60, 40, 20, 0.35); } #photoGrid img:nth-child(odd) { transform: rotate(-1.5deg); } #photoGrid img:nth-child(even) { transform: rotate(1.2deg); }
+  #horch { position: fixed; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 12px; background: rgba(8, 6, 3, 0.82); pointer-events: auto; z-index: 3; }
+  #horch.open { display: flex; } #ui:has(#horch.open) :is(#banner, #hint, #act, #sonHint, #camBtn) { visibility: hidden; }
+  #horchCv { width: min(88vw, 72vh); height: min(88vw, 72vh); border-radius: 50%; touch-action: none; box-shadow: 0 0 0 5px #3a2a14, 0 0 0 9px #9a7638, 0 0 0 12px #2a1e0e, 0 8px 30px rgba(0, 0, 0, 0.7); }
+  #horchInfo { font: 12px/1.8 ui-monospace, Menlo, Consolas, monospace; letter-spacing: 0.14em; color: rgba(255, 220, 160, 0.92); white-space: pre-line; text-align: center; }
+  @media (orientation: landscape) and (max-height: 520px) { #horch { flex-direction: row; gap: 22px; } #horchSide { display: flex; flex-direction: column; gap: 12px; align-items: center; } }
   #err { position: fixed; left: 8px; bottom: 8px; right: 8px; font: 11px monospace; color: #ffb0a0; white-space: pre-wrap; z-index: 9; pointer-events: none; }
 </style>
 </head>
@@ -125,9 +148,13 @@
   <div id="banner"><span class="b1"></span><span class="b2"></span></div>
   <div id="fps"></div>
   <div id="mode" class="pill"><span id="modeL"></span><kbd>C</kbd></div>
+  <div id="camBtn" class="pill"><svg viewBox="0 0 18 15"><path d="M1.5 4.5h3l1.5-2.5h6l1.5 2.5h3v9h-15z"/><circle cx="9" cy="8.6" r="3"/></svg><kbd>K</kbd></div>
+  <div id="camUI"><div id="camFrame"><i></i><i></i><i></i><i></i><div id="camDot"></div></div><div id="camInfo"></div><img id="camThumb" alt="">
+    <div id="camShut"><kbd>Space</kbd></div><div id="camClose" class="pill"><span data-t="close"></span><kbd>Esc</kbd></div><div id="camFlash"></div></div>
+  <div id="horch"><canvas id="horchCv" width="720" height="720"></canvas><div id="horchSide"><div id="horchInfo"></div><div id="horchClose" class="pill"><span data-t="back"></span><kbd>Esc</kbd></div></div></div>
   <div id="gear" class="pill"><svg viewBox="0 0 12 12"><rect x="2" y="1.5" width="2.6" height="9" rx="0.8"/><rect x="7.4" y="1.5" width="2.6" height="9" rx="0.8"/></svg><kbd>Esc</kbd></div>
   <div id="dev"></div>
-  <div id="log"><div id="logTabs"><div class="pill mini" data-tab="own" data-t="log_own"></div><div class="pill mini" data-tab="cap" data-t="log_cap"></div></div><div id="logText"></div><div id="logBtns"><div id="logGo" class="pill"></div><div id="logClose" class="pill"><span data-t="close"></span><kbd>L</kbd></div></div></div>
+  <div id="log"><div id="logTabs"><div class="pill mini" data-tab="own" data-t="log_own"></div><div class="pill mini" data-tab="cap" data-t="log_cap"></div><div class="pill mini" data-tab="pho" data-t="log_pho"></div></div><div id="logText"></div><div id="logBtns"><div id="logGo" class="pill"></div><div id="logClose" class="pill"><span data-t="close"></span><kbd>L</kbd></div></div></div>
   <div id="tapes"><div class="tCard"><div id="tList"></div><div class="tNow"><canvas id="tReel" width="128" height="128"></canvas><div class="tInfo"><div id="tName"></div><canvas id="tWave" width="300" height="52"></canvas>
     <div id="tBtns"><span data-a="play"><svg viewBox="0 0 18 18"><path d="M4 2.5l11 6.5-11 6.5z"/></svg></span><span data-a="pause"><svg viewBox="0 0 18 18"><path d="M5 3v12M13 3v12"/></svg></span><span data-a="stop"><svg viewBox="0 0 18 18"><rect x="3.5" y="3.5" width="11" height="11" rx="1"/></svg></span></div></div></div></div>
     <div id="tClose" class="pill"><span data-t="close"></span><kbd>F</kbd></div></div>
