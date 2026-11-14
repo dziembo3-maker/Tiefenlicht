@@ -95,6 +95,20 @@
   .mis.done .mn { color: rgba(225, 243, 246, 0.8); } .mis.hid { opacity: 0.42; text-align: center; letter-spacing: 0.5em; padding: 7px 12px; font-size: 13px; }
   #pSet hr { border: 0; border-top: 1px solid rgba(205, 242, 250, 0.16); margin: 4px 0 12px; }
   @media (max-height: 480px) { .card { padding: 14px 22px 12px; } .card h1 { font-size: 24px; margin-bottom: 4px; } .card .sub { margin-bottom: 8px; } .mb { padding: 8px 0; margin-top: 7px; font-size: 14px; } .foot { margin-top: 8px; } }
+  #sonHint { position: absolute; right: 140px; top: 34px; width: 190px; text-align: right; font-size: 13px; line-height: 1.4; font-style: italic; letter-spacing: 0.04em; color: rgba(255, 238, 210, 0.95); text-shadow: 0 1px 8px rgba(0, 20, 35, 0.95); opacity: 0; transition: opacity 1.4s; pointer-events: none; }
+  body.pc #sonHint { right: 176px; }
+  #tapes { position: fixed; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 12px; pointer-events: auto; z-index: 3; background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.25), rgba(0, 0, 0, 0) 70%); }
+  #tapes.open { display: flex; } #ui:has(#tapes.open) :is(#banner, #hint, #note, #act, #sonHint) { visibility: hidden; }
+  .tCard { width: min(78vw, 290px); max-height: calc(100% - 70px); overflow-y: auto; box-sizing: border-box; padding: 14px 14px 12px; border-radius: 24px; background: rgba(16, 40, 38, 0.97); border: 1.5px solid rgba(225, 185, 120, 0.5); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 230, 190, 0.12); }
+  .tRow { display: flex; align-items: center; gap: 14px; padding: 8px 12px; margin-bottom: 4px; border-radius: 12px; border: 1.5px solid transparent; font-size: 15px; letter-spacing: 0.06em; color: rgba(245, 232, 210, 0.95); cursor: pointer; }
+  .tRow svg { width: 28px; height: 20px; flex: none; fill: none; stroke: rgba(225, 195, 140, 0.8); stroke-width: 1.4; }
+  .tRow.on { border-color: rgba(232, 190, 120, 0.85); background: rgba(232, 184, 106, 0.08); } .tRow.hid { opacity: 0.35; cursor: default; letter-spacing: 0.4em; }
+  .tNow { display: flex; align-items: center; gap: 12px; margin-top: 8px; padding-top: 12px; border-top: 1px solid rgba(225, 185, 120, 0.3); }
+  #tReel { width: 64px; height: 64px; flex: none; } .tInfo { flex: 1; min-width: 0; text-align: center; }
+  #tName { font-size: 15px; letter-spacing: 0.06em; color: rgba(250, 238, 218, 0.95); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } #tWave { width: 100%; height: 26px; display: block; margin: 4px 0 2px; }
+  #tBtns { display: flex; justify-content: center; gap: 22px; } #tBtns span { cursor: pointer; padding: 4px; } #tBtns svg { width: 18px; height: 18px; fill: none; stroke: rgba(225, 195, 140, 0.75); stroke-width: 1.8; stroke-linejoin: round; } #tBtns span.on svg { stroke: #ffe2a8; }
+  @media (max-height: 480px) { .tRow { padding: 5px 12px; margin-bottom: 2px; font-size: 14px; } .tCard { padding: 10px 12px; } #tReel { width: 50px; height: 50px; } }
+  .press { box-shadow: inset 0 0 0 200px rgba(225, 245, 250, 0.2) !important; border-color: rgba(235, 250, 252, 0.6) !important; } #scope.press { filter: brightness(1.35); }
   #err { position: fixed; left: 8px; bottom: 8px; right: 8px; font: 11px monospace; color: #ffb0a0; white-space: pre-wrap; z-index: 9; pointer-events: none; }
 </style>
 </head>
@@ -104,7 +118,7 @@
   <div id="joy"><div id="knob"></div></div>
   <div id="up" class="btn"><svg viewBox="0 0 24 24"><path d="M5 15l7-7 7 7"/></svg><kbd class="side">Space</kbd></div>
   <div id="down" class="btn"><svg viewBox="0 0 24 24"><path d="M5 9l7 7 7-7"/></svg><kbd class="side">Shift</kbd></div>
-  <div id="sonar"><span class="kgrp"><svg class="ms" viewBox="0 0 14 20"><rect x="1" y="1" width="12" height="18" rx="6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M7 1v7M7 8H13V7a6 6 0 0 0-6-6z" fill="currentColor" stroke="currentColor" stroke-width="0.6"/></svg><kbd>R</kbd></span><canvas id="scope" width="366" height="366"></canvas><div id="depth">TIEFE 000 m</div><div id="echo"></div></div>
+  <div id="sonar"><span class="kgrp"><svg class="ms" viewBox="0 0 14 20"><rect x="1" y="1" width="12" height="18" rx="6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M7 1v7M7 8H13V7a6 6 0 0 0-6-6z" fill="currentColor" stroke="currentColor" stroke-width="0.6"/></svg><kbd>R</kbd></span><div id="sonHint"></div><canvas id="scope" width="366" height="366"></canvas><div id="depth">TIEFE 000 m</div><div id="echo"></div></div>
   <div id="hint"></div>
   <div id="grab" data-t="grab_mouse"></div>
   <div id="note"></div>
@@ -114,6 +128,9 @@
   <div id="gear" class="pill"><svg viewBox="0 0 12 12"><rect x="2" y="1.5" width="2.6" height="9" rx="0.8"/><rect x="7.4" y="1.5" width="2.6" height="9" rx="0.8"/></svg><kbd>Esc</kbd></div>
   <div id="dev"></div>
   <div id="log"><div id="logTabs"><div class="pill mini" data-tab="own" data-t="log_own"></div><div class="pill mini" data-tab="cap" data-t="log_cap"></div></div><div id="logText"></div><div id="logBtns"><div id="logGo" class="pill"></div><div id="logClose" class="pill"><span data-t="close"></span><kbd>L</kbd></div></div></div>
+  <div id="tapes"><div class="tCard"><div id="tList"></div><div class="tNow"><canvas id="tReel" width="128" height="128"></canvas><div class="tInfo"><div id="tName"></div><canvas id="tWave" width="300" height="52"></canvas>
+    <div id="tBtns"><span data-a="play"><svg viewBox="0 0 18 18"><path d="M4 2.5l11 6.5-11 6.5z"/></svg></span><span data-a="pause"><svg viewBox="0 0 18 18"><path d="M5 3v12M13 3v12"/></svg></span><span data-a="stop"><svg viewBox="0 0 18 18"><rect x="3.5" y="3.5" width="11" height="11" rx="1"/></svg></span></div></div></div></div>
+    <div id="tClose" class="pill"><span data-t="close"></span><kbd>F</kbd></div></div>
   <div id="act" class="pill"><span id="actL"></span><kbd>F</kbd></div>
   <div id="table"><canvas id="tableCv" width="760" height="760"></canvas><div id="tableInfo"></div><div id="tableBtns"><div id="tableClear" class="pill" data-t="course_clear"></div><div id="tableClose" class="pill"><span data-t="back"></span><kbd>Esc</kbd></div></div></div>
 </div>

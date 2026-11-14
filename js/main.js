@@ -57,7 +57,7 @@ const joy = $('joy'), knob = $('knob'), JR = 54;
 function setJoy(dx, dy) { const l = Math.hypot(dx, dy), k = l > JR ? JR / l : 1; dx *= k; dy *= k; knob.style.transform = `translate(${dx}px,${dy}px)`; const m = Math.min(1, Math.hypot(dx, dy) / JR), dz = m < 0.1 ? 0 : (m - 0.1) / 0.9, a = Math.atan2(dy, dx); I.jx = Math.cos(a) * dz; I.jy = Math.sin(a) * dz; }
 window.addEventListener('pointerdown', (e) => {
   if (!started || M.open) return;
-  if (e.target.closest && e.target.closest('.btn,.pill,#sonar,#table,#menu,#log,#dev')) return; if (V.st === 'table' && V.mode === 'in') return;
+  if (e.target.closest && e.target.closest('.btn,.pill,#sonar,#table,#menu,#log,#dev,#tapes')) return; if (V.st === 'table' && V.mode === 'in') return;
   if (e.pointerType === 'mouse') {
     if (lockOK && e.target === canvas && !devOpen()) { if (document.pointerLockElement !== canvas) { try { const r = canvas.requestPointerLock(); if (r && r.catch) r.catch(() => { lockOK = false; }); } catch (x) { lockOK = false; } } else if (e.button === 2) ping(); return; }
     if (I.lookId === null) { I.lookId = e.pointerId; I.lx = e.clientX; I.ly = e.clientY; } return;   // ohne Mausfang: Ziehen = umsehen
@@ -82,6 +82,11 @@ window.addEventListener('pointermove', (e) => {
 });
 const release = (e) => { if (e.pointerId === I.joyId) { I.joyId = null; I.jx = I.jy = 0; joy.style.opacity = 0; knob.style.transform = ''; } if (e.pointerId === I.lookId) I.lookId = null; };
 window.addEventListener('pointerup', release); window.addEventListener('pointercancel', release);
+// Druckgefühl: jeder Knopf hellt sich beim Drücken weißlich auf, mindestens kurz, damit man auch schnelle Tipper sieht
+const PRESS = '.pill,.mb,.btn,.boatCard,.tRow:not(.hid),#tBtns span,#scope', pressed = new Map();
+window.addEventListener('pointerdown', (e) => { const el = e.target.closest && e.target.closest(PRESS); if (!el) return; el.classList.add('press'); pressed.set(e.pointerId, { el, t: performance.now() }); }, true);
+const unpress = (e) => { const p = pressed.get(e.pointerId); if (!p) return; pressed.delete(e.pointerId); setTimeout(() => p.el.classList.remove('press'), Math.max(0, 130 - (performance.now() - p.t))); };
+window.addEventListener('pointerup', unpress, true); window.addEventListener('pointercancel', unpress, true);
 for (const [id, key] of [['up', 'up'], ['down', 'down']]) {
   const b = $(id), on = (e) => { e.preventDefault(); I[key] = 1; b.classList.add('on'); try { b.setPointerCapture(e.pointerId); } catch (x) { /* egal */ } }, off = () => { I[key] = 0; b.classList.remove('on'); };
   b.addEventListener('pointerdown', on); b.addEventListener('pointerup', off); b.addEventListener('pointercancel', off); b.addEventListener('lostpointercapture', off);
@@ -91,7 +96,7 @@ window.addEventListener('contextmenu', (e) => e.preventDefault());
 document.addEventListener('visibilitychange', () => { if (document.hidden) { audio.suspend(); if (started) openMenu(); } else if (!M.open) audio.resume(); });
 
 // ---------- Sonar: der Strahl kreist von selbst und zeigt nahe Wände; ein Ping reicht weit und holt Echos von Fundstellen ----------
-const scope = $('scope'), sc = scope.getContext('2d'), SR = 60, PING = 480, blips = [], marks = [], echoes = [];
+const scope = $('scope'), sc = scope.getContext('2d'), SR = 60, PING = 480, blips = [], marks = [], echoes = [], sectors = [];
 const sonar = { a: 0, pingR: -1, pingAt: null, cool: 0 };
 function sonarCast(wa) {
   const sx = Math.sin(wa), sz = Math.cos(wa); let prev = 3;
@@ -108,8 +113,13 @@ function sonarStep(dt) {
   for (const s of world.near) { const dx = s.x - S.x, dz = s.z - S.z, d = Math.hypot(dx, dz); if (d < SR && d > 3 && Math.abs(s.y - S.y) < s.r + 0.5 && passed(s.x, s.z)) blips.push({ x: s.x - dx / d * s.r * 0.7, z: s.z - dz / d * s.r * 0.7, life: 1 }); }
   sonar.a = a1 % 6.2832; sonar.cool -= dt;
   for (let i = blips.length - 1; i >= 0; i--) { blips[i].life -= dt / 3.4; if (blips[i].life <= 0) blips.splice(i, 1); }
-  for (let i = echoes.length - 1; i >= 0; i--) { const e = echoes[i]; e.t -= dt; if (e.t > 0) continue; echoes.splice(i, 1); audio.echo(e.vol, clamp(Math.sin(wrapPi(S.h - Math.atan2(e.x - S.x, e.z - S.z))), -1, 1) * 0.8); for (let j = marks.length - 1; j >= 0; j--) if (marks[j].x === e.x && marks[j].z === e.z) marks.splice(j, 1); marks.push({ x: e.x, z: e.z, life: 1, born: U.uTime.value }); }
+  for (let i = echoes.length - 1; i >= 0; i--) {
+    const e = echoes[i]; e.t -= dt; if (e.t > 0) continue; echoes.splice(i, 1); audio.echo(e.vol, clamp(Math.sin(wrapPi(S.h - Math.atan2(e.x - S.x, e.z - S.z))), -1, 1) * 0.8);
+    if (e.sector) { sectors.length = 0; sectors.push({ th: e.th, half: e.half, life: 1 }); continue; }
+    for (let j = marks.length - 1; j >= 0; j--) if (marks[j].x === e.x && marks[j].z === e.z) marks.splice(j, 1); marks.push({ x: e.x, z: e.z, life: 1, born: U.uTime.value });
+  }
   for (let i = marks.length - 1; i >= 0; i--) { marks[i].life -= dt / 75; if (marks[i].life <= 0) marks.splice(i, 1); }
+  for (let i = sectors.length - 1; i >= 0; i--) { sectors[i].life -= dt / 35; if (sectors[i].life <= 0) sectors.splice(i, 1); }
   if (sonar.pingR >= 0) { sonar.pingR += dt * 60; U.uPing.value.set(sonar.pingAt.x, sonar.pingAt.y, sonar.pingAt.z, sonar.pingR); U.uPingFade.value = Math.pow(Math.max(0, 1 - sonar.pingR / 230), 1.5); if (sonar.pingR > 230) { sonar.pingR = -1; U.uPing.value.w = -1; } }
 }
 function sonarDraw() {
@@ -133,6 +143,11 @@ function sonarDraw() {
     else { const ux = q[0] / d, uy = -q[1] / d, s = 13 - 6 * Math.min(1, d / PING), px = c + ux * (R - 4), py = c + uy * (R - 4); sc.beginPath(); sc.moveTo(px, py); sc.lineTo(px - ux * s * 1.9 - uy * s * 0.75, py - uy * s * 1.9 + ux * s * 0.75); sc.lineTo(px - ux * s * 1.9 + uy * s * 0.75, py - uy * s * 1.9 - ux * s * 0.75); sc.closePath(); sc.fill(); }
     sc.shadowBlur = 0;
   }
+  for (const s of sectors) {   // Missionsdose: ein goldener Fächer am Rand; die Dose liegt irgendwo darin, nicht unbedingt in der Mitte
+    const al = Math.min(1, s.life * 3), ph = -Math.PI / 2 - wrapPi(s.th - S.h);
+    sc.fillStyle = `rgba(255,190,80,${0.3 * al})`; sc.beginPath(); sc.arc(c, c, R, ph - s.half, ph + s.half); sc.arc(c, c, R - 18, ph + s.half, ph - s.half, true); sc.closePath(); sc.fill();
+    sc.strokeStyle = `rgba(255,214,130,${0.9 * al})`; sc.lineWidth = 4; sc.beginPath(); sc.arc(c, c, R - 2, ph - s.half, ph + s.half); sc.stroke();
+  }
   if (nav.course) {   // gesetzter Kurs: bernsteinfarbener Doppelpfeil am Rand, in Reichweite ein Ring
     const q = rel(nav.course.x, nav.course.z), d = Math.hypot(q[0], q[1]) || 1; sc.strokeStyle = 'rgba(255,205,120,0.95)'; sc.lineWidth = 3.5; sc.lineJoin = 'round';
     if (d < SR - 5) { sc.beginPath(); sc.arc(c + q[0] * k, c - q[1] * k, 11, 0, 6.2832); sc.stroke(); }
@@ -145,7 +160,11 @@ function ping() {
   if (sonar.cool > 0) return; sonar.cool = 3.2; sonar.pingR = 0; sonar.pingAt = { x: S.x, y: S.y, z: S.z }; audio.ping();
   const ps = poisNear(S.x, S.z, PING).map((p) => ({ p, d: Math.hypot(p.x - S.x, p.z - S.z) })).sort((a, b) => a.d - b.d).slice(0, 5);
   for (const { p, d } of ps) echoes.push({ x: p.x, z: p.z, t: 0.3 + d / 85, vol: clamp(1.15 - d / 500, 0.2, 1) });
-  if (MS.active) { const l = cans.lamp(misIdx(MS.active)), d = Math.hypot(l.x - S.x, l.z - S.z); if (d < 170) echoes.push({ x: l.x, z: l.z, t: 0.3 + d / 85, vol: 1 }); }   // die Messingdose antwortet erst aus der Nähe
+  if (MS.active) {   // die Messingdose: aus der Ferne nur als Fächer in ihrer Richtung, der mit der Nähe schmaler wird; erst ab 170 m als genaue Raute
+    const i = misIdx(MS.active), l = cans.lamp(i), d = Math.hypot(l.x - S.x, l.z - S.z), half = clamp(d / 10, 8, 45) * Math.PI / 180;
+    echoes.push({ sector: true, th: Math.atan2(l.x - S.x, l.z - S.z) + (MISSIONS[i].off || 0.6) * half, half, x: l.x, z: l.z, t: 0.3 + Math.min(d, 600) / 85, vol: 0.55 });
+    if (d < 170) echoes.push({ x: l.x, z: l.z, t: 0.3 + d / 85, vol: 1 });
+  }
 }
 $('sonar').addEventListener('pointerdown', (e) => { e.preventDefault(); if (started && !M.open) ping(); });
 
@@ -229,18 +248,18 @@ function cameraStep(dt) {
 C.look.set(S.x, S.y + 1, S.z + 2);
 
 // ---------- Kabine: Ego-Perspektive ----------
-const table = createTable(S, nav, $('tableCv')), eyeL = new T.Vector3(), winCol = new T.Vector3(), tmpS = new T.Vector3(), fadeEl = $('fade'), actEl = $('act'), modeEl = $('mode');
+const table = createTable(S, nav, $('tableCv'), () => sectors[0]), eyeL = new T.Vector3(), winCol = new T.Vector3(), tmpS = new T.Vector3(), fadeEl = $('fade'), actEl = $('act'), modeEl = $('mode');
 let switching = false;
 function ui() { document.body.className = (V.mode === 'in' ? 'in ' + V.st : 'out') + (PC ? ' pc' : '') + (M.open ? ' menu' : ''); $('modeL').textContent = V.mode === 'in' ? t('to_out') : t('to_in'); }
 function applyMode() {
   const inn = V.mode === 'in'; boatVis();
   if (inn) { V.st = 'walk'; V.px = 0; V.pz = -0.95; V.yaw = 0; V.pitch = 0; V.hx = 0; V.hy = 1.56; V.hz = -0.95; table.reset(); if (!PC) { hintEl.textContent = t('hint_in_touch'); hintEl.style.opacity = 1; hintT = 6; } }
-  else { C.yaw = S.h; C.oy = C.op = 0; C.dist = 14; C.pos.set(S.x - Math.sin(S.h) * 14, S.y + 4, S.z - Math.cos(S.h) * 14); C.look.set(S.x, S.y + 1, S.z); }
-  audio.setInside(inn); world.setSmall(!inn); life.setInside(inn); ui(); resize(); syncFov();
+  else { if (hintEl.textContent === t('hint_in_touch')) { hintEl.style.opacity = 0; hintT = 0; } C.yaw = S.h; C.oy = C.op = 0; C.dist = 14; C.pos.set(S.x - Math.sin(S.h) * 14, S.y + 4, S.z - Math.cos(S.h) * 14); C.look.set(S.x, S.y + 1, S.z); }
+  if (!inn) sonHint(); audio.setInside(inn); world.setSmall(!inn); life.setInside(inn); ui(); resize(); syncFov();
 }
-function setMode(m) { if (switching || !started || V.mode === m) return; switching = true; fadeEl.style.opacity = 1; setTimeout(() => { V.mode = m; applyMode(); fadeEl.style.opacity = 0; switching = false; }, 330); }
+function setMode(m) { closeTapes(); if (switching || !started || V.mode === m) return; switching = true; fadeEl.style.opacity = 1; setTimeout(() => { V.mode = m; applyMode(); fadeEl.style.opacity = 0; switching = false; }, 330); }
 function setSt(s) {
-  const was = V.st; V.st = s; if (s === 'table') unlock();
+  const was = V.st; V.st = s; if (s === 'table') unlock(); if (s === 'seat') sonHint();
   if (s === 'seat') { V.yaw = 0; V.pitch = 0; } else if (s === 'table') { V.yaw = -Math.PI / 2; V.pitch = -0.55; }
   else if (was === 'seat') { V.px = 0; V.pz = 0.2; } else if (was === 'table') { V.px = -0.15; V.pz = -1.3; }
   ui();
@@ -253,7 +272,7 @@ const LABEL = {
   kettle: () => (tea.phase === 'cold' ? t('kettle_on') : tea.phase === 'ready' ? t('kettle_pour') : ''),
   stove: () => (cabin.state.fireT > 1.2 ? '' : t('stove')),
   cupDesk: () => (cabin.state.cup === 'desk' ? t('cup_take') : ''), cupPult: () => (cabin.state.cup === 'pult' ? (cabin.state.cupHeat > 0.05 ? t('cup_drink') : t('cup_away')) : ''),
-  deck: () => (cabin.state.tape ? t('tape_stop') : t('tape_play')), light: () => (cabin.state.lampT > 0.5 ? t('light_dim') : t('light_on')), log: () => t('log_read'), page: () => t('page_read'),
+  deck: () => t('tape_menu'), light: () => (cabin.state.lampT > 0.5 ? t('light_dim') : t('light_on')), log: () => t('log_read'), page: () => t('page_read'),
 };
 for (let k = 0; k < 6; k++) LABEL['cas' + k] = () => (cabin.state.own[k] && cabin.state.tapeIn !== k ? t('tape_put', { n: t('tape_n')[k] || '?' }) : '');
 const ACT = {
@@ -261,7 +280,7 @@ const ACT = {
   kettle: () => { if (tea.phase === 'cold') { tea.phase = 'heat'; tea.t = 0; audio.click(0.6); } else if (tea.phase === 'ready') { tea.phase = 'cool'; tea.t = 0; cabin.state.cup = 'desk'; cabin.state.cupHeat = 1; audio.pour(); } },
   stove: () => { cabin.state.fireT = 1.7; setTimeout(() => { cabin.state.fireT = 1; }, 45000); audio.click(0.8); },
   cupDesk: () => { cabin.state.cup = 'pult'; audio.click(0.3); }, cupPult: () => { if (cabin.state.cupHeat > 0.05) { cabin.state.cupHeat = Math.max(0, cabin.state.cupHeat - 0.34); if (cabin.state.cupHeat <= 0.05) note(t('tea_done')); } else cabin.state.cup = 'none'; audio.click(0.25); },
-  deck: () => { cabin.state.tape = !cabin.state.tape; audio.tape(cabin.state.tape); }, light: () => { cabin.state.lampT = cabin.state.lampT > 0.5 ? 0.12 : 1; audio.click(0.9); }, log: () => openLog(), page: () => openPage(),
+  deck: () => openTapes(), light: () => { cabin.state.lampT = cabin.state.lampT > 0.5 ? 0.12 : 1; audio.click(0.9); }, log: () => openLog(), page: () => openPage(),
 };
 for (let k = 0; k < 6; k++) ACT['cas' + k] = () => playTape(k);
 function pickTarget() {
@@ -275,7 +294,9 @@ const canHere = () => nearCan && (V.mode === 'out' || (V.st === 'seat' && !targe
 const actLabel = () => (canHere() ? t('can_take') : V.mode !== 'in' || V.st === 'table' ? '' : target ? LABEL[target]() : V.st === 'seat' ? t('stand') : '');
 actEl.addEventListener('pointerdown', (e) => { e.preventDefault(); if (canHere()) takeCan(); else if (V.mode !== 'in') return; else if (target && LABEL[target]()) ACT[target](); else if (V.st === 'seat') setSt('walk'); });
 // ---------- Missionen: beginnen an der Seite auf dem Schreibtisch; gestartet liegt draußen eine Messingdose, die man birgt ----------
-const MS = { active: null, done: [], pageSeen: -1 }, bannerEl = $('banner'); let nearCan = false, bannerT = 0;
+const MS = { active: null, done: [], pageSeen: -1, hint: null }, bannerEl = $('banner'); let nearCan = false, bannerT = 0, sonHintT = 0;
+/** einmal pro Mission, beim ersten Mal am Steuer (oder draußen): kleiner Hinweis neben dem Sonar */
+function sonHint() { if (!started || !MS.active || MS.hint === MS.active) return; MS.hint = MS.active; const h = $('sonHint'); h.textContent = t('son_hint'); h.style.opacity = 1; sonHintT = 9; save(); }
 const misIdx = (id) => MISSIONS.findIndex((m) => m.id === id), nextMis = () => MISSIONS[MS.done.length] || null, curPage = () => Math.min(MS.done.length, t('pages').length - 1);
 function banner(a, b) { bannerEl.children[0].textContent = a; bannerEl.children[1].textContent = b; bannerEl.style.opacity = 1; bannerT = 5; }
 function syncMis() {
@@ -291,6 +312,38 @@ function takeCan() {
 }
 /** legt eine Kassette ins Deck und spielt sie: Herausnehmen aus dem Regal heißt abspielen */
 function playTape(k, quiet) { const st = cabin.state; if (!st.own[k]) return; st.tapeIn = k; audio.tapeTrack(k); st.tape = true; audio.tape(true); if (!quiet) note(t('tape_now', { n: t('tape_n')[k] })); save(); }
+// ---------- Kassettenmenü: öffnet sich am Rekorder; Liste der Kassetten, darunter was läuft, mit Abspielen, Pause und Stopp ----------
+let tapesOpen = false, reelA = 0, waveAmp = 8;
+const ICON_CAS = '<svg viewBox="0 0 26 18"><rect x="1" y="1" width="24" height="16" rx="2.5"/><rect x="5" y="4" width="16" height="6" rx="1.5"/><circle cx="9.5" cy="7" r="1.6"/><circle cx="16.5" cy="7" r="1.6"/><path d="M7 17l2-4h8l2 4"/></svg>';
+function fillTapes() {
+  const box = $('tList'), st = cabin.state; box.innerHTML = '';
+  for (let k = 0; k < 6; k++) {
+    const d = document.createElement('div'), own = st.own[k]; d.className = 'tRow' + (own ? '' : ' hid') + (own && k === st.tapeIn ? ' on' : '');
+    d.innerHTML = ICON_CAS; const n = document.createElement('span'); n.textContent = own ? t('tape_n')[k] : '· · ·'; d.appendChild(n);
+    if (own) d.addEventListener('pointerdown', (e) => { e.preventDefault(); playTape(k, true); fillTapes(); });
+    box.appendChild(d);
+  }
+  $('tName').textContent = t('tape_n')[st.tapeIn] || ''; for (const b of document.querySelectorAll('#tBtns span')) b.classList.toggle('on', b.dataset.a === (st.tape ? 'play' : 'pause'));
+}
+function openTapes() { unlock(); fillTapes(); tapesOpen = true; $('tapes').classList.add('open'); }
+function closeTapes() { if (!tapesOpen) return; tapesOpen = false; $('tapes').classList.remove('open'); lockMouse(); }
+for (const b of document.querySelectorAll('#tBtns span')) b.addEventListener('pointerdown', (e) => {
+  e.preventDefault(); const st = cabin.state, a = b.dataset.a;
+  if (a === 'play' && !st.tape) { st.tape = true; audio.tape(true); } else if (a === 'pause' && st.tape) { st.tape = false; audio.tape(false); } else if (a === 'stop') { st.tape = false; audio.tapeStop(); }
+  fillTapes();
+});
+$('tapes').addEventListener('pointerdown', (e) => { if (e.target === $('tapes') || e.target.closest('#tClose')) { e.preventDefault(); closeTapes(); } });
+function drawTapes(dt) {
+  const st = cabin.state, rc = $('tReel'), r = rc.getContext('2d'), W = rc.width, c = W / 2; if (st.tape) reelA += dt * 1.6;
+  r.clearRect(0, 0, W, W); r.strokeStyle = 'rgba(232,196,130,0.85)'; r.lineWidth = 3;
+  r.beginPath(); r.arc(c, c, c - 4, 0, 6.2832); r.stroke(); r.beginPath(); r.arc(c, c, c * 0.24, 0, 6.2832); r.stroke(); r.beginPath(); r.arc(c, c, c * 0.1, 0, 6.2832); r.stroke();
+  for (let i = 0; i < 3; i++) { const a = reelA + i * 2.0944, x = c + Math.cos(a) * c * 0.56, y = c + Math.sin(a) * c * 0.56; r.beginPath(); r.arc(x, y, c * 0.19, 0, 6.2832); r.stroke(); }
+  const wc = $('tWave'), w = wc.getContext('2d'), WW = wc.width, WH = wc.height, data = st.tape ? audio.tapeWave() : null; w.clearRect(0, 0, WW, WH);
+  let amp = 1; if (data) for (let i = 0; i < data.length; i++) amp = Math.max(amp, Math.abs(data[i] - 128)); waveAmp += ((data ? amp : 1) - waveAmp) * Math.min(1, dt * 3);
+  const sc2 = (WH * 0.42) / Math.max(4, waveAmp); w.strokeStyle = 'rgba(232,196,130,0.8)'; w.lineWidth = 2; w.beginPath();
+  for (let i = 0; i < 128; i++) { const v = data ? (data[i * 2] - 128) * sc2 : 0, x = i / 127 * WW, y = WH / 2 - v; if (i) w.lineTo(x, y); else w.moveTo(x, y); }
+  w.stroke();
+}
 function fillMis() {
   const box = $('misList'); box.innerHTML = '';
   const add = (cls, name, state, desc) => { const d = document.createElement('div'); d.className = 'mis ' + cls; if (name) { const a = document.createElement('div'); a.className = 'mn'; const n = document.createElement('span'); n.textContent = name; const s2 = document.createElement('span'); s2.className = 'ms2'; s2.textContent = state; a.appendChild(n); a.appendChild(s2); d.appendChild(a); const p = document.createElement('div'); p.className = 'md'; p.textContent = desc; d.appendChild(p); } else d.textContent = '· · ·'; box.appendChild(d); };
@@ -336,7 +389,7 @@ let noteT = 0; function note(t) { const n = $('note'); n.textContent = t; noteT 
 // ---------- Einstellungen: Sichtfeld ----------
 $('gear').addEventListener('pointerdown', (e) => { e.preventDefault(); openMenu(); });
 // Sprache, Vollbild, neu beginnen
-function texts() { for (const el of document.querySelectorAll('[data-t]')) el.textContent = t(el.dataset.t); ui(); syncFov(); goText(); if (M.panel === 'boat') fillBoats(); if (M.panel === 'help') fillHelp(); if (M.panel === 'mis') fillMis(); syncWhale(); for (const b of document.querySelectorAll('#langs .pill')) b.classList.toggle('on', b.dataset.l === getLang()); hintEl.textContent = PC ? t('hint_pc') : t('hint_touch'); }
+function texts() { for (const el of document.querySelectorAll('[data-t]')) el.textContent = t(el.dataset.t); ui(); syncFov(); goText(); if (M.panel === 'boat') fillBoats(); if (M.panel === 'help') fillHelp(); if (M.panel === 'mis') fillMis(); if (tapesOpen) fillTapes(); syncWhale(); for (const b of document.querySelectorAll('#langs .pill')) b.classList.toggle('on', b.dataset.l === getLang()); hintEl.textContent = PC ? t('hint_pc') : t('hint_touch'); }
 for (const b of document.querySelectorAll('#langs .pill')) b.addEventListener('pointerdown', (e) => { e.preventDefault(); setLang(b.dataset.l); texts(); });
 if (!document.fullscreenEnabled) $('fsBtn').style.display = 'none';
 $('fsBtn').addEventListener('pointerdown', (e) => { e.preventDefault(); try { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen().then(() => { try { screen.orientation.unlock(); } catch (x) { /* egal */ } }).catch(() => {}); } catch (x) { /* egal */ } });
@@ -378,6 +431,7 @@ function cabinStep(dt) {
 window.addEventListener('keydown', (e) => { if (e.repeat) return;
   if (M.open) { if (e.code === 'Escape' && performance.now() - escT > 350) { if (M.panel !== 'main') showPanel('main'); else if (started) closeMenu(); } else if (e.code === 'Enter' && M.panel === 'main') goBtn(); return; }
   if (e.code === 'KeyE' && devOn && started) { toggleDev(); return; }
+  if (tapesOpen && (e.code === 'Escape' || e.code === 'KeyF')) { closeTapes(); return; }
   if (e.code === 'KeyC') setMode(V.mode === 'in' ? 'out' : 'in'); if (e.code === 'KeyF') actEl.dispatchEvent(new Event('pointerdown'));
   if (e.code === 'KeyR' && started) ping(); if (e.code === 'KeyL' && started) { if ($('log').classList.contains('open')) $('log').classList.remove('open'); else openLog(); }
   if (e.code === 'Escape') { if (devOpen()) toggleDev(false); else if ($('log').classList.contains('open')) $('log').classList.remove('open'); else if (V.st === 'table') setSt('walk'); else if (started) { escT = performance.now(); openMenu(); } } });
@@ -398,6 +452,8 @@ function frame(now) {
   if (window.__cam) { camera.position.set(...window.__cam[0]); camera.lookAt(...window.__cam[1]); }
   if (run) { life.update(dt, S, pxScale, world.glows); fauna.update(dt, S, U.uTime.value); cans.update(); }
   if (bannerT > 0 && run) { bannerT -= dt; if (bannerT <= 0) bannerEl.style.opacity = 0; }
+  if (sonHintT > 0 && run) { sonHintT -= dt; if (sonHintT <= 0) $('sonHint').style.opacity = 0; }
+  if (tapesOpen) drawTapes(dt);
   if (frames % 4 === 0) { const cp = camera.position, d = Math.hypot(cp.x - PLAIN.x, cp.z - PLAIN.z) / PLAIN.r; snow.set((1 - smooth(0.9, 1.7, d)) * (1 - smooth(-72, -48, cp.y)), pxScale); }   // Schnee nur unten über der Ebene
   if (frames % 24 === 0) { let best = null; for (const m of marks) { const d = Math.hypot(m.x - S.x, m.z - S.z); if (!best || d < best) best = d; } if (nav.course) { const d = Math.hypot(nav.course.x - S.x, nav.course.z - S.z); if (d < 28) nav.course = null; else best = -d; } echoEl.className = best < 0 ? 'kurs' : ''; echoEl.textContent = best ? (best < 0 ? t('course') + ' ' : t('echo') + ' ') + String(Math.round(Math.abs(best) / 5) * 5).padStart(3, '0') + ' m' : '';
     if (MS.active) { const l = cans.lamp(misIdx(MS.active)); nearCan = Math.hypot(l.x - S.x, l.z - S.z) < REACH && Math.abs(l.y - S.y) < REACH + 4; }
@@ -437,7 +493,7 @@ function goText() { $('mGo').textContent = started ? t('m_resume') : resumed ? t
 function openMenu() {
   if (M.open || !started) return; M.open = true; unlock();
   I.jx = I.jy = I.up = I.down = 0; I.joyId = I.lookId = null; joy.style.opacity = 0; knob.style.transform = ''; for (const k in I.keys) I.keys[k] = 0; for (const b of [$('up'), $('down')]) b.classList.remove('on');
-  $('log').classList.remove('open'); if (V.st === 'table') setSt('walk');
+  $('log').classList.remove('open'); closeTapes(); if (V.st === 'table') setSt('walk');
   showPanel('main'); goText(); $('menu').classList.add('open'); grabEl.style.opacity = 0; audio.suspend(); ui();
 }
 function closeMenu() {
@@ -465,7 +521,7 @@ $('mGo').addEventListener('pointerup', (e) => { e.preventDefault(); goBtn(); });
 for (const [id, p] of [['mBoat', 'boat'], ['mSet', 'set'], ['mHelp', 'help'], ['mMis', 'mis']]) $(id).addEventListener('pointerdown', (e) => { e.preventDefault(); showPanel(p); });
 for (const b of document.querySelectorAll('.mBack')) b.addEventListener('pointerdown', (e) => { e.preventDefault(); showPanel('main'); });
 $('menu').classList.add('ready');
-window.__sub = { audio, M, MS, cans, startMission, takeCan, openPage, openLog, playTape, MISSIONS, openMenu, closeMenu, showPanel, setBoat, post, get boat() { return boat; }, save, load, texts, setLang, renderer, fauna, S, C, I, U, V, nav, setMode, setSt, table, cabin, tea, LOG, ACT, get target() { return target; }, start, ping, world, life, poisNear, floorH, get frames() { return frames; }, tp(x, y, z, h) { world.update(x, z, Infinity); S.x = x; S.y = y; S.z = z; S.h = h; S.vx = S.vy = S.vz = 0; C.yaw = h; C.oy = C.op = 0; C.pos.set(x - Math.sin(h) * 11, y + 3, z - Math.cos(h) * 11); C.look.set(x, y + 1, z); }, marks, info: () => ({ tris: renderer.info.render.triangles, calls: renderer.info.render.calls, PR, MSAA, chunks: world.chunks.size, near: world.near.length, glows: world.glows.length }) };
+window.__sub = { audio, M, MS, cans, sectors, echoes, startMission, takeCan, openPage, openLog, playTape, MISSIONS, openMenu, closeMenu, showPanel, setBoat, post, get boat() { return boat; }, save, load, texts, setLang, renderer, fauna, S, C, I, U, V, nav, setMode, setSt, table, cabin, tea, LOG, ACT, get target() { return target; }, start, ping, world, life, poisNear, floorH, get frames() { return frames; }, tp(x, y, z, h) { world.update(x, z, Infinity); S.x = x; S.y = y; S.z = z; S.h = h; S.vx = S.vy = S.vz = 0; C.yaw = h; C.oy = C.op = 0; C.pos.set(x - Math.sin(h) * 11, y + 3, z - Math.cos(h) * 11); C.look.set(x, y + 1, z); }, marks, info: () => ({ tris: renderer.info.render.triangles, calls: renderer.info.render.calls, PR, MSAA, chunks: world.chunks.size, near: world.near.length, glows: world.glows.length }) };
 // ---------- Entwicklermenü (unter ⚙, Passwort) ----------
 const DEV_PW = 'Entwicklung', devEl = $('dev'), pw = $('devPw');
 let devOn = false; try { devOn = localStorage.getItem('tiefenlicht.dev') === '1'; } catch (e) { /* egal */ }
@@ -499,10 +555,13 @@ function buildDev() {
       s.addEventListener('input', () => { set(+s.value); v.textContent = fmt(+s.value); saveWhale(); }); r.appendChild(l); r.appendChild(s); r.appendChild(v); };
     sl('Abstand', 6, 180, 1, () => wc.gap, (x) => { wc.gap = x; }, (x) => '≈' + x + ' s'); sl('Lautstärke', 0, 2, 0.05, () => wc.vol, (x) => { wc.vol = x; }, (x) => Math.round(x * 100) + '%');
     const r = row(); r.style.flexWrap = 'wrap'; const b = btn(wc.on ? 'an' : 'aus', () => { wc.on = !wc.on; b.textContent = wc.on ? 'an' : 'aus'; saveWhale(); }, r); btn('jetzt einer', () => audio.whale(true), r); }
-  h3('KLANG · MISCHPULT'); { const NM = { rausch: 'Rauschen der Tiefe', wasser: 'Wasser am Rumpf', blasen: 'Blasen', motor: 'Motor', grollen: 'fernes Grollen', sonar: 'Sonar', kassette: 'Kassetten', kabine: 'Kabine (Kessel, Ofen, Klicks)' };
+  h3('KLANG · MISCHPULT'); { const NM = { rausch: 'Rauschen der Tiefe', wasser: 'Wasser am Rumpf', blasen: 'Blasen', motor: 'Motor', grollen: 'fernes Grollen', wale: 'Walgesänge (zusätzlich)', sonar: 'Sonar', kassette: 'Kassetten', kabine: 'Kabine (Kessel, Ofen, Klicks)' };
     for (const k in NM) { const r = row(), l = document.createElement('span'), v = document.createElement('span'), s = document.createElement('input'); s.type = 'range'; s.min = 0; s.max = 3; s.step = 0.05; s.value = audio.mix[k]; l.textContent = NM[k]; v.textContent = Math.round(audio.mix[k] * 100) + '%';
       s.addEventListener('input', () => { audio.setMix(k, +s.value); v.textContent = Math.round(+s.value * 100) + '%'; devSave(); }); r.appendChild(l); r.appendChild(s); r.appendChild(v); }
     const r = row(); btn('Mischpult zurücksetzen', () => { for (const [k, v] of Object.entries(MIX0)) audio.setMix(k, v); devSave(); buildDev(); }, r); }
+  h3('KLANG · DIAGNOSE'); { const r = row(), l = document.createElement('span'); l.textContent = audio.info(); l.style.fontSize = '11px'; r.appendChild(l);
+    const r2 = row(); r2.style.flexWrap = 'wrap'; const hb = btn('Hall ' + (audio.hall ? 'an' : 'aus'), () => { audio.setHall(!audio.hall); hb.textContent = 'Hall ' + (audio.hall ? 'an' : 'aus'); }, r2);
+    btn('alles stumm', () => { for (const k in audio.mix) audio.setMix(k, 0); audio.whaleCfg.on = false; buildDev(); }, r2); }
   h3('MISSIONEN'); { const r = row(); r.style.flexWrap = 'wrap';
     btn('zur Dose', () => { if (!MS.active) return; const l = cans.lamp(misIdx(MS.active)); devTp(l.x + 6, l.z + 5, l.x, l.z); }, r);
     btn('nächste starten', () => { startMission(); buildDev(); }, r); btn('alle zurücksetzen', () => { MS.active = null; MS.done.length = 0; MS.pageSeen = -1; cabin.state.tapeIn = 0; audio.tapeTrack(0); syncMis(); save(); }, r); }
@@ -514,12 +573,12 @@ try { const d = JSON.parse(localStorage.getItem('tiefenlicht.devcfg') || 'null')
 
 // ---------- Speichern: automatisch alle paar Sekunden und beim Verlassen ----------
 const SAVE_KEY = 'tiefenlicht.save.v1'; let noSave = false;
-function save() { if (noSave || !started) return; try { localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 1, s: [S.x, S.y, S.z, S.h], log: LOG, seen: [...seen], course: nav.course, lamp: cabin.state.lampT, play: playTime, ms: { a: MS.active, d: MS.done, p: MS.pageSeen, t: cabin.state.tapeIn }, at: Date.now() })); } catch (e) { /* ohne Speicher */ } }
+function save() { if (noSave || !started) return; try { localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 1, s: [S.x, S.y, S.z, S.h], log: LOG, seen: [...seen], course: nav.course, lamp: cabin.state.lampT, play: playTime, ms: { a: MS.active, d: MS.done, p: MS.pageSeen, t: cabin.state.tapeIn, h: MS.hint }, at: Date.now() })); } catch (e) { /* ohne Speicher */ } }
 function load() {
   try { const d = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); if (!d || d.v !== 1 || !Array.isArray(d.s)) return false;
     [S.x, S.y, S.z, S.h] = d.s; C.yaw = S.h; C.pos.set(S.x - Math.sin(S.h) * 14, S.y + 4, S.z - Math.cos(S.h) * 14); C.look.set(S.x, S.y + 1, S.z);
     for (const e of d.log || []) LOG.push(e); for (const k of d.seen || []) seen.add(k); nav.course = d.course || null; cabin.state.lampT = cabin.state.lamp = d.lamp == null ? 1 : d.lamp; playTime = d.play || 0;
-    if (d.ms) { MS.done = (d.ms.d || []).filter((id) => misIdx(id) >= 0); MS.active = misIdx(d.ms.a) >= 0 && !MS.done.includes(d.ms.a) ? d.ms.a : null; MS.pageSeen = d.ms.p == null ? -1 : d.ms.p; cabin.state.tapeIn = d.ms.t || 0; audio.tapeTrack(cabin.state.tapeIn); }
+    if (d.ms) { MS.done = (d.ms.d || []).filter((id) => misIdx(id) >= 0); MS.active = misIdx(d.ms.a) >= 0 && !MS.done.includes(d.ms.a) ? d.ms.a : null; MS.pageSeen = d.ms.p == null ? -1 : d.ms.p; MS.hint = d.ms.h || null; cabin.state.tapeIn = d.ms.t || 0; audio.tapeTrack(cabin.state.tapeIn); }
     return true; } catch (e) { return false; }
 }
 const resumed = load(); syncMis();
