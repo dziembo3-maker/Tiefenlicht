@@ -103,7 +103,13 @@ function buildBody(g, B, k) {
 }
 export function createSub(scene, kind = 0) {
   const k = Math.max(0, Math.min(BOATS.length - 1, kind | 0)), B = BOATS[k], g = new Geo(), MET = B.metal, TOP = B.top, LOW = B.low;
-  buildBody(g, B, k);
+  const rAt = buildBody(g, B, k);
+  // Schlauchanschluss für den Taucheranzug: neben dem Heckfenster (der Luke), Messingstutzen mit Ring
+  const HA = 0.42, hr = rAt(B.rear + 0.05), hn = [Math.sin(HA), Math.cos(HA) * B.SY, 0], hp = [hn[0] * hr, hn[1] * hr, B.rear + 0.05];
+  { const BR = [0.78, 0.56, 0.24], P = (d) => [hp[0] + hn[0] * d, hp[1] + hn[1] * d, hp[2]];
+    tube(g, [P(-0.02), P(0.07)], 0.08, 12, BR); tube(g, [P(0.07), P(0.2)], 0.048, 10, BR); disc(g, P(0.2), hn, 0.048, [0.5, 0.36, 0.16], 0);
+    const u = [hn[1], -hn[0], 0], w = [0, 0, 1], rg = []; for (let i = 0; i < 14; i++) { const a = i / 14 * Math.PI * 2, c = P(0.1); rg.push([c[0] + (u[0] * Math.cos(a) + w[0] * Math.sin(a)) * 0.06, c[1] + (u[1] * Math.cos(a)) * 0.06, c[2] + Math.sin(a) * 0.06]); } tube(g, rg, 0.016, 5, BR, true); }
+  const hoseLocal = new T.Vector3(hp[0] + hn[0] * 0.2, hp[1] + hn[1] * 0.2, hp[2]);
   // Scheinwerfer (bei allen an derselben Stelle, damit der Lichtkegel passt)
   const LAMPS = [[-0.52, -0.6, 0.98], [0.52, -0.6, 0.98]];
   for (const l of LAMPS) { addBlob(g, l[0], l[1], l[2] - 0.05, 0.19, 0.19, 0.22, 1, 2, () => MET, 0, 0, 0); disc(g, [l[0], l[1], l[2] + 0.16], [0, -0.08, 1], 0.14, [0.92, 1.0, 0.9], 1.7); }
@@ -150,5 +156,5 @@ export function createSub(scene, kind = 0) {
   }
   scene.add(S);
   const dispose = () => { scene.remove(S); S.traverse((o) => { if (o.geometry) o.geometry.dispose(); }); };
-  return { kind: k, dispose, group: S, prop, halo, outer, planes, lampLocal: new T.Vector3(0, -0.6, 1.2), warmLocal: new T.Vector3(0, 0.25, 1.9) };
+  return { kind: k, dispose, group: S, prop, halo, outer, planes, lampLocal: new T.Vector3(0, -0.6, 1.2), warmLocal: new T.Vector3(0, 0.25, 1.9), hoseLocal, hatchLocal: new T.Vector3(0, rAt(B.rear) * B.SY + 0.05, B.rear), body: { z0: B.ring, z1: 1.55, r: Math.max(...B.HULL.map((h) => h[1])) * Math.max(1, B.SY) } };
 }
