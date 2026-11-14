@@ -405,11 +405,12 @@ function openHorch() { unlock(); closeTapes(); horchOpen = true; $('horch').clas
 function closeHorch(esc) { if (!horchOpen) return; horchOpen = false; horchDrag = null; $('horch').classList.remove('open'); audio.hydro(false, 0); if (esc) relockEsc = true; else lockMouse(); }
 const hcv = $('horchCv'), hcx = hcv.getContext('2d');
 const horchAng = (e) => { const r = hcv.getBoundingClientRect(); return Math.atan2(e.clientX - r.left - r.width / 2, -(e.clientY - r.top - r.height / 2)) * 180 / Math.PI; };
-hcv.addEventListener('pointerdown', (e) => { e.preventDefault(); if (horchDrag) return; horchDrag = { id: e.pointerId, a: horchAng(e), x: e.clientX, touch: e.pointerType !== 'mouse' }; try { hcv.setPointerCapture(e.pointerId); } catch (x) { /* egal */ } });
+hcv.addEventListener('pointerdown', (e) => { e.preventDefault(); if (e.pointerType !== 'mouse') return; horchDrag = { id: e.pointerId, a: horchAng(e) }; try { hcv.setPointerCapture(e.pointerId); } catch (x) { /* egal */ } });   // Maus: am Rand ziehen; am Handy dreht der Regler darunter
 hcv.addEventListener('pointermove', (e) => { if (!horchDrag || e.pointerId !== horchDrag.id) return;
-  if (horchDrag.touch) { const dx = e.clientX - horchDrag.x; horchDrag.x = e.clientX; horchDeg = (horchDeg + dx * 0.45 + 360) % 360; return; }   // Finger: wischen wie an einem Drehknopf, egal wo
   const r = hcv.getBoundingClientRect(), rr = Math.hypot(e.clientX - r.left - r.width / 2, e.clientY - r.top - r.height / 2) / (r.width / 2), a = horchAng(e); if (rr < 0.3) { horchDrag.a = a; return; }   // nah an der Mitte springt der Winkel: dort nicht drehen
   let d = a - horchDrag.a; d = ((d + 540) % 360) - 180; horchDeg = (horchDeg + d + 360) % 360; horchDrag.a = a; });
+// Handy: Schieberegler unter der Scheibe. Mitte = voraus, links = Backbord, rechts = Steuerbord, ganz außen = achtern
+const hSl = $('horchSl'); hSl.addEventListener('input', () => { horchDeg = (+hSl.value + 360) % 360; });
 for (const ev of ['pointerup', 'pointercancel']) hcv.addEventListener(ev, (e) => { if (horchDrag && e.pointerId === horchDrag.id) horchDrag = null; });
 $('horchClose').addEventListener('pointerdown', (e) => { e.preventDefault(); closeHorch(); });
 function drawHorch() {
@@ -589,6 +590,7 @@ function frame(now) {
   if (sonHintT > 0 && run) { sonHintT -= dt; if (sonHintT <= 0) $('sonHint').style.opacity = 0; }
   if (tapesOpen) drawTapes(dt);
   if (horchOpen && run) { const K = I.keys; horchDeg = (horchDeg + ((K.KeyD || K.ArrowRight ? 1 : 0) - (K.KeyA || K.ArrowLeft ? 1 : 0)) * 45 * dt + 360) % 360; drawHorch(); }
+  if (horchOpen && Math.abs(wrapPi((+hSl.value - horchDeg) * Math.PI / 180)) > 0.01) hSl.value = String(Math.round(((horchDeg + 180) % 360) - 180));   // Regler folgt, wenn mit A / D gedreht wird
   audio.setListener(S.x, S.z, S.h); audio.hydro(horchOpen && run, S.h - horchDeg * Math.PI / 180); cabin.setHorch(horchDeg, audio.hydroLevel());
   if (thumbT > 0) { thumbT -= dt; if (thumbT <= 0) $('camThumb').classList.remove('show'); }
   if (CAMV.on && frames % 6 === 0) { $('camFrame').classList.toggle('ok', camTargetOk()); const ci = t('depth') + ' ' + String(Math.round(-S.y)).padStart(3, '0') + ' m'; if ($('camInfo').textContent !== ci) $('camInfo').textContent = ci; }
