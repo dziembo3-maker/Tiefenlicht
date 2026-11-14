@@ -1,12 +1,15 @@
 import PING_B64 from './snd_ping.js';
 // audio.js – gedämpfte Unterwasserwelt, alles live erzeugt: Brummen, Rauschen, Blasen, Sonarton, fernes Grollen. Keine Musik.
 export function createAudio() {
-  let ctx = null, master = null, noiseBuf = null, echo = null, eng = null, bubT = 1, groanT = 14, pingBus = null, pingOut = null, pingWet = null, outLP = null, inside = false, crackT = 1, mus = null, whistle = null, DEST = null, glow = null;
+  let ctx = null, sctx = null, master = null, noiseBuf = null, echo = null, eng = null, bubT = 1, groanT = 14, pingBus = null, pingOut = null, pingWet = null, outLP = null, inside = false, crackT = 1, mus = null, whistle = null, DEST = null, glow = null;
   const A = { started: false, muted: false };
   /** Mischpult: Lautstärke je Klanggruppe (1 = normal). Rauschen bewusst leise, Wasser und Blasen kräftiger */
-  A.mix = { rausch: 0.25, wasser: 2.2, blasen: 2.4, motor: 1, grollen: 1, sonar: 1, kassette: 1, kabine: 1 };
-  const BUS = {};
-  A.setMix = (k, v) => { A.mix[k] = v; if (BUS[k] && ctx) BUS[k].gain.setTargetAtTime(v, ctx.currentTime, 0.05); };
+  A.mix = { rausch: 0.25, wasser: 2.2, blasen: 2.4, motor: 1, grollen: 1, wale: 1, sonar: 1, kassette: 1, kabine: 1 };
+  const BUS = {}, ESEND = new Map(), MIX_D = Object.assign({}, A.mix);   // ESEND: Anteil einer Gruppe am langen Raumecho; folgt dem Regler, beim Grundwert wie früher
+  A.setMix = (k, v) => { A.mix[k] = v; if (!BUS[k]) return; const t = BUS[k].context.currentTime; BUS[k].gain.setTargetAtTime(v, t, 0.05); const e = ESEND.get(BUS[k]); if (e) e.gain.setTargetAtTime(v / MIX_D[k], t, 0.05); };
+  // Handys: kürzerer Hall, weil Faltungshall dort am meisten Rechenzeit kostet
+  const LOW = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+  let cvP = null, cvW = null, cvPin = null, cvWin = null; A.hall = true;
   const rnd = (a, b) => a + Math.random() * (b - a);
   const gain = (v) => { const g = ctx.createGain(); g.gain.value = v; return g; };
   const filt = (type, f, q = 0.7) => { const n = ctx.createBiquadFilter(); n.type = type; n.frequency.value = f; n.Q.value = q; return n; };
@@ -16,23 +19,30 @@ export function createAudio() {
   A.start = () => {
     if (A.started) { if (ctx.state === 'suspended') ctx.resume(); return; }
     const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
-    try { ctx = new AC(); } catch (e) { return; }
+    // großer Tonpuffer für alles außer dem Sonar: die Klänge setzen ein paar Hundertstel später ein, dafür kommt der Ton
+    // auch dann nicht ins Stocken, wenn das Handy mit dem Bild beschäftigt ist. Das Sonar bekommt einen eigenen, schnellen Kontext.
+    try { ctx = new AC({ latencyHint: 'playback' }); } catch (e) { try { ctx = new AC(); } catch (x) { return; } }
+    try { sctx = new AC({ latencyHint: 'interactive' }); } catch (e) { sctx = ctx; }
     A.started = true;
     const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -14; comp.knee.value = 10; comp.ratio.value = 6; comp.attack.value = 0.005; comp.release.value = 0.25; comp.connect(ctx.destination); DEST = comp;
     const out = filt('lowpass', 5200, 0.5); out.connect(DEST); outLP = out;
     master = gain(0); master.connect(out); master.gain.setTargetAtTime(0.9, ctx.currentTime, 1.2);
-    for (const k of ['rausch', 'wasser', 'blasen', 'motor', 'grollen']) { BUS[k] = gain(A.mix[k]); BUS[k].connect(master); }
-    for (const k of ['sonar', 'kassette', 'kabine']) { BUS[k] = gain(A.mix[k]); BUS[k].connect(DEST); }
+    for (const k of ['rausch', 'wasser', 'blasen', 'motor', 'grollen', 'wale']) { BUS[k] = gain(A.mix[k]); BUS[k].connect(master); }
+    for (const k of ['kassette', 'kabine']) { BUS[k] = gain(A.mix[k]); BUS[k].connect(DEST); }
     const len = ctx.sampleRate * 3; noiseBuf = ctx.createBuffer(1, len, ctx.sampleRate);
     const d = noiseBuf.getChannelData(0); let b = 0; for (let i = 0; i < len; i++) { b = b * 0.985 + (Math.random() * 2 - 1) * 0.12; d[i] = b * 3 + (Math.random() * 2 - 1) * 0.25; }
     // langes Echo: der Raum unter Wasser
     const dl = ctx.createDelay(1.5); dl.delayTime.value = 0.56; const fb = gain(0.5), lp = filt('lowpass', 1500, 0.5); echo = gain(1);
     chain(echo, dl, lp, fb, dl); lp.connect(master);
-    // eigener, ungedämpfter Weg für das Sonar mit langem Hall
-    pingOut = gain(0.8); pingOut.connect(BUS.sonar); pingBus = gain(1); pingBus.connect(pingOut);
-    const il = Math.floor(ctx.sampleRate * 3.4), ir = ctx.createBuffer(2, il, ctx.sampleRate);
-    for (let c = 0; c < 2; c++) { const d2 = ir.getChannelData(c); let lp2 = 0; for (let i = 0; i < il; i++) { lp2 = lp2 * 0.55 + (Math.random() * 2 - 1) * 0.45; d2[i] = lp2 * Math.pow(1 - i / il, 2.6) * (i < 600 ? i / 600 : 1); } }
-    const cv = ctx.createConvolver(); cv.buffer = ir; pingWet = gain(1); const wg2 = gain(0.5); chain(pingWet, cv, wg2, pingOut); const sendW = gain(0.55); pingBus.connect(sendW); sendW.connect(pingWet);
+    for (const k of ['blasen', 'grollen']) { const e = gain(A.mix[k] / MIX_D[k]); e.connect(echo); ESEND.set(BUS[k], e); }
+    // eigener, ungedämpfter Weg für das Sonar mit langem Hall, im schnellen Kontext
+    { const sc = sctx, sg = (v) => { const g = sc.createGain(); g.gain.value = v; return g; };
+      const scomp = sc === ctx ? DEST : sc.createDynamicsCompressor(); if (sc !== ctx) { scomp.threshold.value = -10; scomp.ratio.value = 4; scomp.connect(sc.destination); }
+      BUS.sonar = sg(A.mix.sonar); BUS.sonar.connect(scomp);
+      pingOut = sg(0.8); pingOut.connect(BUS.sonar); pingBus = sg(1); pingBus.connect(pingOut);
+      const il = Math.floor(sc.sampleRate * (LOW ? 2.4 : 3.4)), ir = sc.createBuffer(2, il, sc.sampleRate);
+      for (let c = 0; c < 2; c++) { const d2 = ir.getChannelData(c); let lp2 = 0; for (let i = 0; i < il; i++) { lp2 = lp2 * 0.55 + (Math.random() * 2 - 1) * 0.45; d2[i] = lp2 * Math.pow(1 - i / il, 2.6) * (i < 600 ? i / 600 : 1); } }
+      const cv = sc.createConvolver(); cv.buffer = ir; pingWet = sg(1); const wg2 = sg(0.5); pingWet.connect(cv); cv.connect(wg2); wg2.connect(pingOut); const sendW = sg(0.55); pingBus.connect(sendW); sendW.connect(pingWet); cvP = cv; cvPin = pingWet; }
     { const gb = filt('lowpass', 260, 0.7), gl2 = gain(0); glow = gl2; chain(noise(0.35), gb, gl2, BUS.kabine); const lf = ctx.createOscillator(), lg = gain(90); lf.frequency.value = 0.13; chain(lf, lg, gb.frequency); lf.start(); }
     loadPing();
     // Grundrauschen der Tiefe
@@ -46,33 +56,36 @@ export function createAudio() {
     eng = { o1, o2, eg, rf, rg, elp };
   };
   A.setMuted = (m) => { A.muted = m; if (master) master.gain.setTargetAtTime(m ? 0 : 0.9, ctx.currentTime, 0.2); };
-  A.suspend = () => { if (ctx && ctx.state === 'running') ctx.suspend(); };
-  A.resume = () => { if (ctx && ctx.state === 'suspended') ctx.resume(); };
+  A.suspend = () => { for (const c of [ctx, sctx]) if (c && c.state === 'running') c.suspend(); };
+  A.resume = () => { for (const c of [ctx, sctx]) if (c && c.state === 'suspended') c.resume(); };
+  /** Diagnose: Hall ganz abklemmen (spart Rechenzeit), und was der Ton gerade meldet */
+  A.setHall = (on) => { A.hall = on; for (const [src, cv] of [[cvPin, cvP], [cvWin, cvW]]) { if (!src || !cv) continue; try { if (on) src.connect(cv); else src.disconnect(cv); } catch (e) { /* schon so */ } } };
+  A.info = () => { if (!ctx) return 'Ton noch nicht gestartet'; const ms = (x) => (x == null ? '?' : Math.round(x * 1000) + ' ms'); return `${ctx.sampleRate} Hz · Puffer ${ms(ctx.baseLatency)} · Ausgabe ${ms(ctx.outputLatency)} · Sonar ${ms(sctx.baseLatency)} · ${ctx.state}${LOW ? ' · Handy' : ''}`; };
 
   function tone(type, f0, f1, att, dec, peak, toEcho = 0, when = 0, dest = master) {
     const o = ctx.createOscillator(), g = gain(0), t0 = ctx.currentTime + when; o.type = type;
     o.frequency.setValueAtTime(f0, t0); o.frequency.exponentialRampToValueAtTime(f1, t0 + att + dec);
     g.gain.setValueAtTime(0.0001, t0); g.gain.linearRampToValueAtTime(peak, t0 + att); g.gain.exponentialRampToValueAtTime(0.0001, t0 + att + dec);
-    chain(o, g, dest); if (toEcho) { const e = gain(toEcho); g.connect(e); e.connect(echo); }
+    chain(o, g, dest); if (toEcho) { const e = gain(toEcho); g.connect(e); e.connect(ESEND.get(dest) || echo); }
     o.start(t0); o.stop(t0 + att + dec + 0.1);
   }
   // Sonar: Max' Aufnahme; das Echo ist dieselbe Aufnahme, leiser, dumpfer und aus der Richtung des Ziels
   let pingBuf = null;
   function loadPing() {
     try { const bin = atob(PING_B64), u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
-      const p = ctx.decodeAudioData(u8.buffer, (b) => { pingBuf = b; }, () => {}); if (p && p.catch) p.catch(() => {}); } catch (e) { /* ohne Ping weiter */ }
+      const p = sctx.decodeAudioData(u8.buffer, (b) => { pingBuf = b; }, () => {}); if (p && p.catch) p.catch(() => {}); } catch (e) { /* ohne Ping weiter */ }
   }
   function play(buf, vol, rate, pan, lp, wet) {
-    const s = ctx.createBufferSource(); s.buffer = buf; s.playbackRate.value = rate; const g = gain(vol); let n = s;
-    if (lp) { const f = filt('lowpass', lp, 0.6); s.connect(f); n = f; } n.connect(g);
-    let out = g; if (pan && ctx.createStereoPanner) { const p = ctx.createStereoPanner(); p.pan.value = pan; g.connect(p); out = p; }
-    out.connect(pingOut); if (wet) { const w = gain(wet); out.connect(w); w.connect(pingWet); } s.start();
+    const sc = sctx, s = sc.createBufferSource(); s.buffer = buf; s.playbackRate.value = rate; const g = sc.createGain(); g.gain.value = vol; let n = s;
+    if (lp) { const f = sc.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = lp; f.Q.value = 0.6; s.connect(f); n = f; } n.connect(g);
+    let out = g; if (pan && sc.createStereoPanner) { const p = sc.createStereoPanner(); p.pan.value = pan; g.connect(p); out = p; }
+    out.connect(pingOut); if (wet) { const w = sc.createGain(); w.gain.value = wet; out.connect(w); w.connect(pingWet); } s.start();
   }
   A.ping = () => { if (ctx && pingBuf) play(pingBuf, 0.9, 1, 0, 0, 0.18); };
   A.echo = (vol, pan) => { if (ctx && pingBuf) play(pingBuf, 0.22 * vol + 0.05, 0.985, pan, 1400 + 1200 * vol, 0.5); };
   A.blip = () => {};
 
-  A.setInside = (v) => { inside = v; if (!ctx) return; outLP.frequency.setTargetAtTime(v ? 1500 : 5200, ctx.currentTime, 0.25); pingOut.gain.setTargetAtTime(v ? 0.45 : 0.8, ctx.currentTime, 0.2); if (mus) { mus.lp.frequency.setTargetAtTime(v ? 3600 : 700, ctx.currentTime, 0.3); mus.out.gain.setTargetAtTime(v ? 1 : 0.45, ctx.currentTime, 0.3); } };
+  A.setInside = (v) => { inside = v; if (!ctx) return; outLP.frequency.setTargetAtTime(v ? 1500 : 5200, ctx.currentTime, 0.25); pingOut.gain.setTargetAtTime(v ? 0.45 : 0.8, sctx.currentTime, 0.2); if (mus) { mus.lp.frequency.setTargetAtTime(v ? 3600 : 700, ctx.currentTime, 0.3); mus.out.gain.setTargetAtTime(v ? 1 : 0.45, ctx.currentTime, 0.3); } };
   // ---------- Kassettendeck: ruhige, langsam schwebende Musik, live erzeugt; Band leiert leicht, rauscht ----------
   const CH = [[45, [57, 60, 64, 67, 71]], [41, [53, 57, 60, 64, 67]], [48, [55, 60, 64, 67, 71]], [40, [52, 55, 59, 62, 66]], [45, [57, 60, 64, 69, 72]], [41, [57, 60, 64, 65, 69]], [43, [55, 59, 62, 66, 69]], [40, [55, 59, 62, 64, 67]]];
   // Kassetten: jede hat eigene Harmonien, eigenes Tempo und einen eigenen Klang. 0 = Bordkassette, 1 = Galeone (tief, d-Moll, langsam), 2 = Walfall (hoch, schwebend, viel Raum)
@@ -86,12 +99,12 @@ export function createAudio() {
   function musicSetup() {
     const out = gain(inside ? 1 : 0.45), lp = filt('lowpass', inside ? 3600 : 700, 0.5), ws = ctx.createWaveShaper(), cv = new Float32Array(256); for (let i = 0; i < 256; i++) { const x = i / 128 - 1; cv[i] = Math.tanh(x * 1.6) / Math.tanh(1.6); } ws.curve = cv;
     const bus = gain(0), dl = ctx.createDelay(1.5), fb = gain(0.38), dlf = filt('lowpass', 1800, 0.5), send = gain(0.35); dl.delayTime.value = 0.56;
-    chain(bus, ws, lp, out); out.connect(BUS.kassette); chain(send, dl, dlf, fb, dl); dlf.connect(bus);
+    chain(bus, ws, lp, out); out.connect(BUS.kassette); const an = ctx.createAnalyser(); an.fftSize = 512; an.smoothingTimeConstant = 0.6; bus.connect(an); chain(send, dl, dlf, fb, dl); dlf.connect(bus);
     const wow = ctx.createOscillator(), wg = gain(7); wow.frequency.value = 0.55; wow.connect(wg); wow.start();
     const flut = ctx.createOscillator(), fg = gain(2.5); flut.frequency.value = 6.3; flut.connect(fg); flut.start();
     const hs = noise(1), hb = filt('highpass', 4500, 0.5), hg = gain(0); chain(hs, hb, hg, bus);
     const inp = gain(1); inp.connect(bus);
-    mus = { out, lp, bus, in: inp, send, wg, fg, hg, next: 0, step: 0, on: false };
+    mus = { out, lp, bus, in: inp, send, wg, fg, hg, an, wave: new Uint8Array(256), next: 0, step: 0, on: false };
   }
   function note(type, f, t0, att, dur, rel, vol, dest, det = 0) {
     const o = ctx.createOscillator(), g = gain(0); o.type = type; o.frequency.value = f; o.detune.value = det; mus.wg.connect(o.detune); mus.fg.connect(o.detune);
@@ -113,6 +126,11 @@ export function createAudio() {
     if (on) { mus.next = t + 0.3; mus.wg.gain.setValueAtTime(40, t); mus.wg.gain.linearRampToValueAtTime(7, t + 0.7); }        // Band läuft an: kurzes Leiern
     click(0.4);
   };
+  /** Stopp: anhalten und zurückspulen; das Stück beginnt beim nächsten Abspielen von vorn */
+  A.tapeStop = () => { if (!ctx) return; A.tape(false); if (mus) mus.step = 0; };
+  A.tapeOn = () => !!(mus && mus.on);
+  /** Wellenform der laufenden Kassette (0..255, Mitte 128), für die Anzeige im Kassettenmenü */
+  A.tapeWave = () => { if (!mus) return null; mus.an.getByteTimeDomainData(mus.wave); return mus.wave; };
   function click(v = 0.3) { const s = ctx.createBufferSource(); s.buffer = noiseBuf; const g = gain(0), t = ctx.currentTime, f = filt('bandpass', 2600, 1.5); g.gain.setValueAtTime(v * 0.08, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.04); chain(s, f, g, BUS.kabine); s.start(t, Math.random(), 0.06); }
   A.click = (v) => { if (ctx) click(v); };
   A.pour = () => { if (!ctx) return; const s = ctx.createBufferSource(); s.buffer = noiseBuf; const g = gain(0), t = ctx.currentTime, f = filt('bandpass', 900, 1.2); f.frequency.setValueAtTime(700, t); f.frequency.linearRampToValueAtTime(1500, t + 2.2); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.05, t + 0.2); g.gain.setValueAtTime(0.05, t + 2.0); g.gain.linearRampToValueAtTime(0, t + 2.4); chain(s, f, g, BUS.kabine); s.start(t, Math.random(), 2.6); };
@@ -127,10 +145,10 @@ export function createAudio() {
   A.whaleCfg = { gap: 13, vol: 1, on: true };
   let whaleT = 12, wBus = null;
   function whaleSetup() {
-    const il = Math.floor(ctx.sampleRate * 6.5), ir = ctx.createBuffer(2, il, ctx.sampleRate);
+    const il = Math.floor(ctx.sampleRate * (LOW ? 4.5 : 6.5)), ir = ctx.createBuffer(2, il, ctx.sampleRate);
     for (let c = 0; c < 2; c++) { const d = ir.getChannelData(c); let lp = 0; for (let i = 0; i < il; i++) { lp = lp * 0.8 + (Math.random() * 2 - 1) * 0.2; d[i] = lp * Math.pow(1 - i / il, 1.8) * (i < 2400 ? i / 2400 : 1); } }
     const cv = ctx.createConvolver(); cv.buffer = ir; const wet = gain(1.6), dry = gain(0.32), lp = filt('lowpass', 1900, 0.5), out = gain(1);
-    chain(out, lp); lp.connect(dry); lp.connect(cv); chain(cv, wet, master); dry.connect(master); wBus = out;
+    chain(out, lp); lp.connect(dry); if (A.hall) lp.connect(cv); chain(cv, wet, BUS.wale); dry.connect(BUS.wale); wBus = out; cvW = cv; cvWin = lp;
   }
   // ein Laut: Grundton mit Obertönen, Tonhöhe folgt einer Kurve aus [Zeit, Hz]-Punkten
   function wUnit(t0, curve, vol, dest, opt = {}) {

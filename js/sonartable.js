@@ -4,7 +4,7 @@ import { wrapPi } from './util.js';
 import { floorH } from './terrain.js';
 import { poisNear } from './world.js';
 
-export function createTable(S, nav, cv) {
+export function createTable(S, nav, cv, sector = () => null) {
   const N = cv.width, c = N / 2, R = c - 16, TR = 500, k = R / TR, cx = cv.getContext('2d');
   const ph = document.createElement('canvas'); ph.width = ph.height = N; const px = ph.getContext('2d');
   const TB = { a: 0, blobs: [], pois: [], poiT: 0, fadeT: 0, open: false };
@@ -45,6 +45,10 @@ export function createTable(S, nav, cv) {
     ctx.beginPath(); ctx.moveTo(c - R, c); ctx.lineTo(c + R, c); ctx.moveTo(c, c - R); ctx.lineTo(c, c + R); ctx.stroke();
     const sa = TB.a - Math.PI / 2; for (let i = 0; i < 26; i++) { const a = sa - i * 0.022; ctx.fillStyle = `rgba(70,255,130,${0.2 * Math.pow(1 - i / 26, 2)})`; ctx.beginPath(); ctx.moveTo(c, c); ctx.arc(c, c, R, a - 0.024, a); ctx.closePath(); ctx.fill(); }
     ctx.strokeStyle = 'rgba(160,255,190,0.85)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(c, c); ctx.lineTo(c + Math.cos(sa) * R, c + Math.sin(sa) * R); ctx.stroke();
+    { const sv = sector(); if (sv) {   // Fächer der Missionsdose aus dem letzten Ping: schwach, nur die Richtung
+      const al = Math.min(1, sv.life * 3), ph = -Math.PI / 2 - wrapPi(sv.th - S.h), g = ctx.createRadialGradient(c, c, 0, c, c, R); g.addColorStop(0, 'rgba(255,190,80,0)'); g.addColorStop(1, `rgba(255,190,80,${0.22 * al})`);
+      ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(c, c); ctx.arc(c, c, R, ph - sv.half, ph + sv.half); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = `rgba(255,214,130,${0.8 * al})`; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(c, c, R - 3, ph - sv.half, ph + sv.half); ctx.stroke(); } }
     if (nav.course) { const q = scr(nav.course.x, nav.course.z), d = Math.hypot(q[0] - c, q[1] - c); if (d < R - 6) { ctx.strokeStyle = 'rgba(255,205,120,0.95)'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(q[0], q[1], 17, 0, 6.2832); ctx.stroke(); ctx.setLineDash([5, 7]); ctx.strokeStyle = 'rgba(255,205,120,0.45)'; ctx.beginPath(); ctx.moveTo(c, c); ctx.lineTo(q[0], q[1]); ctx.stroke(); ctx.setLineDash([]); } }
     ctx.restore();
     ctx.fillStyle = 'rgba(110,255,160,0.45)'; ctx.font = '15px ui-monospace, Menlo, monospace'; ctx.textAlign = 'left'; for (let r = 100; r <= TR; r += 100) ctx.fillText(r + '', c + 5, c - r * k + 16);

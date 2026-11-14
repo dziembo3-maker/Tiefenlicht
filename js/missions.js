@@ -7,10 +7,11 @@ import { WRECK, WHALE } from './terrain.js';
 
 /** Kassetten: 0 liegt von Anfang an im Deck; die anderen findet man. page = Logbuchseite, die mit ihr kommt */
 export const TAPES = [{ id: 0 }, { id: 1 }, { id: 2 }];
-/** Missionen in ihrer Reihenfolge. page = Seite, an der sie beginnt; tape = was man findet; x/z = Ort der Dose */
+/** Missionen in ihrer Reihenfolge. page = Seite, an der sie beginnt; tape = was man findet; x/z = Ort der Dose;
+ *  off = wo die Dose im Ping-Fächer liegt (-1 linker Rand, 0 Mitte, 1 rechter Rand), fest pro Mission, damit der Fächer nicht springt */
 export const MISSIONS = [
-  { id: 'm1', page: 0, tape: 1, x: WRECK.x + 21, z: WRECK.z - 17, yaw: 0.6 },
-  { id: 'm2', page: 1, tape: 2, x: WHALE.x + 9.5, z: WHALE.z + 8.5, yaw: 2.1 },
+  { id: 'm1', page: 0, tape: 1, x: WRECK.x + 21, z: WRECK.z - 17, yaw: 0.6, off: 0.6 },
+  { id: 'm2', page: 1, tape: 2, x: WHALE.x + 9.5, z: WHALE.z + 8.5, yaw: 2.1, off: -0.55 },
 ];
 /** so viele weitere Missionen deutet der Missionen-Reiter nur an */
 export const HINTED = 3;
