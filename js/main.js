@@ -159,6 +159,11 @@ function sonarDraw() {
     else { const ux = q[0] / d, uy = -q[1] / d; for (const o of [5, 22]) { const px = c + ux * (R - o), py = c + uy * (R - o), s = 14; sc.beginPath(); sc.moveTo(px - ux * s - uy * s * 0.8, py - uy * s + ux * s * 0.8); sc.lineTo(px, py); sc.lineTo(px - ux * s + uy * s * 0.8, py - uy * s - ux * s * 0.8); sc.stroke(); } }
   }
   sc.restore();
+  // Peilungsring wie am Horchgerät: 0° voraus, im Uhrzeigersinn, 90° Steuerbord
+  sc.lineCap = 'butt';
+  for (let d = 0; d < 360; d += 10) { const big = d % 30 === 0, a = d * Math.PI / 180, s1 = Math.sin(a), c1 = Math.cos(a), r0 = R - (big ? 13 : 7); sc.strokeStyle = big ? 'rgba(170,255,200,0.75)' : 'rgba(120,230,160,0.4)'; sc.lineWidth = big ? 3 : 2; sc.beginPath(); sc.moveTo(c + s1 * r0, c - c1 * r0); sc.lineTo(c + s1 * R, c - c1 * R); sc.stroke(); }
+  sc.font = 'bold 25px ui-monospace, Menlo, monospace'; sc.textAlign = 'center'; sc.textBaseline = 'middle';
+  for (let d = 0; d < 360; d += 30) { const a = d * Math.PI / 180, r1 = R - 32; sc.fillStyle = d % 90 === 0 ? 'rgba(200,255,220,0.9)' : 'rgba(150,240,180,0.6)'; sc.fillText(String(d), c + Math.sin(a) * r1, c - Math.cos(a) * r1); }
   sc.fillStyle = 'rgba(200,255,220,0.95)'; sc.beginPath(); sc.moveTo(c, c - 9); sc.lineTo(c + 6, c + 7); sc.lineTo(c - 6, c + 7); sc.closePath(); sc.fill();
 }
 function ping() {
@@ -281,7 +286,6 @@ const LABEL = {
   cupDesk: () => (cabin.state.cup === 'desk' ? t('cup_take') : ''), cupPult: () => (cabin.state.cup === 'pult' ? (cabin.state.cupHeat > 0.05 ? t('cup_drink') : t('cup_away')) : ''),
   deck: () => t('tape_menu'), light: () => (cabin.state.lampT > 0.5 ? t('light_dim') : t('light_on')), log: () => t('log_read'), page: () => t('page_read'), horch: () => t('horch'),
 };
-for (let k = 0; k < 6; k++) LABEL['cas' + k] = () => (cabin.state.own[k] && cabin.state.tapeIn !== k ? t('tape_put', { n: t('tape_n')[k] || '?' }) : '');
 const ACT = {
   seat: () => setSt('seat'), table: () => setSt('table'),
   kettle: () => { if (tea.phase === 'cold') { tea.phase = 'heat'; tea.t = 0; audio.click(0.6); } else if (tea.phase === 'ready') { tea.phase = 'cool'; tea.t = 0; cabin.state.cup = 'desk'; cabin.state.cupHeat = 1; audio.pour(); } },
@@ -289,7 +293,6 @@ const ACT = {
   cupDesk: () => { cabin.state.cup = 'pult'; audio.click(0.3); }, cupPult: () => { if (cabin.state.cupHeat > 0.05) { cabin.state.cupHeat = Math.max(0, cabin.state.cupHeat - 0.34); if (cabin.state.cupHeat <= 0.05) note(t('tea_done')); } else cabin.state.cup = 'none'; audio.click(0.25); },
   deck: () => openTapes(), light: () => { cabin.state.lampT = cabin.state.lampT > 0.5 ? 0.12 : 1; audio.click(0.9); }, log: () => openLog(), page: () => openPage(), horch: () => openHorch(),
 };
-for (let k = 0; k < 6; k++) ACT['cas' + k] = () => playTape(k);
 function pickTarget() {
   if (V.mode !== 'in' || V.st === 'table') return null;
   camera.getWorldDirection(fwd); let best = null, bs = 0;
@@ -657,7 +660,7 @@ function goTo(p) { if (!p) return; const a = Math.atan2(S.x - p.x, S.z - p.z), d
 function buildDev() {
   const F = fauna; devEl.innerHTML = '';
   const h3 = (t) => { const e = document.createElement('h3'); e.textContent = t; devEl.appendChild(e); };
-  const btn = (label, fn, parent = devEl) => { const b = document.createElement('span'); b.className = 'pill mini'; b.textContent = label; b.addEventListener('pointerdown', (e) => { e.preventDefault(); fn(); }); parent.appendChild(b); return b; };
+  let bn = 0; const btn = (label, fn, parent = devEl) => { const b = document.createElement('span'), i = bn++; b.className = 'pill mini'; b.textContent = label; b.addEventListener('pointerdown', (e) => { e.preventDefault(); fn(); if (!b.isConnected) devFlash(i); }); parent.appendChild(b); return b; };
   const row = () => { const r = document.createElement('div'); r.className = 'row'; devEl.appendChild(r); return r; };
   h3('LEBEWESEN · ANZAHL UM DAS BOOT');
   DEV_NAMES.forEach((n, si) => { const r = row(), l = document.createElement('span'), v = document.createElement('span'), s = document.createElement('input'); s.type = 'range'; s.min = 0; s.max = F.max[si]; s.step = 1; s.value = F.cfg[si].n; l.textContent = n; v.textContent = s.value;
@@ -696,6 +699,8 @@ function buildDev() {
   h3('SONSTIGES'); { const r = row(); r.style.flexWrap = 'wrap';
     btn('Tee sofort fertig', () => { tea.phase = 'ready'; }, r); btn('Logbuch leeren', () => { LOG.length = 0; seen.clear(); save(); }, r); btn('Menü sperren', () => { devOn = false; try { localStorage.removeItem('tiefenlicht.dev'); } catch (x) { /* egal */ } devEl.classList.remove('open'); }, r); btn('schließen', () => toggleDev(false), r); }
 }
+/** baut ein Knopf das Menü neu auf, leuchtet der neue Knopf an derselben Stelle kurz auf, damit man den Druck trotzdem sieht */
+function devFlash(i) { const nb = devEl.querySelectorAll('.pill.mini')[i]; if (!nb) return; nb.classList.add('press'); setTimeout(() => nb.classList.remove('press'), 160); }
 function devSave() { try { localStorage.setItem('tiefenlicht.devcfg', JSON.stringify({ n: fauna.cfg.map((c) => c.n), attract: fauna.attract, mix: audio.mix, mixV: 1 })); } catch (e) { /* egal */ } }
 try { const d = JSON.parse(localStorage.getItem('tiefenlicht.devcfg') || 'null'); if (d) { d.n.forEach((n, si) => fauna.setCount(si, n)); fauna.attract = !!d.attract; if (d.mix && d.mixV === 1) for (const k in d.mix) if (k in audio.mix) audio.setMix(k, +d.mix[k]); } } catch (e) { /* egal */ }
 
