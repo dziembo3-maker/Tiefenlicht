@@ -5,6 +5,7 @@ import { T, Geo, rng, glowTexture, noise } from './util.js';
 import { U, quadPoints } from './gfx.js';
 import { quad, tube, disc, box, lathe, ring } from './build.js';
 
+const HX = -0.62, HZ = 0.95;   // Horchgerät: links neben dem Steuer, vom Sitz aus erreichbar
 const BRASS_ = [0.78, 0.56, 0.24], PI = Math.PI, RC = 1.45, CY = 0.75, ZA = -2.1, ZF = 1.5, FW = Math.sqrt(RC * RC - CY * CY), F0 = Math.acos(CY / RC);
 export const WIN = { x: 0, y: 1.15, r: 0.82 }, SEAT = { x: 0, y: 1.27, z: 0.52 }, FLOOR_Y = -1.0;
 const wallPt = (f, z, inset = 0) => [(RC - inset) * Math.sin(f), CY - (RC - inset) * Math.cos(f), z];
@@ -260,6 +261,19 @@ export function createCabin() {
   { const p = [0, 2.02, -0.55]; tube(g, [[0, CY + RC - 0.02, p[2]], [0, p[1] + 0.12, p[2]]], 0.008, 0.008, 4, IRON); lathe(g, p, 'y', [[0.12, 0.012], [0.108, 0.03], [0.072, 0.08], [0.066, 0.03]], 12, BRASS, 0, MET); lathe(g, p, 'y', [[0.066, 0.03], [0.024, 0.046], [-0.024, 0.037], [-0.042, 0.018], [-0.045, 0]], 12, WARM, 1.5, LAMP); }
   for (const [w, l, col] of [[0.46, 0.92, [0.3, 0.07, 0.06]], [0.4, 0.86, [0.5, 0.36, 0.16]], [0.33, 0.79, [0.34, 0.09, 0.08]], [0.14, 0.5, [0.46, 0.32, 0.15]]]) quad(g, [-w, 0.004 + (0.5 - w) * 0.008, -0.55 - l], [-w, 0.004 + (0.5 - w) * 0.008, -0.55 + l], [w, 0.004 + (0.5 - w) * 0.008, -0.55 + l], [w, 0.004 + (0.5 - w) * 0.008, -0.55 - l], col);
 
+  // ---------- Horchgerät neben dem Steuer: Säule, Messingtrommel mit Peilscheibe, Handrad zum Sitz hin, Kopfhörer am Haken ----------
+  { lathe(g, [HX, 0, HZ], 'y', [[0, 0.14], [0.02, 0.14], [0.035, 0.08], [0.06, 0.05]], 14, CAST, 0, MET);
+    lathe(g, [HX, 0.05, HZ], 'y', [[0, 0.045], [0.84, 0.04]], 10, IRON, 0, MET);
+    for (const y of [0.32, 0.86]) ring(g, [HX, y, HZ], [0, 1, 0], 0.05, 0.012, 12, 4, BRASS, 0, MET);
+    lathe(g, [HX, 0.88, HZ], 'y', [[0, 0.06], [0.025, 0.14], [0.11, 0.15], [0.135, 0.145], [0.14, 0]], 24, BRASS, 0, MET);
+    disc(g, [HX, 1.022, HZ], [0, 1, 0], 0.128, [0.88, 0.83, 0.64], 0.32, 32);
+    ring(g, [HX, 1.022, HZ], [0, 1, 0], 0.136, 0.01, 32, 4, BRASS, 0, MET);
+    for (let i = 0; i < 36; i++) { const a = i / 36 * 2 * PI, l = i % 9 === 0 ? 0.03 : i % 3 === 0 ? 0.02 : 0.011, r = 0.118 - l / 2; box(g, [HX + Math.sin(a) * r, 1.0235, HZ + Math.cos(a) * r], [i % 9 === 0 ? 0.005 : 0.0028, 0.001, l], a, i === 0 ? [0.62, 0.1, 0.06] : [0.18, 0.12, 0.08]); }
+    tube(g, [[HX + 0.14, 0.95, HZ], [HX + 0.2, 0.95, HZ]], 0.012, 0.012, 6, BRASS, 0, MET);
+    tube(g, [[HX - 0.14, 0.96, HZ], [HX - 0.2, 0.97, HZ], [HX - 0.22, 1.01, HZ]], 0.007, 0.007, 5, BRASS, 0, MET);   // Haken
+    { const cx = HX - 0.215, y0 = 0.86; tube(g, Array.from({ length: 9 }, (_, i) => { const a = i / 8 * PI; return [cx, y0 + 0.11 + Math.sin(a) * 0.04, HZ - 0.08 + i / 8 * 0.16]; }), 0.009, 0.009, 6, [0.25, 0.18, 0.12], 0, MET);
+      for (const s2 of [-1, 1]) { lathe(g, [cx, y0 + 0.06, HZ + s2 * 0.08], 'z', [[-s2 * 0.0, 0.035], [s2 * 0.02, 0.04], [s2 * 0.035, 0.03], [s2 * 0.04, 0]], 12, [0.16, 0.1, 0.07]); } }
+    lathe(g, [HX + 0.1, 1.02, HZ - 0.075], 'y', [[0, 0.016], [0.01, 0.018], [0.012, 0]], 10, BRASS, 0, MET); }
   // gebackene Verschattung
   const AO = bakeAO(g);
 
@@ -315,6 +329,9 @@ export function createCabin() {
   const cass = CASC.map((c, k) => { const p = part((q) => { box(q, [0, 0, 0], [0.068, 0.104, 0.027], 0, c); box(q, [-0.0345, 0.004, 0], [0.002, 0.074, 0.021], 0, PAPER); box(q, [-0.0358, 0.026, 0], [0.002, 0.012, 0.022], 0, sh(c, 1.5)); for (let i = 0; i < 3; i++) box(q, [-0.0358, -0.004 - i * 0.012, 0], [0.002, 0.002, 0.014], 0, [0.25, 0.18, 0.12]); }, [1.132, 0.83, CASZ(k)]); p.rotation.x = k % 3 === 1 ? 0.05 : k % 3 === 2 ? -0.04 : 0; p.visible = false; return p; });
   const page = part((q) => { const a = 0.25, ca = Math.cos(a), sa = Math.sin(a), at = (lx, lz) => [lx * ca + lz * sa, 0.0048, -lx * sa + lz * ca]; box(q, [0, 0.002, 0], [0.2, 0.004, 0.275], a, [0.88, 0.79, 0.58]);
     for (let i = 0; i < 9; i++) box(q, at(i === 8 ? -0.03 : 0, -0.105 + i * 0.022), [i === 8 ? 0.09 : 0.155 - (i % 3) * 0.012, 0.0008, 0.0035], a, [0.24, 0.16, 0.1]); disc(q, at(0.062, 0.108), [0, 1, 0], 0.014, [0.55, 0.1, 0.08], 0, 10); }, [0.83, 0.7725, 0.04]);
+  // Horchgerät: Zeiger auf der Peilscheibe und Handrad drehen mit; ein kleines grünes Lämpchen zuckt bei jedem Klick, den man hört
+  const hNeedle = part((q) => { box(q, [0, 0.003, 0.045], [0.008, 0.002, 0.09], 0, [0.62, 0.1, 0.06], 0.4); box(q, [0, 0.003, -0.02], [0.006, 0.002, 0.04], 0, BRASS, 0, 0, MET); lathe(q, [0, 0, 0], 'y', [[0, 0.012], [0.006, 0.01], [0.008, 0]], 10, BRASS, 0, MET); }, [HX, 1.024, HZ]);
+  const hWheel = part((q) => { ring(q, [0, 0, 0], [1, 0, 0], 0.075, 0.011, 20, 6, BRASS, 0, MET); for (let k = 0; k < 4; k++) { const a = k * PI / 2; tube(q, [[0, 0, 0], [0, Math.sin(a) * 0.075, Math.cos(a) * 0.075]], 0.007, 0.007, 5, BRASS, 0, MET); } lathe(q, [0, 0, 0], 'x', [[0, 0.018], [0.02, 0.016], [0.022, 0]], 10, BRASS, 0, MET); tube(q, [[0, 0.075, 0], [0.05, 0.075, 0]], 0.009, 0.009, 6, [0.12, 0.08, 0.06]); }, [HX + 0.205, 0.95, HZ]);
   const cupGeo = (q) => { lathe(q, [0, 0, 0], 'y', [[0, 0.036], [0.005, 0.04], [0.07, 0.045], [0.08, 0.044], [0.08, 0.038], [0.012, 0.034], [0.012, 0]], 12, [0.82, 0.8, 0.74]); disc(q, [0, 0.07, 0], [0, 1, 0], 0.038, [0.38, 0.19, 0.08], 0, 12); ring(q, [0.052, 0.04, 0], [0, 0, 1], 0.018, 0.006, 10, 4, [0.82, 0.8, 0.74]); };
   const cupDesk = part(cupGeo, [0.74, 0.769, 0.32]), cupPult = part(cupGeo, [0.66, 0.795, 1.02]); cupDesk.visible = cupPult.visible = false;
   const kettle = part((q) => { lathe(q, [0, 0, 0], 'y', [[0, 0.085], [0.02, 0.115], [0.1, 0.118], [0.14, 0.085], [0.155, 0.04], [0.16, 0.035], [0.17, 0.02], [0.175, 0]], 14, COPPER, 0, MET); tube(q, [[0.1, 0.06, 0], [0.18, 0.12, 0], [0.22, 0.17, 0]], 0.024, 0.01, 8, COPPER, 0, MET); const hp = []; for (let k = 0; k <= 10; k++) { const a = k / 10 * PI; hp.push([0, 0.15 + Math.sin(a) * 0.12, -0.08 + k * 0.016]); } tube(q, hp, 0.01, 0.01, 6, IRON, 0, MET); soft(q, [0, 0.27, 0], [0.04, 0.03, 0.12], 3, [0.12, 0.08, 0.06], 1, 0); }, [-0.82, 0.76, 0.22]);
@@ -344,9 +361,12 @@ export function createCabin() {
   const head = new T.Object3D(); head.rotation.order = 'YXZ'; group.add(head);
 
   // Stellen, an denen man etwas tun kann (Kabinenkoordinaten)
-  const TG = { seat: [0, 0.75, 0.72], table: [0.9, 1.02, -1.42], kettle: [-0.82, 0.92, 0.22], stove: [-0.6, 0.42, 0.25], cupDesk: [0.74, 0.82, 0.32], cupPult: [0.66, 0.84, 1.02], deck: [1.0, 1.19, 0.05], light: [0.45, 1.3, ZA + 0.05], log: [0.9, 0.8, -0.25], page: [0.83, 0.79, 0.04] }; for (let k = 0; k < 6; k++) TG['cas' + k] = [1.09, 0.835, CASZ(k)];
+  const TG = { seat: [0, 0.75, 0.72], table: [0.9, 1.02, -1.42], kettle: [-0.82, 0.92, 0.22], stove: [-0.6, 0.42, 0.25], cupDesk: [0.74, 0.82, 0.32], cupPult: [0.66, 0.84, 1.02], deck: [1.0, 1.19, 0.05], light: [0.45, 1.3, ZA + 0.05], log: [0.9, 0.8, -0.25], page: [0.83, 0.79, 0.04], horch: [HX + 0.06, 1.03, HZ] }; for (let k = 0; k < 6; k++) TG['cas' + k] = [1.09, 0.835, CASZ(k)];
   const pglow = new T.Sprite(new T.SpriteMaterial({ map: gt, color: 0xffd9a0, transparent: true, opacity: 0, blending: T.AdditiveBlending, depthWrite: false })); pglow.position.set(0.83, 0.8, 0.04); pglow.scale.set(0.3, 0.3, 1); pglow.layers.set(1); inner.add(pglow);
+  const hlamp = new T.Sprite(new T.SpriteMaterial({ map: gt, color: 0x9dffb0, transparent: true, opacity: 0, blending: T.AdditiveBlending, depthWrite: false })); hlamp.position.set(HX + 0.1, 1.04, HZ - 0.075); hlamp.scale.set(0.07, 0.07, 1); hlamp.layers.set(1); inner.add(hlamp);
   const C = { group, head, scopeCtx: scv.getContext('2d'), scopeTex: stex, uni: UC, TG, inner };
+  /** Horchgerät nachführen: Peilung in Grad (im Uhrzeigersinn ab Bug, 90 = Steuerbord), Signal 0..1 */
+  C.setHorch = (deg, lvl) => { const b = deg * PI / 180; hNeedle.rotation.y = b; hWheel.rotation.x = b * 3; hlamp.material.opacity = 0.08 + Math.min(1, lvl * 2.5) * 0.9; };
   const st = { fire: 1, fireT: 1, lamp: 1, lampT: 1, boil: 0, cup: 'none', cupHeat: 0, tape: false, wheel: 0, lever: 0, own: [true, false, false, false, false, false], tapeIn: 0, pageNew: false };
   C.state = st;
   C.toWorld = (k, out) => out.set(TG[k][0], TG[k][1], TG[k][2]).applyMatrix4(inner.matrixWorld);
