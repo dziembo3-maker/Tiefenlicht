@@ -153,7 +153,7 @@ export function createLife(scene) {
       void main(){ vec3 N = normalize(vN), V = normalize(cameraPosition - vW);
         float g = smoothstep(0.0, 0.95, vY), pulse = 0.9 + 0.1 * sin(uTime * 0.8 + vW.x * 0.4 + vW.z * 0.3), nv = abs(dot(N, V)), face = 0.5 + 0.5 * max(dot(N, normalize(vec3(0.45, 0.55, 0.35))), 0.0);
         vec3 lo = vC * vC * 0.45 + vC * 0.2 + vec3(0.0, 0.015, 0.06);
-        vec3 c = mix(lo, vC, g) * (0.95 + 1.5 * g) * face * pulse + vC * pow(1.0 - nv, 2.0) * 0.5 + vec3(0.9, 0.95, 1.0) * pow(g, 6.0) * 0.5;
+        vec3 c = mix(lo, vC, g) * (0.95 + 1.5 * g) * face * pulse + vC * pow(max(1.0 - nv, 0.0), 2.0) * 0.5 + vec3(0.9, 0.95, 1.0) * pow(g, 6.0) * 0.5;
         gl_FragColor = vec4(fog(c, vW), 1.0); }` });
   const mCoral = new T.ShaderMaterial({ uniforms: uni(), side: T.DoubleSide,
     vertexShader: /* glsl */ `attribute float aT; attribute vec4 iP; attribute vec3 iD, iC; uniform float uTime; varying vec3 vW, vC; varying float vT, vF; ${ROTY}
@@ -175,7 +175,7 @@ export function createLife(scene) {
   const mGrass = new T.ShaderMaterial({ uniforms: uni(), side: T.DoubleSide,
     vertexShader: /* glsl */ `attribute float aT; attribute vec4 iP; attribute vec2 iR; uniform float uTime; uniform vec3 uSubPos; varying vec3 vW; varying float vT; ${ROTY}
       void main(){ vec3 p = rotY(position * iP.w, iR.x); float sw = aT * aT * iP.w * 0.25; p.x += sin(uTime * 0.8 + iR.y + iP.x * 0.2) * sw; p.z += cos(uTime * 0.65 + iR.y) * sw * 0.7; p += iP.xyz;
-        vec3 d = p - uSubPos; float l = length(d); p.xz += d.xz / max(l, 0.01) * smoothstep(4.0, 1.0, l) * aT * 0.8;
+        vec3 d = p - uSubPos; float l = length(d); p.xz += d.xz / max(l, 0.01) * (1.0 - smoothstep(1.0, 4.0, l)) * aT * 0.8;
         vW = p; vT = aT; gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0); }`,
     fragmentShader: /* glsl */ `precision highp float; ${COMMON} varying vec3 vW; varying float vT;
       void main(){ vec3 base = mix(vec3(0.05, 0.13, 0.15), vec3(0.14, 0.34, 0.33), vT); gl_FragColor = vec4(fog(shade(base, vec3(0.0, 1.0, 0.0), vW) * 0.62, vW), 1.0); }` });
@@ -302,7 +302,7 @@ export function createLife(scene) {
         void main(){ vec3 ax = -uSunDir, b0 = iP.xyz; b0.xz = mod(b0.xz - cameraPosition.xz + 170.0, 340.0) - 170.0 + cameraPosition.xz; vec3 p0 = b0 + ax * position.y * iQ.x + vec3(sin(uTime * 0.05 + iQ.y) * 2.0, 0.0, 0.0), sd = normalize(cross(ax, cameraPosition - p0));
           vec3 p = p0 + sd * position.x * iP.w * (1.0 + position.y * 1.2); vQ = position.xy; vW = p; vI = iQ.z * (0.72 + 0.28 * sin(uTime * 0.31 + iQ.y * 3.0)); gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0); }`,
       fragmentShader: `precision highp float; uniform float uFogK, uDeep; varying vec2 vQ; varying vec3 vW; varying float vI;
-        void main(){ float e = 1.0 - 4.0 * vQ.x * vQ.x, d = distance(vW, cameraPosition); float a = e * e * smoothstep(0.0, 0.1, vQ.y) * pow(1.0 - vQ.y, 0.9) * smoothstep(4.0, 24.0, d) * exp(-d * uFogK * 0.5);
+        void main(){ float e = 1.0 - 4.0 * vQ.x * vQ.x, d = distance(vW, cameraPosition); float a = e * e * smoothstep(0.0, 0.1, vQ.y) * pow(max(1.0 - vQ.y, 0.0), 0.9) * smoothstep(4.0, 24.0, d) * exp(-d * uFogK * 0.5);
           gl_FragColor = vec4(vec3(0.07, 0.34, 0.46) * a * vI * 1.8 * uDeep, 1.0); }` }));
     m.frustumCulled = false; m.renderOrder = 3; scene.add(m);
   }
