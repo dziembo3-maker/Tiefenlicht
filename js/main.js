@@ -63,7 +63,7 @@ window.addEventListener('pointerdown', (e) => {
     if (I.lookId === null) { I.lookId = e.pointerId; I.lx = e.clientX; I.ly = e.clientY; } return;
   }
   if (e.pointerType === 'mouse') {
-    if (lockOK && e.target === canvas && !devOpen()) { if (document.pointerLockElement !== canvas) { try { const r = canvas.requestPointerLock(); if (r && r.catch) r.catch(() => { lockOK = false; }); } catch (x) { lockOK = false; } } else if (e.button === 2) ping(); return; }
+    if (lockOK && e.target === canvas && !devOpen()) { if (document.pointerLockElement !== canvas) { try { const r = canvas.requestPointerLock(); if (r && r.catch) r.catch(() => { if (!hadLock) lockOK = false; else grabEl.style.opacity = 1; }); } catch (x) { if (!hadLock) lockOK = false; } } else if (e.button === 2) ping(); return; }
     if (I.lookId === null) { I.lookId = e.pointerId; I.lx = e.clientX; I.ly = e.clientY; } return;   // ohne Mausfang: Ziehen = umsehen
   }
   if (e.clientX < window.innerWidth * 0.5 && I.joyId === null) { I.joyId = e.pointerId; I.ox = e.clientX; I.oy = e.clientY; joy.style.left = e.clientX + 'px'; joy.style.top = e.clientY + 'px'; joy.style.opacity = 1; setJoy(0, 0); }
@@ -95,7 +95,7 @@ for (const [id, key] of [['up', 'up'], ['down', 'down']]) {
   const b = $(id), on = (e) => { e.preventDefault(); I[key] = 1; b.classList.add('on'); try { b.setPointerCapture(e.pointerId); } catch (x) { /* egal */ } }, off = () => { I[key] = 0; b.classList.remove('on'); };
   b.addEventListener('pointerdown', on); b.addEventListener('pointerup', off); b.addEventListener('pointercancel', off); b.addEventListener('lostpointercapture', off);
 }
-window.addEventListener('keydown', (e) => { I.keys[e.code] = 1; }); window.addEventListener('keyup', (e) => { I.keys[e.code] = 0; });
+window.addEventListener('keydown', (e) => { I.keys[e.code] = 1; }); window.addEventListener('keyup', (e) => { I.keys[e.code] = 0; if (e.code === 'Escape' && relockEsc) { relockEsc = false; lockMouse(); } });
 window.addEventListener('contextmenu', (e) => e.preventDefault());
 document.addEventListener('visibilitychange', () => { if (document.hidden) { audio.suspend(); if (started) openMenu(); } else if (!M.open) audio.resume(); });
 
@@ -183,7 +183,7 @@ function props(dt) {   // Steuerrad, Tiefenruder, Tee: laufen immer mit, auch we
   if (frames % 30 === 0) discover();
 }
 function drive(dt) {
-  const ctl = !CAMV.on && (V.mode === 'out' || V.st === 'seat'), K = ctl ? I.keys : {}; let jx = ctl ? I.jx : 0, jy = ctl ? I.jy : 0;
+  const ctl = !CAMV.on && !horchOpen && (V.mode === 'out' || V.st === 'seat'), K = ctl ? I.keys : {}; let jx = ctl ? I.jx : 0, jy = ctl ? I.jy : 0;
   if (K.KeyA || K.ArrowLeft) jx -= 1; if (K.KeyD || K.ArrowRight) jx += 1; if (K.KeyW || K.ArrowUp) jy -= 1; if (K.KeyS || K.ArrowDown) jy += 1;
   const mag = Math.min(1, Math.hypot(jx, jy)), vIn = ctl ? (I.up || K.Space ? 1 : 0) - (I.down || K.KeyQ || K.ShiftLeft ? 1 : 0) : 0;
   let want = 0, thrust = 0;
@@ -378,9 +378,9 @@ $('camBtn').addEventListener('pointerdown', (e) => { e.preventDefault(); openCam
 $('camShut').addEventListener('pointerdown', (e) => { e.preventDefault(); shoot(); });
 $('camClose').addEventListener('pointerdown', (e) => { e.preventDefault(); closeCam(); });
 // ---------- Horchgerät: Peilscheibe drehen, Kopfhörer auf. Klicks hört man weit, aber nur aus der Richtung, in die es zeigt ----------
-let horchOpen = false, horchDeg = 0, horchDrag = null;
+let horchOpen = false, horchDeg = 0, horchDrag = null, relockEsc = false;
 function openHorch() { unlock(); closeTapes(); horchOpen = true; $('horch').classList.add('open'); }
-function closeHorch() { if (!horchOpen) return; horchOpen = false; horchDrag = null; $('horch').classList.remove('open'); audio.hydro(false, 0); lockMouse(); }
+function closeHorch(esc) { if (!horchOpen) return; horchOpen = false; horchDrag = null; $('horch').classList.remove('open'); audio.hydro(false, 0); if (esc) relockEsc = true; else lockMouse(); }
 const hcv = $('horchCv'), hcx = hcv.getContext('2d');
 const horchAng = (e) => { const r = hcv.getBoundingClientRect(); return Math.atan2(e.clientX - r.left - r.width / 2, -(e.clientY - r.top - r.height / 2)) * 180 / Math.PI; };
 hcv.addEventListener('pointerdown', (e) => { e.preventDefault(); horchDrag = { id: e.pointerId, a: horchAng(e) }; try { hcv.setPointerCapture(e.pointerId); } catch (x) { /* egal */ } });
@@ -416,7 +416,7 @@ function fillTapes() {
   $('tName').textContent = t('tape_n')[st.tapeIn] || ''; for (const b of document.querySelectorAll('#tBtns span')) b.classList.toggle('on', b.dataset.a === (st.tape ? 'play' : 'pause'));
 }
 function openTapes() { unlock(); fillTapes(); tapesOpen = true; $('tapes').classList.add('open'); }
-function closeTapes() { if (!tapesOpen) return; tapesOpen = false; $('tapes').classList.remove('open'); lockMouse(); }
+function closeTapes(esc) { if (!tapesOpen) return; tapesOpen = false; $('tapes').classList.remove('open'); if (esc) relockEsc = true; else lockMouse(); }
 for (const b of document.querySelectorAll('#tBtns span')) b.addEventListener('pointerdown', (e) => {
   e.preventDefault(); const st = cabin.state, a = b.dataset.a;
   if (a === 'play' && !st.tape) { st.tape = true; audio.tape(true); } else if (a === 'pause' && st.tape) { st.tape = false; audio.tape(false); } else if (a === 'stop') { st.tape = false; audio.tapeStop(); }
@@ -504,7 +504,7 @@ function cabinStep(dt) {
   const g = cabin.group; g.position.copy(boat.group.position); g.rotation.copy(boat.group.rotation);
   let tx, ty, tz;
   if (V.st === 'walk') {
-    const K = I.keys; let jx = I.jx, jy = I.jy; if (K.KeyA || K.ArrowLeft) jx -= 1; if (K.KeyD || K.ArrowRight) jx += 1; if (K.KeyW || K.ArrowUp) jy -= 1; if (K.KeyS || K.ArrowDown) jy += 1;
+    const K = horchOpen ? {} : I.keys; let jx = horchOpen ? 0 : I.jx, jy = horchOpen ? 0 : I.jy; if (K.KeyA || K.ArrowLeft) jx -= 1; if (K.KeyD || K.ArrowRight) jx += 1; if (K.KeyW || K.ArrowUp) jy -= 1; if (K.KeyS || K.ArrowDown) jy += 1;
     const mag = Math.min(1, Math.hypot(jx, jy)), sy = Math.sin(V.yaw), cy = Math.cos(V.yaw);
     V.px = clamp(V.px + (sy * -jy - cy * jx) * 1.25 * dt, -0.45, 0.4); V.pz = clamp(V.pz + (cy * -jy + sy * jx) * 1.25 * dt, -1.62, 0.26);
     V.bob += mag * dt * 7.5; tx = V.px; ty = 1.56 + Math.sin(V.bob) * 0.02 * Math.min(1, mag * 2); tz = V.pz;
@@ -523,13 +523,13 @@ function cabinStep(dt) {
 window.addEventListener('keydown', (e) => { if (e.repeat) return;
   if (M.open) { if (e.code === 'Escape' && performance.now() - escT > 350) { if (M.panel !== 'main') showPanel('main'); else if (started) closeMenu(); } else if (e.code === 'Enter' && M.panel === 'main') goBtn(); return; }
   if (e.code === 'KeyE' && devOn && started) { toggleDev(); return; }
-  if (tapesOpen && (e.code === 'Escape' || e.code === 'KeyF')) { closeTapes(); return; }
-  if (horchOpen && (e.code === 'Escape' || e.code === 'KeyF')) { closeHorch(); return; }
+  if (tapesOpen && (e.code === 'Escape' || e.code === 'KeyF')) { closeTapes(e.code === 'Escape'); return; }
+  if (horchOpen && (e.code === 'Escape' || e.code === 'KeyF')) { closeHorch(e.code === 'Escape'); return; }
   if (CAMV.on) { if (e.code === 'Space') shoot(); else if (e.code === 'Escape' || e.code === 'KeyK') closeCam(); return; }
   if (e.code === 'KeyK' && started) { openCam(); return; }
   if (e.code === 'KeyC') setMode(V.mode === 'in' ? 'out' : 'in'); if (e.code === 'KeyF') actEl.dispatchEvent(new Event('pointerdown'));
   if (e.code === 'KeyR' && started) ping(); if (e.code === 'KeyL' && started) { if ($('log').classList.contains('open')) $('log').classList.remove('open'); else openLog(); }
-  if (e.code === 'Escape') { if (devOpen()) toggleDev(false); else if ($('log').classList.contains('open')) $('log').classList.remove('open'); else if (V.st === 'table') setSt('walk'); else if (started) { escT = performance.now(); openMenu(); } } });
+  if (e.code === 'Escape' && performance.now() - escT > 400) { if (devOpen()) toggleDev(false); else if ($('log').classList.contains('open')) $('log').classList.remove('open'); else if (V.st === 'table') setSt('walk'); else if (started) { escT = performance.now(); openMenu(); } } });
 
 // ---------- Schleife ----------
 let last = performance.now(), fpsT = 0, fpsN = 0, slowT = 0, hintT = 0;
