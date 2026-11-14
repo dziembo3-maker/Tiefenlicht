@@ -87,7 +87,14 @@
   #banner { position: fixed; left: 0; right: 0; top: 33%; text-align: center; color: #fff; text-shadow: 0 2px 18px rgba(0, 20, 35, 0.9), 0 0 3px rgba(0, 20, 35, 0.6); opacity: 0; transition: opacity 1.4s; pointer-events: none; }
   #banner .b1 { display: block; font-size: 13px; letter-spacing: 0.34em; text-transform: uppercase; margin-left: 0.34em; color: rgba(255, 255, 255, 0.82); } #banner .b2 { display: block; margin-top: 9px; font-size: 26px; letter-spacing: 0.14em; font-style: italic; }
   #logTabs { display: flex; gap: 10px; } #log.page #logTabs { display: none; } #logBtns { display: flex; gap: 12px; } #logGo { display: none; background: rgba(232, 184, 106, 0.32); border-color: rgba(255, 218, 160, 0.7); color: #fff4e2; } #log.page #logGo.show { display: block; }
-  #logGo.run { background: rgba(8, 40, 60, 0.4); border-color: rgba(190, 235, 240, 0.28); color: rgba(220, 242, 246, 0.75); }
+  .logStart { margin: 14px auto 2px; width: max-content; background: rgba(150, 95, 30, 0.85); border-color: rgba(90, 55, 15, 0.9); color: #fff4e2; }
+.logStart.run { background: rgba(60, 45, 25, 0.35); border-color: rgba(60, 45, 25, 0.5); color: rgba(60, 40, 20, 0.75); }
+.logPhoto, #photoGrid img { cursor: zoom-in; }
+#perfD { font-size: 11px; opacity: 0.7; margin: -2px 0 10px; }
+#photoBig { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(4, 3, 2, 0.9); pointer-events: auto; z-index: 5; }
+#photoBig.open { display: flex; }
+#photoBig img { max-width: 94vw; max-height: 90vh; box-shadow: 0 10px 50px rgba(0, 0, 0, 0.8); transform: rotate(-0.6deg); }
+#logGo.run { background: rgba(8, 40, 60, 0.4); border-color: rgba(190, 235, 240, 0.28); color: rgba(220, 242, 246, 0.75); }
   .logP { white-space: pre-line; } .logSign { margin-top: 12px; text-align: right; font-style: italic; color: #6b4a26; } .logEntry.sep { padding-bottom: 14px; border-bottom: 1px solid rgba(90, 59, 28, 0.25); }
   #misList { text-align: left; } .mis { padding: 10px 12px; margin-bottom: 8px; border-radius: 12px; border: 1.5px solid rgba(190, 235, 240, 0.2); background: rgba(8, 40, 60, 0.32); }
   .mis .mn { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 14px; letter-spacing: 0.06em; color: #eef9fa; } .mis .ms2 { font: 10px ui-monospace, Menlo, Consolas, monospace; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(200, 232, 238, 0.6); white-space: nowrap; }
@@ -173,12 +180,14 @@
     <hr><div class="optRow"><span data-t="wh_vol"></span><span id="whVV"></span></div><input id="whV" class="rng" type="range" min="0" max="2" step="0.05">
     <div class="optRow"><span data-t="wh_gap"></span><span id="whGV"></span></div><input id="whG" class="rng" type="range" min="0" max="1" step="0.01">
     <div class="optRow mid"><span data-t="wh_on"></span><span id="whOn" class="pill mini"></span></div><hr>
+    <div class="optRow"><span data-t="perf"></span><span id="perfV"></span></div><input id="perf" class="rng" type="range" min="0" max="3" step="1"><div id="perfD"></div><hr>
     <div class="optRow mid"><span data-t="lang"></span><span id="langs"><span class="pill mini" data-l="de">DE</span> <span class="pill mini" data-l="en">EN</span></span></div>
     <div class="optBtns"><div id="fsBtn" class="pill mini" data-t="fullscreen"></div><div id="resetBtn" class="pill mini" data-t="reset"></div><div id="devBtn" class="pill mini">⚒</div><input id="devPw" type="password" placeholder="Passwort" autocomplete="off"></div>
     <div class="mb mBack small" data-t="back"></div></div>
   <div id="pMis"><h2 data-t="m_missions"></h2><div id="misList"></div><div class="mb mBack small" data-t="back"></div></div>
   <div id="pHelp"><h2 data-t="m_help"></h2><div id="helpText"></div><div class="mb mBack small" data-t="back"></div></div>
 </div></div>
+<div id="photoBig"><img alt=""></div>
 <div id="err"></div>
 <script>window.addEventListener('error', function (e) { var d = document.getElementById('err'); if (d) d.textContent += (e.message || e) + '\n'; });</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
