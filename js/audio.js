@@ -4,12 +4,12 @@ export function createAudio() {
   let ctx = null, sctx = null, master = null, noiseBuf = null, echo = null, eng = null, bubT = 1, groanT = 14, pingBus = null, pingOut = null, pingWet = null, outLP = null, inside = false, crackT = 1, mus = null, whistle = null, DEST = null, glow = null;
   const A = { started: false, muted: false };
   /** Mischpult: Lautstärke je Klanggruppe (1 = normal). Rauschen bewusst leise, Wasser und Blasen kräftiger */
-  A.mix = { rausch: 0.25, wasser: 2.2, blasen: 2.4, motor: 1, grollen: 1, wale: 1, sonar: 1, kassette: 1, kabine: 1 };
+  A.mix = { rausch: 0.25, wasser: 2.2, blasen: 2.4, motor: 1, grollen: 1, wale: 1, klicks: 1, sonar: 1, kassette: 1, kabine: 1 };
   const BUS = {}, ESEND = new Map(), MIX_D = Object.assign({}, A.mix);   // ESEND: Anteil einer Gruppe am langen Raumecho; folgt dem Regler, beim Grundwert wie früher
   A.setMix = (k, v) => { A.mix[k] = v; if (!BUS[k]) return; const t = BUS[k].context.currentTime; BUS[k].gain.setTargetAtTime(v, t, 0.05); const e = ESEND.get(BUS[k]); if (e) e.gain.setTargetAtTime(v / MIX_D[k], t, 0.05); };
   // Handys: kürzerer Hall, weil Faltungshall dort am meisten Rechenzeit kostet
   const LOW = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
-  let cvP = null, cvW = null, cvPin = null, cvWin = null; A.hall = true;
+  let cvP = null, cvW = null, cvPin = null, cvWin = null, hydroHiss = null; A.hall = true;
   const rnd = (a, b) => a + Math.random() * (b - a);
   const gain = (v) => { const g = ctx.createGain(); g.gain.value = v; return g; };
   const filt = (type, f, q = 0.7) => { const n = ctx.createBiquadFilter(); n.type = type; n.frequency.value = f; n.Q.value = q; return n; };
@@ -28,7 +28,7 @@ export function createAudio() {
     const out = filt('lowpass', 5200, 0.5); out.connect(DEST); outLP = out;
     master = gain(0); master.connect(out); master.gain.setTargetAtTime(0.9, ctx.currentTime, 1.2);
     for (const k of ['rausch', 'wasser', 'blasen', 'motor', 'grollen', 'wale']) { BUS[k] = gain(A.mix[k]); BUS[k].connect(master); }
-    for (const k of ['kassette', 'kabine']) { BUS[k] = gain(A.mix[k]); BUS[k].connect(DEST); }
+    for (const k of ['kassette', 'kabine', 'klicks']) { BUS[k] = gain(A.mix[k]); BUS[k].connect(DEST); }
     const len = ctx.sampleRate * 3; noiseBuf = ctx.createBuffer(1, len, ctx.sampleRate);
     const d = noiseBuf.getChannelData(0); let b = 0; for (let i = 0; i < len; i++) { b = b * 0.985 + (Math.random() * 2 - 1) * 0.12; d[i] = b * 3 + (Math.random() * 2 - 1) * 0.25; }
     // langes Echo: der Raum unter Wasser
@@ -45,6 +45,8 @@ export function createAudio() {
       const cv = sc.createConvolver(); cv.buffer = ir; pingWet = sg(1); const wg2 = sg(0.5); pingWet.connect(cv); cv.connect(wg2); wg2.connect(pingOut); const sendW = sg(0.55); pingBus.connect(sendW); sendW.connect(pingWet); cvP = cv; cvPin = pingWet; }
     { const gb = filt('lowpass', 260, 0.7), gl2 = gain(0); glow = gl2; chain(noise(0.35), gb, gl2, BUS.kabine); const lf = ctx.createOscillator(), lg = gain(90); lf.frequency.value = 0.13; chain(lf, lg, gb.frequency); lf.start(); }
     loadPing();
+    // Horcher: Rauschen im Kopfhörer, und die übrigen Klänge treten zurück, solange man horcht
+    { const hb = filt('bandpass', 1500, 0.4); hydroHiss = gain(0); chain(noise(1.3), hb, hydroHiss, BUS.klicks); }
     // Grundrauschen der Tiefe
     chain(noise(0.5), filt('lowpass', 150, 0.6), gain(0.5), BUS.rausch);
     const wash = filt('bandpass', 520, 0.5), wg = gain(0.02); chain(noise(0.8), wash, wg, BUS.rausch);
@@ -85,14 +87,50 @@ export function createAudio() {
   A.echo = (vol, pan) => { if (ctx && pingBuf) play(pingBuf, 0.22 * vol + 0.05, 0.985, pan, 1400 + 1200 * vol, 0.5); };
   A.blip = () => {};
 
+  // ---------- Klicks: so verständigen sich Pottwale. Kurze, harte Schläge in Mustern (Codas), dazwischen lange Pausen ----------
+  // Quellen liegen in der Welt; ohne Horcher hört man sie nur aus der Nähe, mit Horcher aus großer Entfernung, aber nur in Peilrichtung
+  A.clickSrc = [];
+  const L = { x: 0, z: 0, h: 0 }, H = { open: false, bear: 0, lvl: 0, pend: [] };
+  A.setListener = (x, z, h) => { L.x = x; L.z = z; L.h = h; };
+  /** Horcher auf (true) oder ab; bearWorld: Weltrichtung, in die er zeigt */
+  A.hydro = (open, bearWorld) => {
+    H.bear = bearWorld; if (open === H.open) return; H.open = open; if (!ctx) return; const t = ctx.currentTime;
+    hydroHiss.gain.setTargetAtTime(open ? 0.05 : 0, t, 0.25); master.gain.setTargetAtTime(A.muted ? 0 : open ? 0.3 : 0.9, t, 0.3);
+    for (const k of ['kassette', 'kabine']) BUS[k].gain.setTargetAtTime(A.mix[k] * (open ? 0.35 : 1), t, 0.3);
+  };
+  A.hydroLevel = () => H.lvl;
+  const wrapA = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+  /** wie stark eine Quelle gerade ankommt: ohne Horcher nur nah (bis ~140 m), mit Horcher weit, aber nur im Hörkegel von etwa ±20° */
+  function heard(src) {
+    const dx = src.x - L.x, dz = src.z - L.z, d = Math.hypot(dx, dz), th = Math.atan2(dx, dz);
+    const near = Math.max(0, Math.min(1, 1 - (d - 40) / 100)), lobe = H.open ? Math.exp(-((wrapA(th - H.bear) / 0.34) ** 2)) : 0;
+    const far = lobe * (0.3 + 0.7 * Math.max(0, 1 - d / 1500)), pan = Math.max(-0.9, Math.min(0.9, Math.sin(wrapA(L.h - th)) * 0.9));
+    return { g: Math.max(near * (H.open ? 0.5 : 1), far), far, d, pan: H.open ? 0 : pan };
+  }
+  function click1(t, g, pan, lp) {
+    const s = ctx.createBufferSource(); s.buffer = noiseBuf; const bp = filt('bandpass', 3200 + Math.random() * 900, 1.3), f = filt('lowpass', lp, 0.5), v = gain(0);
+    v.gain.setValueAtTime(g * 0.5, t); v.gain.exponentialRampToValueAtTime(0.0005, t + 0.012); chain(s, bp, f, v);
+    const o = ctx.createOscillator(), og = gain(0); o.frequency.setValueAtTime(420, t); o.frequency.exponentialRampToValueAtTime(160, t + 0.02); og.gain.setValueAtTime(g * 0.35, t); og.gain.exponentialRampToValueAtTime(0.0005, t + 0.025); chain(o, og);
+    let out = v; if (pan && ctx.createStereoPanner) { const p = ctx.createStereoPanner(); p.pan.value = pan; v.connect(p); og.connect(p); out = p; } else og.connect(v);
+    out.connect(BUS.klicks); s.start(t, Math.random() * 2, 0.05); o.start(t); o.stop(t + 0.04);
+  }
+  const CODAS = [[0.22, 0.22, 0.22, 0.22], [0.16, 0.16, 0.5, 0.18], [0.3, 0.3, 0.12, 0.12, 0.12], [0.2, 0.2, 0.2], [0.14, 0.14, 0.14, 0.14, 0.14, 0.14, 0.4]];
+  function codaTick(src, t) {
+    if (src.next === undefined) src.next = t + 1 + Math.random() * 3;
+    if (t < src.next) return; const h = heard(src), pat = CODAS[Math.floor(Math.random() * CODAS.length)]; let x = 0;
+    src.next = t + 2.5 + Math.random() * 4.5; if (h.g < 0.004) return;
+    const lp = H.open ? 7000 : inside ? 1500 : Math.max(900, 5000 - h.d * 25);
+    for (let i = 0; i <= pat.length; i++) { const tt = t + 0.05 + x, k = 0.85 + Math.random() * 0.3; click1(tt, h.g * 0.5 * k, h.pan, lp); H.pend.push([tt, h.far * k]); if (i < pat.length) x += pat[i] * (0.9 + Math.random() * 0.2); }
+  }
   A.setInside = (v) => { inside = v; if (!ctx) return; outLP.frequency.setTargetAtTime(v ? 1500 : 5200, ctx.currentTime, 0.25); pingOut.gain.setTargetAtTime(v ? 0.45 : 0.8, sctx.currentTime, 0.2); if (mus) { mus.lp.frequency.setTargetAtTime(v ? 3600 : 700, ctx.currentTime, 0.3); mus.out.gain.setTargetAtTime(v ? 1 : 0.45, ctx.currentTime, 0.3); } };
   // ---------- Kassettendeck: ruhige, langsam schwebende Musik, live erzeugt; Band leiert leicht, rauscht ----------
   const CH = [[45, [57, 60, 64, 67, 71]], [41, [53, 57, 60, 64, 67]], [48, [55, 60, 64, 67, 71]], [40, [52, 55, 59, 62, 66]], [45, [57, 60, 64, 69, 72]], [41, [57, 60, 64, 65, 69]], [43, [55, 59, 62, 66, 69]], [40, [55, 59, 62, 64, 67]]];
-  // Kassetten: jede hat eigene Harmonien, eigenes Tempo und einen eigenen Klang. 0 = Bordkassette, 1 = Galeone (tief, d-Moll, langsam), 2 = Walfall (hoch, schwebend, viel Raum)
+  // Kassetten: jede hat eigene Harmonien, eigenes Tempo und einen eigenen Klang. 0 = Bordkassette, 1 = Galeone (tief, d-Moll, langsam), 2 = Walfall (hoch, schwebend, viel Raum), 3 = Kristallgrotte (hell, gläsern, perlend)
   const TR = [
     { ch: CH, L: 8, pad: 950, padV: 0.0065, bass: 0.06, n: 10, gap: 0.75, skip: 0.3, type: 'triangle', oct: 0, rel: 1.6, vol: 0.022, send: 1 },
     { ch: [[38, [50, 53, 57, 60, 64]], [34, [46, 50, 53, 57, 60]], [31, [43, 46, 50, 53, 57]], [33, [45, 49, 52, 55, 57]], [38, [50, 53, 57, 62, 65]], [36, [48, 52, 55, 59, 62]], [34, [50, 53, 58, 62, 65]], [33, [45, 49, 52, 57, 61]]], L: 11, pad: 620, padV: 0.0085, bass: 0.075, n: 5, gap: 1.9, skip: 0.2, type: 'sine', oct: 0, rel: 3.2, vol: 0.032, send: 1 },
     { ch: [[41, [57, 60, 64, 67, 71]], [43, [59, 62, 67, 69, 74]], [36, [55, 60, 64, 67, 74]], [38, [57, 62, 65, 69, 72]], [41, [60, 64, 69, 71, 76]], [36, [59, 60, 64, 67, 72]]], L: 12, pad: 1500, padV: 0.0045, bass: 0.035, n: 6, gap: 1.7, skip: 0.35, type: 'sine', oct: 12, rel: 4.5, vol: 0.02, send: 2.2 },
+    { ch: [[45, [64, 67, 69, 71, 76]], [43, [62, 67, 71, 74, 79]], [40, [64, 67, 71, 72, 76]], [41, [60, 64, 69, 72, 76]], [38, [62, 65, 69, 72, 77]], [43, [62, 67, 71, 74, 76]]], L: 9, pad: 1150, padV: 0.0048, bass: 0.04, n: 9, gap: 0.82, skip: 0.32, type: 'sine', oct: 12, rel: 2.6, vol: 0.022, send: 1.7 },
   ];
   let trk = 0;
   const hz = (m) => 440 * Math.pow(2, (m - 69) / 12);
@@ -133,6 +171,8 @@ export function createAudio() {
   A.tapeWave = () => { if (!mus) return null; mus.an.getByteTimeDomainData(mus.wave); return mus.wave; };
   function click(v = 0.3) { const s = ctx.createBufferSource(); s.buffer = noiseBuf; const g = gain(0), t = ctx.currentTime, f = filt('bandpass', 2600, 1.5); g.gain.setValueAtTime(v * 0.08, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.04); chain(s, f, g, BUS.kabine); s.start(t, Math.random(), 0.06); }
   A.click = (v) => { if (ctx) click(v); };
+  /** Kameraverschluss: zwei mechanische Klacks kurz hintereinander, dazu ein leises Surren */
+  A.shutter = () => { if (!ctx) return; click(1.4); setTimeout(() => click(0.9), 70); const o = ctx.createOscillator(), g = gain(0), t = ctx.currentTime; o.type = 'triangle'; o.frequency.setValueAtTime(900, t + 0.09); o.frequency.linearRampToValueAtTime(1300, t + 0.35); g.gain.setValueAtTime(0, t + 0.09); g.gain.linearRampToValueAtTime(0.006, t + 0.12); g.gain.linearRampToValueAtTime(0, t + 0.35); chain(o, g, BUS.kabine); o.start(t + 0.09); o.stop(t + 0.4); };
   A.pour = () => { if (!ctx) return; const s = ctx.createBufferSource(); s.buffer = noiseBuf; const g = gain(0), t = ctx.currentTime, f = filt('bandpass', 900, 1.2); f.frequency.setValueAtTime(700, t); f.frequency.linearRampToValueAtTime(1500, t + 2.2); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.05, t + 0.2); g.gain.setValueAtTime(0.05, t + 2.0); g.gain.linearRampToValueAtTime(0, t + 2.4); chain(s, f, g, BUS.kabine); s.start(t, Math.random(), 2.6); };
   /** Kessel: 0 = kalt, steigt beim Erhitzen; ab 0.85 brodelt und pfeift er leise */
   A.kettle = (b) => {
@@ -188,6 +228,8 @@ export function createAudio() {
     if (!ctx || !eng) return; const t = ctx.currentTime;
     if (mus && mus.on && t > mus.next - 0.4) { const t0 = Math.max(mus.next, t + 0.05); mus.next = t0 + chord(t0); }
     if (glow) glow.gain.setTargetAtTime(inside ? 0.012 : 0, t, 0.6);
+    for (const src of A.clickSrc) codaTick(src, t);
+    H.lvl *= Math.exp(-dt * 9); for (let i = H.pend.length - 1; i >= 0; i--) if (H.pend[i][0] <= t) { H.lvl = Math.max(H.lvl, H.open ? H.pend[i][1] : 0); H.pend.splice(i, 1); }
     eng.o1.frequency.setTargetAtTime(44 + thrust * 15, t, 0.6); eng.o2.frequency.setTargetAtTime(66.4 + thrust * 22.6, t, 0.6);
     eng.eg.gain.setTargetAtTime((0.045 + thrust * 0.1) * (inside ? 1.7 : 1), t, 0.5); eng.elp.frequency.setTargetAtTime(140 + thrust * 90, t, 0.5);
     eng.rg.gain.setTargetAtTime(speed * speed * 0.06, t, 0.4); eng.rf.frequency.setTargetAtTime(200 + speed * 260, t, 0.4);

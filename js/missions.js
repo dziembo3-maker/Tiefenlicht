@@ -3,15 +3,17 @@
 import { T, glowTexture } from './util.js';
 import { U } from './gfx.js';
 import { buildCanister, propMaterial } from './props.js';
-import { WRECK, WHALE } from './terrain.js';
+import { WRECK, WHALE, GROTTO } from './terrain.js';
 
 /** Kassetten: 0 liegt von Anfang an im Deck; die anderen findet man. page = Logbuchseite, die mit ihr kommt */
-export const TAPES = [{ id: 0 }, { id: 1 }, { id: 2 }];
+export const TAPES = [{ id: 0 }, { id: 1 }, { id: 2 }, { id: 3 }];
 /** Missionen in ihrer Reihenfolge. page = Seite, an der sie beginnt; tape = was man findet; x/z = Ort der Dose;
  *  off = wo die Dose im Ping-Fächer liegt (-1 linker Rand, 0 Mitte, 1 rechter Rand), fest pro Mission, damit der Fächer nicht springt */
 export const MISSIONS = [
   { id: 'm1', page: 0, tape: 1, x: WRECK.x + 21, z: WRECK.z - 17, yaw: 0.6, off: 0.6 },
   { id: 'm2', page: 1, tape: 2, x: WHALE.x + 9.5, z: WHALE.z + 8.5, yaw: 2.1, off: -0.55 },
+  // in der Dose liegt die Kamera; beendet ist die Mission erst mit einem Foto der großen Kristalle (photo: Ziel, h = Höhe über Grund, r = wie nah man sein muss)
+  { id: 'm3', page: 2, tape: 3, x: GROTTO.x - 9, z: GROTTO.z - 2, yaw: 1.2, off: 0.5, cam: true, photo: { x: GROTTO.x + 6, z: GROTTO.z + 4, h: 5, r: 55, name: 'n_grotto' } },
 ];
 /** so viele weitere Missionen deutet der Missionen-Reiter nur an */
 export const HINTED = 3;
