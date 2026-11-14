@@ -244,7 +244,9 @@ function buildRocks(list, spheres) {
 }
 
 export function createWorld(scene, life) {
-  const W = { chunks: new Map(), near: [], glows: [], tris: 0, built: 0 };
+  const W = { chunks: new Map(), near: [], glows: [], extra: [], tris: 0, built: 0 };
+  /** zusätzliche Lichter, die nicht zu einer Kachel gehören (z. B. die Lampe einer Messingdose) */
+  W.setExtra = (list) => { W.extra = list; dirty = true; };
   const HAND = handmade(), matT = rockMaterial(false), matR = rockMaterial(true);
   const hh = new Float32Array((NQ + 3) * (NQ + 3)), M = NQ + 3;
   let dirty = true, lastKey = '';
@@ -297,6 +299,7 @@ export function createWorld(scene, life) {
     if (dirty || k !== lastKey) {
       lastKey = k; dirty = false; W.near.length = 0; W.glows.length = 0; W.tris = 0;
       for (const ch of W.chunks.values()) { W.tris += ch.tris; if (ch.stage < 2) continue; for (const g of ch.glows) W.glows.push(g); if (Math.abs(ch.ix - cx) <= 1 && Math.abs(ch.iz - cz) <= 1) for (const s of ch.spheres) W.near.push(s); }
+      for (const g of W.extra) W.glows.push(g);
     }
     return todo.length;
   };
