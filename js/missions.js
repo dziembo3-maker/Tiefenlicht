@@ -14,6 +14,8 @@ export const MISSIONS = [
   { id: 'm2', page: 1, tape: 2, x: WHALE.x + 9.5, z: WHALE.z + 8.5, yaw: 2.1, off: -0.55 },
   // in der Dose liegt die Kamera; beendet ist die Mission erst mit einem Foto der großen Kristalle (photo: Ziel, h = Höhe über Grund, r = wie nah man sein muss)
   { id: 'm3', page: 2, tape: 3, x: GROTTO.x - 9, z: GROTTO.z - 2, yaw: 1.2, off: 0.5, cam: true, photo: { x: GROTTO.x + 6, z: GROTTO.z + 4, h: 5, r: 55, name: 'n_grotto' } },
+  // keine Dose: die schlafenden Pottwale liegen jedes Mal woanders (main.js wählt den Ort beim Start); finden muss man sie mit dem Horchgerät, beendet wird sie mit einem Foto der Gruppe
+  { id: 'm4', page: 3, tape: null, pod: true, x: GROTTO.x + 30, z: GROTTO.z + 30, yaw: 0, photo: { pod: true, r: 60, name: 'n_whales' } },
 ];
 /** so viele weitere Missionen deutet der Missionen-Reiter nur an */
 export const HINTED = 3;
