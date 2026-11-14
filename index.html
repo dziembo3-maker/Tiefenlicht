@@ -137,6 +137,12 @@
   #horch { position: fixed; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 12px; background: rgba(8, 6, 3, 0.82); pointer-events: auto; z-index: 3; }
   #horch.open { display: flex; } #ui:has(#horch.open) :is(#banner, #hint, #act, #sonHint, #camBtn) { visibility: hidden; }
   #horchCv { width: min(88vw, 72vh); height: min(88vw, 72vh); border-radius: 50%; touch-action: none; box-shadow: 0 0 0 5px #3a2a14, 0 0 0 9px #9a7638, 0 0 0 12px #2a1e0e, 0 8px 30px rgba(0, 0, 0, 0.7); }
+  #horchSide { display: flex; flex-direction: column; gap: 12px; align-items: center; }
+  #horchSl { width: min(84vw, 380px); height: 44px; margin: 0; accent-color: #c9a25a; touch-action: none; } body.pc #horchSl { display: none; }
+  #horchSl::-webkit-slider-runnable-track { height: 10px; border-radius: 5px; background: linear-gradient(90deg, #6a2a1a, #9a7638 50%, #6a2a1a); }
+  #horchSl::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 34px; height: 34px; margin-top: -12px; border-radius: 50%; background: #e8d2a0; border: 3px solid #8a6a34; box-shadow: 0 2px 8px rgba(0,0,0,0.6); }
+  #horchSl { -webkit-appearance: none; appearance: none; background: transparent; }
+  #horchSl::-moz-range-track { height: 10px; border-radius: 5px; background: linear-gradient(90deg, #6a2a1a, #9a7638 50%, #6a2a1a); } #horchSl::-moz-range-thumb { width: 28px; height: 28px; border-radius: 50%; background: #e8d2a0; border: 3px solid #8a6a34; }
   #horchInfo { font: 12px/1.8 ui-monospace, Menlo, Consolas, monospace; letter-spacing: 0.14em; color: rgba(255, 220, 160, 0.92); white-space: pre-line; text-align: center; }
   @media (orientation: landscape) and (max-height: 520px) { #horch { flex-direction: row; gap: 22px; } #horchSide { display: flex; flex-direction: column; gap: 12px; align-items: center; } }
   #err { position: fixed; left: 8px; bottom: 8px; right: 8px; font: 11px monospace; color: #ffb0a0; white-space: pre-wrap; z-index: 9; pointer-events: none; }
@@ -158,7 +164,7 @@
   <div id="camBtn" class="pill"><svg viewBox="0 0 18 15"><path d="M1.5 4.5h3l1.5-2.5h6l1.5 2.5h3v9h-15z"/><circle cx="9" cy="8.6" r="3"/></svg><kbd>K</kbd></div>
   <div id="camUI"><div id="camFrame"><i></i><i></i><i></i><i></i><div id="camDot"></div></div><div id="camInfo"></div><img id="camThumb" alt="">
     <div id="camShut"><kbd>Space</kbd></div><div id="camClose" class="pill"><span data-t="close"></span><kbd>Esc</kbd></div><div id="camFlash"></div></div>
-  <div id="horch"><canvas id="horchCv" width="720" height="720"></canvas><div id="horchSide"><div id="horchInfo"></div><div id="horchClose" class="pill"><span data-t="back"></span><kbd>Esc</kbd></div></div></div>
+  <div id="horch"><canvas id="horchCv" width="720" height="720"></canvas><div id="horchSide"><input id="horchSl" type="range" min="-180" max="180" step="1" value="0"><div id="horchInfo"></div><div id="horchClose" class="pill"><span data-t="back"></span><kbd>Esc</kbd></div></div></div>
   <div id="gear" class="pill"><svg viewBox="0 0 12 12"><rect x="2" y="1.5" width="2.6" height="9" rx="0.8"/><rect x="7.4" y="1.5" width="2.6" height="9" rx="0.8"/></svg><kbd>Esc</kbd></div>
   <div id="dev"></div>
   <div id="log"><div id="logTabs"><div class="pill mini" data-tab="own" data-t="log_own"></div><div class="pill mini" data-tab="cap" data-t="log_cap"></div><div class="pill mini" data-tab="pho" data-t="log_pho"></div></div><div id="logText"></div><div id="logBtns"><div id="logGo" class="pill"></div><div id="logClose" class="pill"><span data-t="close"></span><kbd>L</kbd></div></div></div>
