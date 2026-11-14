@@ -97,15 +97,16 @@ export function createAudio() {
     H.bear = bearWorld; if (open === H.open) return; H.open = open; if (!ctx) return; const t = ctx.currentTime;
     hydroHiss.gain.setTargetAtTime(open ? 0.05 : 0, t, 0.25); master.gain.setTargetAtTime(A.muted ? 0 : open ? 0.3 : 0.9, t, 0.3);
     for (const k of ['kassette', 'kabine']) BUS[k].gain.setTargetAtTime(A.mix[k] * (open ? 0.35 : 1), t, 0.3);
+    BUS.wale.gain.setTargetAtTime(A.mix.wale * (open ? 0.12 : 1), t, 0.3);   // Gesänge treten weit zurück, damit man die Klicks hört
   };
   A.hydroLevel = () => H.lvl;
   const wrapA = (a) => Math.atan2(Math.sin(a), Math.cos(a));
   /** wie stark eine Quelle gerade ankommt: ohne Horcher nur nah (bis ~140 m), mit Horcher weit, aber nur im Hörkegel von etwa ±20° */
   function heard(src) {
     const dx = src.x - L.x, dz = src.z - L.z, d = Math.hypot(dx, dz), th = Math.atan2(dx, dz);
-    const near = Math.max(0, Math.min(1, 1 - (d - 40) / 100)), lobe = H.open ? Math.exp(-((wrapA(th - H.bear) / 0.34) ** 2)) : 0;
+    const near = Math.max(0, Math.min(1, 1 - (d - 40) / 100)), da = wrapA(th - H.bear), lobe = H.open ? 0.3 * Math.exp(-((da / 0.75) ** 2)) + 0.7 * Math.exp(-((da / 0.26) ** 2)) : 0;   // breiter Rand: schon in der Nähe leise zu hören, je genauer desto lauter
     const far = lobe * (0.3 + 0.7 * Math.max(0, 1 - d / 1500)), pan = Math.max(-0.9, Math.min(0.9, Math.sin(wrapA(L.h - th)) * 0.9));
-    return { g: Math.max(near * (H.open ? 0.5 : 1), far), far, d, pan: H.open ? 0 : pan };
+    return { g: Math.max(near * (H.open ? 0.5 : 1), far * 2.6), far, d, pan: H.open ? 0 : pan };
   }
   function click1(t, g, pan, lp) {
     const s = ctx.createBufferSource(); s.buffer = noiseBuf; const bp = filt('bandpass', 3200 + Math.random() * 900, 1.3), f = filt('lowpass', lp, 0.5), v = gain(0);
