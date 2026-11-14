@@ -57,7 +57,11 @@ const joy = $('joy'), knob = $('knob'), JR = 54;
 function setJoy(dx, dy) { const l = Math.hypot(dx, dy), k = l > JR ? JR / l : 1; dx *= k; dy *= k; knob.style.transform = `translate(${dx}px,${dy}px)`; const m = Math.min(1, Math.hypot(dx, dy) / JR), dz = m < 0.1 ? 0 : (m - 0.1) / 0.9, a = Math.atan2(dy, dx); I.jx = Math.cos(a) * dz; I.jy = Math.sin(a) * dz; }
 window.addEventListener('pointerdown', (e) => {
   if (!started || M.open) return;
-  if (e.target.closest && e.target.closest('.btn,.pill,#sonar,#table,#menu,#log,#dev,#tapes')) return; if (V.st === 'table' && V.mode === 'in') return;
+  if (e.target.closest && e.target.closest('.btn,.pill,#sonar,#table,#menu,#log,#dev,#tapes,#camUI,#horch')) return; if (V.st === 'table' && V.mode === 'in' && !CAMV.on) return;
+  if (CAMV.on) {   // im Sucher: jeder Finger sieht sich um; mit gefangener Maus löst ein Klick aus
+    if (e.pointerType === 'mouse' && lockOK && e.target === canvas) { if (document.pointerLockElement !== canvas) { try { const r = canvas.requestPointerLock(); if (r && r.catch) r.catch(() => {}); } catch (x) { /* egal */ } } else if (e.button === 0) shoot(); return; }
+    if (I.lookId === null) { I.lookId = e.pointerId; I.lx = e.clientX; I.ly = e.clientY; } return;
+  }
   if (e.pointerType === 'mouse') {
     if (lockOK && e.target === canvas && !devOpen()) { if (document.pointerLockElement !== canvas) { try { const r = canvas.requestPointerLock(); if (r && r.catch) r.catch(() => { lockOK = false; }); } catch (x) { lockOK = false; } } else if (e.button === 2) ping(); return; }
     if (I.lookId === null) { I.lookId = e.pointerId; I.lx = e.clientX; I.ly = e.clientY; } return;   // ohne Mausfang: Ziehen = umsehen
@@ -69,21 +73,21 @@ let lockOK = !!canvas.requestPointerLock; if (PC) document.body.classList.add('p
 document.addEventListener('pointerlockerror', () => { if (!hadLock) lockOK = false; grabEl.style.opacity = started && PC && !M.open ? 1 : 0; });
 document.addEventListener('pointerlockchange', () => { const locked = document.pointerLockElement === canvas; if (locked) hadLock = true;
   grabEl.style.opacity = locked || !started || !PC || M.open ? 0 : 1;
-  if (!locked && started && !M.open && !quietUnlock) { escT = performance.now(); openMenu(); }   // Esc gibt die Maus frei: das Menü geht auf
+  if (!locked && started && !M.open && !quietUnlock) { escT = performance.now(); if (CAMV.on) closeCam(); else openMenu(); }   // Esc gibt die Maus frei: das Menü geht auf (im Sucher: Sucher zu)
   if (!locked) quietUnlock = false; });
 function unlock() { if (document.pointerLockElement) { quietUnlock = true; document.exitPointerLock(); } }
 function lockMouse() { if (!PC || !lockOK || document.pointerLockElement === canvas || devOpen()) return; try { const r = canvas.requestPointerLock(); if (r && r.catch) r.catch(() => { grabEl.style.opacity = 1; }); } catch (x) { /* egal */ } }
 const grabEl = $('grab');
 document.addEventListener('mousemove', (e) => { if (document.pointerLockElement !== canvas) return; const dx = e.movementX || 0, dy = e.movementY || 0; if (Math.abs(dx) > 300 || Math.abs(dy) > 300) return;
-  if (V.mode === 'in') { V.yaw -= dx * 0.0026; V.pitch = clamp(V.pitch - dy * 0.0022, -1.25, 1.25); } else { C.oy -= dx * 0.003; C.op = clamp(C.op + dy * 0.0024, -1.15, 1.1); C.idle = 0; } });
+  if (CAMV.on) { CAMV.yaw = clamp(CAMV.yaw - dx * 0.0022, -2.6, 2.6); CAMV.pitch = clamp(CAMV.pitch - dy * 0.002, -1.2, 1.2); } else if (V.mode === 'in') { V.yaw -= dx * 0.0026; V.pitch = clamp(V.pitch - dy * 0.0022, -1.25, 1.25); } else { C.oy -= dx * 0.003; C.op = clamp(C.op + dy * 0.0024, -1.15, 1.1); C.idle = 0; } });
 window.addEventListener('pointermove', (e) => {
   if (e.pointerId === I.joyId) setJoy(e.clientX - I.ox, e.clientY - I.oy);
-  else if (e.pointerId === I.lookId) { const dx = e.clientX - I.lx, dy = e.clientY - I.ly; I.lx = e.clientX; I.ly = e.clientY; if (V.mode === 'in') { V.yaw -= dx * 0.0052; V.pitch = clamp(V.pitch - dy * 0.0042, -1.25, 1.25); } else { C.oy -= dx * 0.0055; C.op = clamp(C.op + dy * 0.004, -1.15, 1.1); C.idle = 0; } }
+  else if (e.pointerId === I.lookId) { const dx = e.clientX - I.lx, dy = e.clientY - I.ly; I.lx = e.clientX; I.ly = e.clientY; if (CAMV.on) { CAMV.yaw = clamp(CAMV.yaw - dx * 0.0045, -2.6, 2.6); CAMV.pitch = clamp(CAMV.pitch - dy * 0.0038, -1.2, 1.2); } else if (V.mode === 'in') { V.yaw -= dx * 0.0052; V.pitch = clamp(V.pitch - dy * 0.0042, -1.25, 1.25); } else { C.oy -= dx * 0.0055; C.op = clamp(C.op + dy * 0.004, -1.15, 1.1); C.idle = 0; } }
 });
 const release = (e) => { if (e.pointerId === I.joyId) { I.joyId = null; I.jx = I.jy = 0; joy.style.opacity = 0; knob.style.transform = ''; } if (e.pointerId === I.lookId) I.lookId = null; };
 window.addEventListener('pointerup', release); window.addEventListener('pointercancel', release);
 // Druckgefühl: jeder Knopf hellt sich beim Drücken weißlich auf, mindestens kurz, damit man auch schnelle Tipper sieht
-const PRESS = '.pill,.mb,.btn,.boatCard,.tRow:not(.hid),#tBtns span,#scope', pressed = new Map();
+const PRESS = '.pill,.mb,.btn,.boatCard,.tRow:not(.hid),#tBtns span,#scope,#camShut', pressed = new Map();
 window.addEventListener('pointerdown', (e) => { const el = e.target.closest && e.target.closest(PRESS); if (!el) return; el.classList.add('press'); pressed.set(e.pointerId, { el, t: performance.now() }); }, true);
 const unpress = (e) => { const p = pressed.get(e.pointerId); if (!p) return; pressed.delete(e.pointerId); setTimeout(() => p.el.classList.remove('press'), Math.max(0, 130 - (performance.now() - p.t))); };
 window.addEventListener('pointerup', unpress, true); window.addEventListener('pointercancel', unpress, true);
@@ -161,7 +165,7 @@ function ping() {
   const ps = poisNear(S.x, S.z, PING).map((p) => ({ p, d: Math.hypot(p.x - S.x, p.z - S.z) })).sort((a, b) => a.d - b.d).slice(0, 5);
   for (const { p, d } of ps) echoes.push({ x: p.x, z: p.z, t: 0.3 + d / 85, vol: clamp(1.15 - d / 500, 0.2, 1) });
   if (MS.active) {   // die Messingdose: aus der Ferne nur als Fächer in ihrer Richtung, der mit der Nähe schmaler wird; erst ab 170 m als genaue Raute
-    const i = misIdx(MS.active), l = cans.lamp(i), d = Math.hypot(l.x - S.x, l.z - S.z), half = clamp(d / 10, 8, 45) * Math.PI / 180;
+    const i = misIdx(MS.active), l = MS.stage === 'photo' ? photoTarget() : cans.lamp(i), d = Math.hypot(l.x - S.x, l.z - S.z), half = clamp(d / 10, 8, 45) * Math.PI / 180;
     echoes.push({ sector: true, th: Math.atan2(l.x - S.x, l.z - S.z) + (MISSIONS[i].off || 0.6) * half, half, x: l.x, z: l.z, t: 0.3 + Math.min(d, 600) / 85, vol: 0.55 });
     if (d < 170) echoes.push({ x: l.x, z: l.z, t: 0.3 + d / 85, vol: 1 });
   }
@@ -179,7 +183,7 @@ function props(dt) {   // Steuerrad, Tiefenruder, Tee: laufen immer mit, auch we
   if (frames % 30 === 0) discover();
 }
 function drive(dt) {
-  const ctl = V.mode === 'out' || V.st === 'seat', K = ctl ? I.keys : {}; let jx = ctl ? I.jx : 0, jy = ctl ? I.jy : 0;
+  const ctl = !CAMV.on && (V.mode === 'out' || V.st === 'seat'), K = ctl ? I.keys : {}; let jx = ctl ? I.jx : 0, jy = ctl ? I.jy : 0;
   if (K.KeyA || K.ArrowLeft) jx -= 1; if (K.KeyD || K.ArrowRight) jx += 1; if (K.KeyW || K.ArrowUp) jy -= 1; if (K.KeyS || K.ArrowDown) jy += 1;
   const mag = Math.min(1, Math.hypot(jx, jy)), vIn = ctl ? (I.up || K.Space ? 1 : 0) - (I.down || K.KeyQ || K.ShiftLeft ? 1 : 0) : 0;
   let want = 0, thrust = 0;
@@ -250,14 +254,14 @@ C.look.set(S.x, S.y + 1, S.z + 2);
 // ---------- Kabine: Ego-Perspektive ----------
 const table = createTable(S, nav, $('tableCv'), () => sectors[0]), eyeL = new T.Vector3(), winCol = new T.Vector3(), tmpS = new T.Vector3(), fadeEl = $('fade'), actEl = $('act'), modeEl = $('mode');
 let switching = false;
-function ui() { document.body.className = (V.mode === 'in' ? 'in ' + V.st : 'out') + (PC ? ' pc' : '') + (M.open ? ' menu' : ''); $('modeL').textContent = V.mode === 'in' ? t('to_out') : t('to_in'); }
+function ui() { document.body.className = (V.mode === 'in' ? 'in ' + V.st : 'out') + (PC ? ' pc' : '') + (M.open ? ' menu' : '') + (CAMV.on ? ' cam' : ''); $('modeL').textContent = V.mode === 'in' ? t('to_out') : t('to_in'); }
 function applyMode() {
   const inn = V.mode === 'in'; boatVis();
   if (inn) { V.st = 'walk'; V.px = 0; V.pz = -0.95; V.yaw = 0; V.pitch = 0; V.hx = 0; V.hy = 1.56; V.hz = -0.95; table.reset(); if (!PC) { hintEl.textContent = t('hint_in_touch'); hintEl.style.opacity = 1; hintT = 6; } }
   else { if (hintEl.textContent === t('hint_in_touch')) { hintEl.style.opacity = 0; hintT = 0; } C.yaw = S.h; C.oy = C.op = 0; C.dist = 14; C.pos.set(S.x - Math.sin(S.h) * 14, S.y + 4, S.z - Math.cos(S.h) * 14); C.look.set(S.x, S.y + 1, S.z); }
   if (!inn) sonHint(); audio.setInside(inn); world.setSmall(!inn); life.setInside(inn); ui(); resize(); syncFov();
 }
-function setMode(m) { closeTapes(); if (switching || !started || V.mode === m) return; switching = true; fadeEl.style.opacity = 1; setTimeout(() => { V.mode = m; applyMode(); fadeEl.style.opacity = 0; switching = false; }, 330); }
+function setMode(m) { closeTapes(); closeHorch(); if (CAMV.on) closeCam(true); if (switching || !started || V.mode === m) return; switching = true; fadeEl.style.opacity = 1; setTimeout(() => { V.mode = m; applyMode(); fadeEl.style.opacity = 0; switching = false; }, 330); }
 function setSt(s) {
   const was = V.st; V.st = s; if (s === 'table') unlock(); if (s === 'seat') sonHint();
   if (s === 'seat') { V.yaw = 0; V.pitch = 0; } else if (s === 'table') { V.yaw = -Math.PI / 2; V.pitch = -0.55; }
@@ -272,7 +276,7 @@ const LABEL = {
   kettle: () => (tea.phase === 'cold' ? t('kettle_on') : tea.phase === 'ready' ? t('kettle_pour') : ''),
   stove: () => (cabin.state.fireT > 1.2 ? '' : t('stove')),
   cupDesk: () => (cabin.state.cup === 'desk' ? t('cup_take') : ''), cupPult: () => (cabin.state.cup === 'pult' ? (cabin.state.cupHeat > 0.05 ? t('cup_drink') : t('cup_away')) : ''),
-  deck: () => t('tape_menu'), light: () => (cabin.state.lampT > 0.5 ? t('light_dim') : t('light_on')), log: () => t('log_read'), page: () => t('page_read'),
+  deck: () => t('tape_menu'), light: () => (cabin.state.lampT > 0.5 ? t('light_dim') : t('light_on')), log: () => t('log_read'), page: () => t('page_read'), horch: () => t('horch'),
 };
 for (let k = 0; k < 6; k++) LABEL['cas' + k] = () => (cabin.state.own[k] && cabin.state.tapeIn !== k ? t('tape_put', { n: t('tape_n')[k] || '?' }) : '');
 const ACT = {
@@ -280,13 +284,13 @@ const ACT = {
   kettle: () => { if (tea.phase === 'cold') { tea.phase = 'heat'; tea.t = 0; audio.click(0.6); } else if (tea.phase === 'ready') { tea.phase = 'cool'; tea.t = 0; cabin.state.cup = 'desk'; cabin.state.cupHeat = 1; audio.pour(); } },
   stove: () => { cabin.state.fireT = 1.7; setTimeout(() => { cabin.state.fireT = 1; }, 45000); audio.click(0.8); },
   cupDesk: () => { cabin.state.cup = 'pult'; audio.click(0.3); }, cupPult: () => { if (cabin.state.cupHeat > 0.05) { cabin.state.cupHeat = Math.max(0, cabin.state.cupHeat - 0.34); if (cabin.state.cupHeat <= 0.05) note(t('tea_done')); } else cabin.state.cup = 'none'; audio.click(0.25); },
-  deck: () => openTapes(), light: () => { cabin.state.lampT = cabin.state.lampT > 0.5 ? 0.12 : 1; audio.click(0.9); }, log: () => openLog(), page: () => openPage(),
+  deck: () => openTapes(), light: () => { cabin.state.lampT = cabin.state.lampT > 0.5 ? 0.12 : 1; audio.click(0.9); }, log: () => openLog(), page: () => openPage(), horch: () => openHorch(),
 };
 for (let k = 0; k < 6; k++) ACT['cas' + k] = () => playTape(k);
 function pickTarget() {
   if (V.mode !== 'in' || V.st === 'table') return null;
   camera.getWorldDirection(fwd); let best = null, bs = 0;
-  const keys = V.st === 'seat' ? ['cupPult', 'deck'] : Object.keys(LABEL).filter((k) => k !== 'cupPult' || cabin.state.cup === 'pult');
+  const keys = V.st === 'seat' ? ['cupPult', 'deck', 'horch'] : Object.keys(LABEL).filter((k) => k !== 'cupPult' || cabin.state.cup === 'pult');
   for (const k of keys) { if (!LABEL[k]()) continue; cabin.toWorld(k, wv); const d = wv.sub(camera.position), l = d.length(), reach = k === 'seat' || k === 'table' ? 1.9 : 1.45; if (l > reach) continue; const c = d.dot(fwd) / l, need = k === 'seat' || k === 'table' ? 0.86 : 0.93; if (c > need && c - l * 0.02 > bs) { bs = c - l * 0.02; best = k; } }
   return best;
 }
@@ -294,24 +298,110 @@ const canHere = () => nearCan && (V.mode === 'out' || (V.st === 'seat' && !targe
 const actLabel = () => (canHere() ? t('can_take') : V.mode !== 'in' || V.st === 'table' ? '' : target ? LABEL[target]() : V.st === 'seat' ? t('stand') : '');
 actEl.addEventListener('pointerdown', (e) => { e.preventDefault(); if (canHere()) takeCan(); else if (V.mode !== 'in') return; else if (target && LABEL[target]()) ACT[target](); else if (V.st === 'seat') setSt('walk'); });
 // ---------- Missionen: beginnen an der Seite auf dem Schreibtisch; gestartet liegt draußen eine Messingdose, die man birgt ----------
-const MS = { active: null, done: [], pageSeen: -1, hint: null }, bannerEl = $('banner'); let nearCan = false, bannerT = 0, sonHintT = 0;
+const MS = { active: null, done: [], pageSeen: -1, hint: null, stage: null, cam: false }, bannerEl = $('banner'); let nearCan = false, bannerT = 0, sonHintT = 0;
 /** einmal pro Mission, beim ersten Mal am Steuer (oder draußen): kleiner Hinweis neben dem Sonar */
 function sonHint() { if (!started || !MS.active || MS.hint === MS.active) return; MS.hint = MS.active; const h = $('sonHint'); h.textContent = t('son_hint'); h.style.opacity = 1; sonHintT = 9; save(); }
 const misIdx = (id) => MISSIONS.findIndex((m) => m.id === id), nextMis = () => MISSIONS[MS.done.length] || null, curPage = () => Math.min(MS.done.length, t('pages').length - 1);
 function banner(a, b) { bannerEl.children[0].textContent = a; bannerEl.children[1].textContent = b; bannerEl.style.opacity = 1; bannerT = 5; }
 function syncMis() {
-  const st = cabin.state; st.own = [true, false, false, false, false, false]; for (const id of MS.done) { const m = MISSIONS[misIdx(id)]; if (m) st.own[m.tape] = true; } if (!st.own[st.tapeIn]) st.tapeIn = 0;
-  cans.show(MS.active ? misIdx(MS.active) : -1); st.pageNew = MS.pageSeen < curPage();   // ungelesene Seite: schimmert leicht
+  const st = cabin.state; st.own = [true, false, false, false, false, false]; for (const id of MS.done) { const m = MISSIONS[misIdx(id)]; if (m) st.own[m.tape] = true; } if (MS.active && MS.stage) st.own[MISSIONS[misIdx(MS.active)].tape] = true; if (!st.own[st.tapeIn]) st.tapeIn = 0;
+  cans.show(MS.active && !MS.stage ? misIdx(MS.active) : -1); st.pageNew = MS.pageSeen < curPage();   // ungelesene Seite: schimmert leicht
   if (!MS.active) nearCan = false;
 }
 function startMission() { const m = nextMis(); if (!m || MS.active) return; MS.active = m.id; $('log').classList.remove('open'); banner(t('mis_started'), t('mis_' + m.id)); audio.click(0.7); syncMis(); save(); lockMouse(); }
 function takeCan() {
-  const m = MISSIONS[misIdx(MS.active)]; if (!m) return; MS.done.push(m.id); MS.active = null; nearCan = false; syncMis();
-  banner(t('mis_done'), t('mis_' + m.id)); playTape(m.tape, true);
-  addLog({ kind: 'find', id: m.id, dist: Math.round(Math.hypot(m.x, m.z) / 10) * 10, dir: DIR8(m.x, m.z) }); save();
+  const m = MISSIONS[misIdx(MS.active)]; if (!m || MS.stage) return; nearCan = false;
+  addLog({ kind: 'find', id: m.id, dist: Math.round(Math.hypot(m.x, m.z) / 10) * 10, dir: DIR8(m.x, m.z) });
+  if (m.photo) {   // die Mission geht weiter: erst ein gutes Foto beendet sie
+    MS.stage = 'photo'; if (m.cam) MS.cam = true; syncMis(); playTape(m.tape, true); setTimeout(() => note(m.cam ? t('cam_got') : t('m3_photo')), 4300); if (m.cam) setTimeout(() => note(t('m3_photo')), 9000); save(); return;
+  }
+  finishMission(m); playTape(m.tape, true);
 }
+function finishMission(m) { MS.done.push(m.id); MS.active = null; MS.stage = null; nearCan = false; syncMis(); banner(t('mis_done'), t('mis_' + m.id)); save(); }
 /** legt eine Kassette ins Deck und spielt sie: Herausnehmen aus dem Regal heißt abspielen */
 function playTape(k, quiet) { const st = cabin.state; if (!st.own[k]) return; st.tapeIn = k; audio.tapeTrack(k); st.tape = true; audio.tape(true); if (!quiet) note(t('tape_now', { n: t('tape_n')[k] })); save(); }
+// ---------- Kamera: Sucher am Bug. Umsehen ja, fahren nein; ein Foto wird gleich „entwickelt“ und ins Logbuch geklebt ----------
+const CAMV = { on: false, yaw: 0, pitch: 0 }, camLocal = new T.Vector3(0, -0.05, 2.4), camP = new T.Vector3(), camL = new T.Vector3(), tv = new T.Vector3();
+let devCam = false, shootReq = false, thumbT = 0; try { devCam = localStorage.getItem('tiefenlicht.devcam') === '1'; } catch (e) { /* egal */ }
+const hasCam = () => MS.cam || devCam;
+function openCam() { if (!hasCam() || CAMV.on || switching || !started) return; closeTapes(); closeHorch(); switching = true; fadeEl.style.opacity = 1; setTimeout(() => { CAMV.on = true; CAMV.yaw = 0; CAMV.pitch = 0; I.jx = I.jy = 0; I.joyId = null; joy.style.opacity = 0; boatVis(); ui(); resize(); fadeEl.style.opacity = 0; switching = false; }, 250); }
+function closeCam(now) { if (!CAMV.on) return; const done = () => { CAMV.on = false; I.lookId = null; boatVis(); ui(); resize(); }; if (now) { done(); return; } switching = true; fadeEl.style.opacity = 1; setTimeout(() => { done(); fadeEl.style.opacity = 0; switching = false; }, 250); }
+function camStep() {
+  const g = boat.group; camP.copy(camLocal).applyMatrix4(g.matrixWorld); const yaw = S.h + CAMV.yaw, cp = Math.cos(CAMV.pitch);
+  camL.set(camP.x + Math.sin(yaw) * cp, camP.y + Math.sin(CAMV.pitch), camP.z + Math.cos(yaw) * cp); camera.position.copy(camP); camera.lookAt(camL);
+  U.uDeep.value = clamp(Math.exp((camP.y + 32) * 0.0085), 0.5, 1.12);
+}
+/** Fotoziel der laufenden Mission (oder null): Punkt über Grund, wie nah man sein muss, Name für die Beschriftung */
+function photoTarget() { if (!MS.active || MS.stage !== 'photo') return null; const p = MISSIONS[misIdx(MS.active)].photo; return { x: p.x, y: floorH(p.x, p.z) + p.h, z: p.z, r: p.r, name: p.name }; }
+/** zählt das Foto? Ziel ungefähr mittig im Bild, nah genug, kein Fels dazwischen */
+function camTargetOk() {
+  const p = photoTarget(); if (!p || !CAMV.on) return false; const c = camera.position; if (c.distanceTo(tv.set(p.x, p.y, p.z)) > p.r) return false;
+  camera.updateMatrixWorld(); tv.project(camera); if (tv.z > 1 || Math.abs(tv.x) > 0.6 || Math.abs(tv.y) > 0.6) return false;
+  for (let i = 1; i < 14; i++) { const k = i / 14, x = c.x + (p.x - c.x) * k, y = c.y + (p.y - c.y) * k, z = c.z + (p.z - c.z) * k; if (floorH(x, z) > y + 0.4) return false; }
+  return true;
+}
+function shoot() { if (CAMV.on && !switching) shootReq = true; }
+/** aus dem gerenderten Bild ein altes Sofortbild machen: ausgeblichen, warm, Korn, dunkle Ecken; Papierrand mit Handschrift */
+function develop(src, cap) {
+  const W = src.width, H = src.height, PW = 420, PH = 315; let sw = W, sh = W * PH / PW; if (sh > H) { sh = H; sw = H * PW / PH; }
+  const c = document.createElement('canvas'); c.width = PW; c.height = PH; const x = c.getContext('2d'); x.drawImage(src, (W - sw) / 2, (H - sh) / 2, sw, sh, 0, 0, PW, PH);
+  const im = x.getImageData(0, 0, PW, PH), d = im.data;
+  for (let j = 0; j < PH; j++) for (let i = 0; i < PW; i++) {
+    const k = (j * PW + i) * 4; let r = Math.min(1, d[k] / 255 * 1.55), g = Math.min(1, d[k + 1] / 255 * 1.55), b = Math.min(1, d[k + 2] / 255 * 1.55); const l = 0.3 * r + 0.59 * g + 0.11 * b;
+    r = r * 0.35 + l * 0.65; g = g * 0.35 + l * 0.65; b = b * 0.35 + l * 0.65; r = r * 1.22 + 0.06; g = g * 1.0 + 0.03; b = b * 0.72 + 0.01;
+    const ux = i / PW - 0.5, uy = j / PH - 0.5, v = 1 - Math.min(1, (ux * ux + uy * uy) * 2.2) * 0.72, n = (Math.random() - 0.5) * 0.08;
+    d[k] = clamp(((0.07 + 0.88 * r) * v + n) * 255, 0, 255); d[k + 1] = clamp(((0.06 + 0.88 * g) * v + n) * 255, 0, 255); d[k + 2] = clamp(((0.05 + 0.86 * b) * v + n) * 255, 0, 255);
+  }
+  x.putImageData(im, 0, 0); const lk = x.createLinearGradient(0, 0, PW * 0.55, PH * 0.35); lk.addColorStop(0, 'rgba(255,170,90,0.2)'); lk.addColorStop(1, 'rgba(255,170,90,0)'); x.fillStyle = lk; x.fillRect(0, 0, PW, PH);
+  const M = 18, B = 70, out = document.createElement('canvas'); out.width = PW + 2 * M; out.height = PH + M + B; const o = out.getContext('2d');
+  o.fillStyle = '#eee5d0'; o.fillRect(0, 0, out.width, out.height); for (let i = 0; i < 500; i++) { o.fillStyle = `rgba(120,95,60,${Math.random() * 0.07})`; o.fillRect(Math.random() * out.width, Math.random() * out.height, 1 + Math.random() * 2, 1 + Math.random() * 2); }
+  o.drawImage(c, M, M); o.strokeStyle = 'rgba(60,40,20,0.35)'; o.lineWidth = 1; o.strokeRect(M + 0.5, M + 0.5, PW - 1, PH - 1);
+  const HAND = '"Segoe Print", "Bradley Hand", "Marker Felt", "Comic Sans MS", cursive'; o.fillStyle = 'rgba(36,44,78,0.88)'; o.save(); o.translate(M + 6, PH + M + 32); o.rotate(-0.012);
+  o.font = `22px ${HAND}`; o.fillText(cap[0], 0, 0); o.font = `15px ${HAND}`; o.fillText(cap[1], 2, 25); o.restore();
+  return out.toDataURL('image/jpeg', 0.72);
+}
+// Fotos: eigener Speicher (Bilder sind groß); höchstens 40 freie, Missionsfotos bleiben immer
+const PH_KEY = 'tiefenlicht.photos', PHOTOS = []; try { for (const p of JSON.parse(localStorage.getItem(PH_KEY) || '[]')) PHOTOS.push(p); } catch (e) { /* egal */ }
+function storePhotos() { for (;;) { try { localStorage.setItem(PH_KEY, JSON.stringify(PHOTOS)); return; } catch (e) { const i = PHOTOS.findIndex((q) => !q.keep); if (i < 0 || PHOTOS.length < 2) return; PHOTOS.splice(i, 1); } } }
+const photoSrc = (id) => { const p = PHOTOS.find((q) => q.id === id); return p ? p.src : null; };
+function takePhoto() {
+  audio.shutter(); const fl = $('camFlash'); fl.style.transition = 'none'; fl.style.opacity = 0.85; requestAnimationFrame(() => { fl.style.transition = 'opacity 0.7s'; fl.style.opacity = 0; });
+  const ok = camTargetOk(), pt = photoTarget(); let place = t('cap_open');
+  if (ok) place = t(pt.name); else { let bd = 70; for (const p of poisNear(S.x, S.z, 90)) { const d = Math.hypot(p.x - S.x, p.z - S.z); if (d < bd) { bd = d; place = t('n_' + p.kind); } } }
+  const cap = [place, Math.round(-S.y) + ' m  ·  ' + new Date().toLocaleDateString(getLang() === 'de' ? 'de-DE' : 'en-GB')], id = 'p' + Date.now().toString(36), src = develop(renderer.domElement, cap);
+  PHOTOS.push({ id, src, keep: ok }); while (PHOTOS.filter((q) => !q.keep).length > 40) PHOTOS.splice(PHOTOS.findIndex((q) => !q.keep), 1); storePhotos();
+  addLog({ kind: 'photo', pid: id, cap }); note(t('photo_saved'));
+  const th = $('camThumb'); th.src = src; th.classList.add('show'); thumbT = 2.6;
+  if (ok) setTimeout(() => { const m = MISSIONS[misIdx(MS.active)]; if (m && MS.stage === 'photo') finishMission(m); }, 900);
+}
+$('camBtn').addEventListener('pointerdown', (e) => { e.preventDefault(); openCam(); });
+$('camShut').addEventListener('pointerdown', (e) => { e.preventDefault(); shoot(); });
+$('camClose').addEventListener('pointerdown', (e) => { e.preventDefault(); closeCam(); });
+// ---------- Horchgerät: Peilscheibe drehen, Kopfhörer auf. Klicks hört man weit, aber nur aus der Richtung, in die es zeigt ----------
+let horchOpen = false, horchDeg = 0, horchDrag = null;
+function openHorch() { unlock(); closeTapes(); horchOpen = true; $('horch').classList.add('open'); }
+function closeHorch() { if (!horchOpen) return; horchOpen = false; horchDrag = null; $('horch').classList.remove('open'); audio.hydro(false, 0); lockMouse(); }
+const hcv = $('horchCv'), hcx = hcv.getContext('2d');
+const horchAng = (e) => { const r = hcv.getBoundingClientRect(); return Math.atan2(e.clientX - r.left - r.width / 2, -(e.clientY - r.top - r.height / 2)) * 180 / Math.PI; };
+hcv.addEventListener('pointerdown', (e) => { e.preventDefault(); horchDrag = { id: e.pointerId, a: horchAng(e) }; try { hcv.setPointerCapture(e.pointerId); } catch (x) { /* egal */ } });
+hcv.addEventListener('pointermove', (e) => { if (!horchDrag || e.pointerId !== horchDrag.id) return; const a = horchAng(e); let d = a - horchDrag.a; d = ((d + 540) % 360) - 180; horchDeg = (horchDeg + d + 360) % 360; horchDrag.a = a; });
+for (const ev of ['pointerup', 'pointercancel']) hcv.addEventListener(ev, () => { horchDrag = null; });
+$('horchClose').addEventListener('pointerdown', (e) => { e.preventDefault(); closeHorch(); });
+function drawHorch() {
+  const N = hcv.width, c = N / 2, R = c - 10, x = hcx, lvl = audio.hydroLevel(); x.clearRect(0, 0, N, N);
+  const gr = x.createRadialGradient(c, c * 0.8, 20, c, c, R); gr.addColorStop(0, '#efe4c4'); gr.addColorStop(1, '#bba878'); x.fillStyle = gr; x.beginPath(); x.arc(c, c, R, 0, 6.2832); x.fill();
+  x.strokeStyle = 'rgba(90,60,25,0.85)'; x.lineWidth = 3; x.beginPath(); x.arc(c, c, R * 0.93, 0, 6.2832); x.stroke(); x.lineWidth = 1.5; x.beginPath(); x.arc(c, c, R * 0.72, 0, 6.2832); x.stroke();
+  const P = (deg, r) => [c + Math.sin(deg * Math.PI / 180) * r, c - Math.cos(deg * Math.PI / 180) * r];
+  for (let d = 0; d < 360; d += 5) { const big = d % 30 === 0, a = P(d, R * 0.93), b = P(d, R * (big ? 0.83 : 0.88)); x.strokeStyle = d === 0 ? 'rgba(150,30,20,0.95)' : 'rgba(60,40,20,0.85)'; x.lineWidth = big ? 3 : 1.5; x.beginPath(); x.moveTo(a[0], a[1]); x.lineTo(b[0], b[1]); x.stroke(); }
+  x.fillStyle = 'rgba(60,40,20,0.9)'; x.font = '26px Georgia, serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; for (let d = 0; d < 360; d += 30) { const p = P(d, R * 0.77); x.fillText(String(d), p[0], p[1]); }
+  const lo = (horchDeg - 20 - 90) * Math.PI / 180, hi = (horchDeg + 20 - 90) * Math.PI / 180; x.fillStyle = `rgba(60,140,80,${0.12 + lvl * 0.35})`; x.beginPath(); x.moveTo(c, c); x.arc(c, c, R * 0.7, lo, hi); x.closePath(); x.fill();   // Hörkegel
+  x.fillStyle = 'rgba(60,40,20,0.55)'; x.beginPath(); x.moveTo(c, c - 46); x.quadraticCurveTo(c + 20, c - 10, c + 15, c + 40); x.lineTo(c - 15, c + 40); x.quadraticCurveTo(c - 20, c - 10, c, c - 46); x.fill();   // das eigene Boot, Bug nach oben
+  const tip = P(horchDeg, R * 0.68), tail = P(horchDeg + 180, R * 0.18); x.strokeStyle = 'rgba(150,30,20,0.95)'; x.lineWidth = 7; x.lineCap = 'round'; x.beginPath(); x.moveTo(tail[0], tail[1]); x.lineTo(tip[0], tip[1]); x.stroke();
+  x.fillStyle = '#8a6a34'; x.beginPath(); x.arc(c, c, 16, 0, 6.2832); x.fill(); x.fillStyle = '#c9a25a'; x.beginPath(); x.arc(c, c, 8, 0, 6.2832); x.fill();
+  const lp = [c, c + R * 0.45], g2 = x.createRadialGradient(lp[0], lp[1], 0, lp[0], lp[1], 40); g2.addColorStop(0, `rgba(170,255,180,${0.25 + Math.min(1, lvl * 2.5) * 0.75})`); g2.addColorStop(1, 'rgba(170,255,180,0)'); x.fillStyle = g2; x.beginPath(); x.arc(lp[0], lp[1], 40, 0, 6.2832); x.fill();
+  x.fillStyle = '#1d3a24'; x.beginPath(); x.arc(lp[0], lp[1], 11, 0, 6.2832); x.fill(); x.fillStyle = `rgba(150,255,170,${0.15 + Math.min(1, lvl * 2.5) * 0.85})`; x.beginPath(); x.arc(lp[0], lp[1], 9, 0, 6.2832); x.fill();
+  const info = t('horch_info', { d: String(Math.round(horchDeg) % 360).padStart(3, '0'), s: t('horch_side')[Math.round(horchDeg / 45) % 8] }) + '\n' + t('horch_tip'); if ($('horchInfo').textContent !== info) $('horchInfo').textContent = info;
+}
 // ---------- Kassettenmenü: öffnet sich am Rekorder; Liste der Kassetten, darunter was läuft, mit Abspielen, Pause und Stopp ----------
 let tapesOpen = false, reelA = 0, waveAmp = 8;
 const ICON_CAS = '<svg viewBox="0 0 26 18"><rect x="1" y="1" width="24" height="16" rx="2.5"/><rect x="5" y="4" width="16" height="6" rx="1.5"/><circle cx="9.5" cy="7" r="1.6"/><circle cx="16.5" cy="7" r="1.6"/><path d="M7 17l2-4h8l2 4"/></svg>';
@@ -349,15 +439,15 @@ function fillMis() {
   const add = (cls, name, state, desc) => { const d = document.createElement('div'); d.className = 'mis ' + cls; if (name) { const a = document.createElement('div'); a.className = 'mn'; const n = document.createElement('span'); n.textContent = name; const s2 = document.createElement('span'); s2.className = 'ms2'; s2.textContent = state; a.appendChild(n); a.appendChild(s2); d.appendChild(a); const p = document.createElement('div'); p.className = 'md'; p.textContent = desc; d.appendChild(p); } else d.textContent = '· · ·'; box.appendChild(d); };
   for (const id of MS.done) add('done', t('mis_' + id), '✓ ' + t('mis_s_done'), t('misd_' + id));
   const nx = nextMis();
-  if (MS.active) add('run', t('mis_' + MS.active), t('mis_s_run'), t('mish_' + MS.active)); else if (nx) add('', '?', t('mis_s_open'), MS.done.length ? t('mis_open') : t('mis_intro'));
+  if (MS.active) add('run', t('mis_' + MS.active), t('mis_s_run'), t('mish_' + MS.active + (MS.stage ? 'b' : ''))); else if (nx) add('', '?', t('mis_s_open'), MS.done.length ? t('mis_open') : t('mis_intro'));
   const rest = MISSIONS.length - MS.done.length - (MS.active || nx ? 1 : 0) + HINTED; for (let i = 0; i < Math.min(rest, 4); i++) add('hid');
 }
 // ---------- Logbuch: füllt sich von selbst, wenn man etwas findet ----------
 const LOG = [], seen = new Set(); let playTime = 0;
 const DIR8 = (dx, dz) => Math.round(((Math.atan2(dx, dz) + 2 * Math.PI) % (2 * Math.PI)) / (Math.PI / 4)) % 8;
 function addLog(e) { e.min = Math.round(playTime / 60); e.depth = Math.round(-S.y); LOG.push(e); note(t('log_note', { t: entryTitle(e) })); save(); }
-const entryTitle = (e) => (e.kind === 'shark' ? '—' : t('n_' + e.kind) + (e.n ? ' (' + (e.n + 1) + '.)' : ''));
-const entryText = (e) => { if (e.kind === 'shark') return t('shark'); if (e.kind === 'find') return t('find_' + e.id) + ' ' + t('where', { d: e.dist, dir: t('dirs')[e.dir] }); const tx = t(e.kind); return tx[e.n % tx.length] + ' ' + t('where', { d: e.dist, dir: t('dirs')[e.dir] }); };
+const entryTitle = (e) => (e.kind === 'shark' ? '—' : e.kind === 'photo' ? t('n_photo') : t('n_' + e.kind) + (e.n ? ' (' + (e.n + 1) + '.)' : ''));
+const entryText = (e) => { if (e.kind === 'shark') return t('shark'); if (e.kind === 'photo') return (e.cap || []).join('  ·  '); if (e.kind === 'find') return t('find_' + e.id) + ' ' + t('where', { d: e.dist, dir: t('dirs')[e.dir] }); const tx = t(e.kind); return tx[e.n % tx.length] + ' ' + t('where', { d: e.dist, dir: t('dirs')[e.dir] }); };
 function discover() {
   for (const p of poisNear(S.x, S.z, 80)) { const k = Math.round(p.x) + ',' + Math.round(p.z); if (seen.has(k) || Math.hypot(p.x - S.x, p.z - S.z) > (p.disc || (p.kind === 'wreck' ? 46 : 32))) continue; seen.add(k); addLog({ kind: p.kind, n: LOG.filter((e) => e.kind === p.kind).length, dist: Math.round(Math.hypot(p.x, p.z) / 10) * 10, dir: DIR8(p.x, p.z) }); }
 }
@@ -366,13 +456,16 @@ let logTab = 'own';
 function logPage(box, i, sep) { const pg = t('pages')[i]; if (!pg) return; const d = document.createElement('div'); d.className = 'logEntry' + (sep ? ' sep' : ''); const a = document.createElement('div'); a.className = 'logTitle'; a.textContent = pg[0]; const p = document.createElement('div'); p.className = 'logP'; p.textContent = pg[1]; const g = document.createElement('div'); g.className = 'logSign'; g.textContent = pg[2]; d.appendChild(a); d.appendChild(p); d.appendChild(g); box.appendChild(d); }
 function openLog(tab) {
   unlock(); if (tab) logTab = tab; $('log').classList.remove('page');
-  const box = $('logText'); box.innerHTML = ''; box.scrollTop = 0; const h = document.createElement('div'); h.className = 'logHead'; h.textContent = logTab === 'cap' ? t('log_cap_h') : t('log'); box.appendChild(h);
+  const box = $('logText'); box.innerHTML = ''; box.scrollTop = 0; const h = document.createElement('div'); h.className = 'logHead'; h.textContent = logTab === 'cap' ? t('log_cap_h') : logTab === 'pho' ? t('log_pho') : t('log'); box.appendChild(h);
   for (const b of document.querySelectorAll('#logTabs .pill')) b.classList.toggle('on', b.dataset.tab === logTab);
   if (logTab === 'cap') { for (let i = curPage(); i >= 0; i--) logPage(box, i, i > 0); }
-  else {
-    const add = (title, when, text) => { const d = document.createElement('div'); d.className = 'logEntry'; const a = document.createElement('div'); a.className = 'logTitle'; a.textContent = title + (when ? '  ·  ' + when : ''); const p = document.createElement('div'); p.textContent = text; d.appendChild(a); d.appendChild(p); box.appendChild(d); };
+  else if (logTab === 'pho') {
+    if (!PHOTOS.length) { const p = document.createElement('div'); p.textContent = t('photo_none'); box.appendChild(p); }
+    else { const gd = document.createElement('div'); gd.id = 'photoGrid'; for (const ph of PHOTOS.slice().reverse()) { const im = document.createElement('img'); im.src = ph.src; gd.appendChild(im); } box.appendChild(gd); }
+  } else {
+    const add = (title, when, text, img) => { const d = document.createElement('div'); d.className = 'logEntry'; const a = document.createElement('div'); a.className = 'logTitle'; a.textContent = title + (when ? '  ·  ' + when : ''); d.appendChild(a); if (img) { const im = document.createElement('img'); im.className = 'logPhoto'; im.src = img; d.appendChild(im); } else { const p = document.createElement('div'); p.textContent = text; d.appendChild(p); } box.appendChild(d); };
     if (!LOG.length) add(t('log_empty_t'), '', t('log_empty'));
-    for (const e of LOG.slice().reverse()) add(entryTitle(e), (e.min < 1 ? t('now') : t('after', { m: e.min })) + ', ' + e.depth + ' m', entryText(e));
+    for (const e of LOG.slice().reverse()) add(entryTitle(e), (e.min < 1 ? t('now') : t('after', { m: e.min })) + ', ' + e.depth + ' m', entryText(e), e.kind === 'photo' ? photoSrc(e.pid) : null);
   }
   $('log').classList.add('open');
 }
@@ -384,7 +477,6 @@ function openPage() {
 for (const b of document.querySelectorAll('#logTabs .pill')) b.addEventListener('pointerdown', (e) => { e.preventDefault(); openLog(b.dataset.tab); });
 $('logGo').addEventListener('pointerup', (e) => { e.preventDefault(); if (!MS.active) startMission(); });
 $('logClose').addEventListener('pointerdown', (e) => { e.preventDefault(); $('log').classList.remove('open'); lockMouse(); });
-$('logClose').textContent = t('close');
 let noteT = 0; function note(t) { const n = $('note'); n.textContent = t; noteT = 4; }
 // ---------- Einstellungen: Sichtfeld ----------
 $('gear').addEventListener('pointerdown', (e) => { e.preventDefault(); openMenu(); });
@@ -393,7 +485,7 @@ function texts() { for (const el of document.querySelectorAll('[data-t]')) el.te
 for (const b of document.querySelectorAll('#langs .pill')) b.addEventListener('pointerdown', (e) => { e.preventDefault(); setLang(b.dataset.l); texts(); });
 if (!document.fullscreenEnabled) $('fsBtn').style.display = 'none';
 $('fsBtn').addEventListener('pointerdown', (e) => { e.preventDefault(); try { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen().then(() => { try { screen.orientation.unlock(); } catch (x) { /* egal */ } }).catch(() => {}); } catch (x) { /* egal */ } });
-let resetArm = 0; $('resetBtn').addEventListener('pointerdown', (e) => { e.preventDefault(); if (resetArm && performance.now() - resetArm < 4000) { try { localStorage.removeItem(SAVE_KEY); } catch (x) { /* egal */ } noSave = true; location.reload(); } else { resetArm = performance.now(); $('resetBtn').textContent = t('reset_sure'); setTimeout(() => { $('resetBtn').textContent = t('reset'); }, 4000); } });
+let resetArm = 0; $('resetBtn').addEventListener('pointerdown', (e) => { e.preventDefault(); if (resetArm && performance.now() - resetArm < 4000) { try { localStorage.removeItem(SAVE_KEY); localStorage.removeItem(PH_KEY); } catch (x) { /* egal */ } noSave = true; location.reload(); } else { resetArm = performance.now(); $('resetBtn').textContent = t('reset_sure'); setTimeout(() => { $('resetBtn').textContent = t('reset'); }, 4000); } });
 function syncFov() { $('fovO').value = FOV.out; $('fovI').value = FOV.in; $('fovOV').textContent = Math.round(fovFor('out')) + '°'; $('fovIV').textContent = Math.round(fovFor('in')) + '°'; }
 for (const [id, k] of [['fovO', 'out'], ['fovI', 'in']]) $(id).addEventListener('input', (e) => { FOV[k] = +e.target.value; try { localStorage.setItem('tiefenlicht.fov', JSON.stringify(FOV)); } catch (x) { /* egal */ } resize(); syncFov(); });
 // Walgesänge: Lautstärke, Häufigkeit, an/aus (gespeichert; dieselben Werte stehen auch im Entwicklermenü)
@@ -432,6 +524,9 @@ window.addEventListener('keydown', (e) => { if (e.repeat) return;
   if (M.open) { if (e.code === 'Escape' && performance.now() - escT > 350) { if (M.panel !== 'main') showPanel('main'); else if (started) closeMenu(); } else if (e.code === 'Enter' && M.panel === 'main') goBtn(); return; }
   if (e.code === 'KeyE' && devOn && started) { toggleDev(); return; }
   if (tapesOpen && (e.code === 'Escape' || e.code === 'KeyF')) { closeTapes(); return; }
+  if (horchOpen && (e.code === 'Escape' || e.code === 'KeyF')) { closeHorch(); return; }
+  if (CAMV.on) { if (e.code === 'Space') shoot(); else if (e.code === 'Escape' || e.code === 'KeyK') closeCam(); return; }
+  if (e.code === 'KeyK' && started) { openCam(); return; }
   if (e.code === 'KeyC') setMode(V.mode === 'in' ? 'out' : 'in'); if (e.code === 'KeyF') actEl.dispatchEvent(new Event('pointerdown'));
   if (e.code === 'KeyR' && started) ping(); if (e.code === 'KeyL' && started) { if ($('log').classList.contains('open')) $('log').classList.remove('open'); else openLog(); }
   if (e.code === 'Escape') { if (devOpen()) toggleDev(false); else if ($('log').classList.contains('open')) $('log').classList.remove('open'); else if (V.st === 'table') setSt('walk'); else if (started) { escT = performance.now(); openMenu(); } } });
@@ -448,19 +543,25 @@ function frame(now) {
   if (started && run) { drive(dt); props(dt); sonarStep(dt); if (frames % 2 === 0 && (V.mode === 'out' || V.st === 'seat')) sonarDraw(); }
   else { boat.group.position.set(S.x, S.y, S.z); boat.group.rotation.set(0, S.h, 0); boat.group.updateMatrixWorld(true); U.uSubPos.value.set(S.x, S.y, S.z); U.uLampPos.value.copy(boat.lampLocal).applyMatrix4(boat.group.matrixWorld); U.uWarmPos.value.copy(boat.warmLocal).applyMatrix4(boat.group.matrixWorld); U.uLampDir.value.set(0, -0.1, 1).normalize().transformDirection(boat.group.matrixWorld); }
   if (showOut) { const w = window.innerWidth, h = window.innerHeight, ch = $('menu').querySelector('.card').offsetHeight + 14; camera.setViewOffset(w, h, 0, Math.min(h * 0.4, ch * 0.5 + h * 0.1), w, h); } else if (camera.view && camera.view.enabled) camera.clearViewOffset();   // Boot über der Karte zeigen
-  if (run || showOut) { world.update(S.x, S.z, started ? 1 : 0); if (V.mode === 'in' && !showOut) cabinStep(dt); else cameraStep(dt); }
+  if (run || showOut) { world.update(S.x, S.z, started ? 1 : 0); if (CAMV.on && !showOut) camStep(); else if (V.mode === 'in' && !showOut) cabinStep(dt); else cameraStep(dt); }
   if (window.__cam) { camera.position.set(...window.__cam[0]); camera.lookAt(...window.__cam[1]); }
   if (run) { life.update(dt, S, pxScale, world.glows); fauna.update(dt, S, U.uTime.value); cans.update(); }
   if (bannerT > 0 && run) { bannerT -= dt; if (bannerT <= 0) bannerEl.style.opacity = 0; }
   if (sonHintT > 0 && run) { sonHintT -= dt; if (sonHintT <= 0) $('sonHint').style.opacity = 0; }
   if (tapesOpen) drawTapes(dt);
+  if (horchOpen && run) { const K = I.keys; horchDeg = (horchDeg + ((K.KeyD || K.ArrowRight ? 1 : 0) - (K.KeyA || K.ArrowLeft ? 1 : 0)) * 45 * dt + 360) % 360; drawHorch(); }
+  audio.setListener(S.x, S.z, S.h); audio.hydro(horchOpen && run, S.h - horchDeg * Math.PI / 180); cabin.setHorch(horchDeg, audio.hydroLevel());
+  if (thumbT > 0) { thumbT -= dt; if (thumbT <= 0) $('camThumb').classList.remove('show'); }
+  if (CAMV.on && frames % 6 === 0) { $('camFrame').classList.toggle('ok', camTargetOk()); const ci = t('depth') + ' ' + String(Math.round(-S.y)).padStart(3, '0') + ' m'; if ($('camInfo').textContent !== ci) $('camInfo').textContent = ci; }
   if (frames % 4 === 0) { const cp = camera.position, d = Math.hypot(cp.x - PLAIN.x, cp.z - PLAIN.z) / PLAIN.r; snow.set((1 - smooth(0.9, 1.7, d)) * (1 - smooth(-72, -48, cp.y)), pxScale); }   // Schnee nur unten über der Ebene
   if (frames % 24 === 0) { let best = null; for (const m of marks) { const d = Math.hypot(m.x - S.x, m.z - S.z); if (!best || d < best) best = d; } if (nav.course) { const d = Math.hypot(nav.course.x - S.x, nav.course.z - S.z); if (d < 28) nav.course = null; else best = -d; } echoEl.className = best < 0 ? 'kurs' : ''; echoEl.textContent = best ? (best < 0 ? t('course') + ' ' : t('echo') + ' ') + String(Math.round(Math.abs(best) / 5) * 5).padStart(3, '0') + ' m' : '';
-    if (MS.active) { const l = cans.lamp(misIdx(MS.active)); nearCan = Math.hypot(l.x - S.x, l.z - S.z) < REACH && Math.abs(l.y - S.y) < REACH + 4; }
+    if (MS.active && !MS.stage) { const l = cans.lamp(misIdx(MS.active)); nearCan = Math.hypot(l.x - S.x, l.z - S.z) < REACH && Math.abs(l.y - S.y) < REACH + 4; }
+    $('camBtn').style.display = hasCam() && started && !CAMV.on && !horchOpen && !tapesOpen && (V.mode === 'out' || V.st === 'seat') ? 'block' : 'none';
     const al = actLabel(), actL = $('actL'); if (actL.textContent !== al) { actL.textContent = al; actEl.style.display = al ? 'block' : 'none'; } }
   const bT = M.open ? (M.panel === 'boat' ? 0 : M.panel === 'set' ? 0.55 : 1) : 0, b0 = post.blur; post.blur = Math.abs(b0 - bT) < 0.004 ? bT : damp(b0, bT, 6, dt);
   if (run || showOut || M.dirty > 0 || post.blur !== b0) {   // ruht das Spiel hinter dem Menü, wird das Bild nur noch fertig weichgezeichnet und dann stehen gelassen
-    M.dirty--; renderer.info.reset(); if (V.mode === 'in' && !showOut) post.render(scene, camera, cabinScene, camIn); else post.render(scene, camera); }
+    M.dirty--; renderer.info.reset(); if (V.mode === 'in' && !showOut && !CAMV.on) post.render(scene, camera, cabinScene, camIn); else post.render(scene, camera);
+    if (shootReq) { shootReq = false; if (CAMV.on) takePhoto(); } }
   fpsT += raw; fpsN++;
   if (fpsT >= 1) {
     const fps = fpsN / fpsT; fpsEl.textContent = Math.round(fps) + ' fps'; depthEl.textContent = t('depth') + ' ' + String(Math.round(-S.y)).padStart(3, '0') + ' m';
@@ -479,7 +580,7 @@ function start() {
 }
 // ---------- Menü ----------
 const PANELS = { main: 'mMain', boat: 'pBoat', set: 'pSet', help: 'pHelp', mis: 'pMis' };
-function boatVis() { const v = V.mode !== 'in' || (M.open && M.panel === 'boat'); for (const o of boat.outer) o.visible = v; }
+function boatVis() { const v = (V.mode !== 'in' && !CAMV.on) || (M.open && M.panel === 'boat'); for (const o of boat.outer) o.visible = v; }
 function showPanel(p) {
   const was = M.panel; M.panel = p; M.dirty = 60;
   for (const k in PANELS) $(PANELS[k]).classList.toggle('show', k === p);
@@ -493,7 +594,7 @@ function goText() { $('mGo').textContent = started ? t('m_resume') : resumed ? t
 function openMenu() {
   if (M.open || !started) return; M.open = true; unlock();
   I.jx = I.jy = I.up = I.down = 0; I.joyId = I.lookId = null; joy.style.opacity = 0; knob.style.transform = ''; for (const k in I.keys) I.keys[k] = 0; for (const b of [$('up'), $('down')]) b.classList.remove('on');
-  $('log').classList.remove('open'); closeTapes(); if (V.st === 'table') setSt('walk');
+  $('log').classList.remove('open'); closeTapes(); closeHorch(); if (V.st === 'table') setSt('walk');
   showPanel('main'); goText(); $('menu').classList.add('open'); grabEl.style.opacity = 0; audio.suspend(); ui();
 }
 function closeMenu() {
@@ -521,7 +622,7 @@ $('mGo').addEventListener('pointerup', (e) => { e.preventDefault(); goBtn(); });
 for (const [id, p] of [['mBoat', 'boat'], ['mSet', 'set'], ['mHelp', 'help'], ['mMis', 'mis']]) $(id).addEventListener('pointerdown', (e) => { e.preventDefault(); showPanel(p); });
 for (const b of document.querySelectorAll('.mBack')) b.addEventListener('pointerdown', (e) => { e.preventDefault(); showPanel('main'); });
 $('menu').classList.add('ready');
-window.__sub = { audio, M, MS, cans, sectors, echoes, startMission, takeCan, openPage, openLog, playTape, MISSIONS, openMenu, closeMenu, showPanel, setBoat, post, get boat() { return boat; }, save, load, texts, setLang, renderer, fauna, S, C, I, U, V, nav, setMode, setSt, table, cabin, tea, LOG, ACT, get target() { return target; }, start, ping, world, life, poisNear, floorH, get frames() { return frames; }, tp(x, y, z, h) { world.update(x, z, Infinity); S.x = x; S.y = y; S.z = z; S.h = h; S.vx = S.vy = S.vz = 0; C.yaw = h; C.oy = C.op = 0; C.pos.set(x - Math.sin(h) * 11, y + 3, z - Math.cos(h) * 11); C.look.set(x, y + 1, z); }, marks, info: () => ({ tris: renderer.info.render.triangles, calls: renderer.info.render.calls, PR, MSAA, chunks: world.chunks.size, near: world.near.length, glows: world.glows.length }) };
+window.__sub = { audio, M, MS, cans, sectors, echoes, CAMV, PHOTOS, openCam, closeCam, shoot, camTargetOk, photoTarget, openHorch, closeHorch, get horchDeg() { return horchDeg; }, set horchDeg(v) { horchDeg = v; }, startMission, takeCan, openPage, openLog, playTape, MISSIONS, openMenu, closeMenu, showPanel, setBoat, post, get boat() { return boat; }, save, load, texts, setLang, renderer, fauna, S, C, I, U, V, nav, setMode, setSt, table, cabin, tea, LOG, ACT, get target() { return target; }, start, ping, world, life, poisNear, floorH, get frames() { return frames; }, tp(x, y, z, h) { world.update(x, z, Infinity); S.x = x; S.y = y; S.z = z; S.h = h; S.vx = S.vy = S.vz = 0; C.yaw = h; C.oy = C.op = 0; C.pos.set(x - Math.sin(h) * 11, y + 3, z - Math.cos(h) * 11); C.look.set(x, y + 1, z); }, marks, info: () => ({ tris: renderer.info.render.triangles, calls: renderer.info.render.calls, PR, MSAA, chunks: world.chunks.size, near: world.near.length, glows: world.glows.length }) };
 // ---------- Entwicklermenü (unter ⚙, Passwort) ----------
 const DEV_PW = 'Entwicklung', devEl = $('dev'), pw = $('devPw');
 let devOn = false; try { devOn = localStorage.getItem('tiefenlicht.dev') === '1'; } catch (e) { /* egal */ }
@@ -562,9 +663,15 @@ function buildDev() {
   h3('KLANG · DIAGNOSE'); { const r = row(), l = document.createElement('span'); l.textContent = audio.info(); l.style.fontSize = '11px'; r.appendChild(l);
     const r2 = row(); r2.style.flexWrap = 'wrap'; const hb = btn('Hall ' + (audio.hall ? 'an' : 'aus'), () => { audio.setHall(!audio.hall); hb.textContent = 'Hall ' + (audio.hall ? 'an' : 'aus'); }, r2);
     btn('alles stumm', () => { for (const k in audio.mix) audio.setMix(k, 0); audio.whaleCfg.on = false; buildDev(); }, r2); }
+  h3('KAMERA & HORCHER'); { const r = row(); r.style.flexWrap = 'wrap';
+    const cb = btn(devCam ? 'Kamera: frei' : 'Kamera freischalten', () => { devCam = !devCam; try { localStorage.setItem('tiefenlicht.devcam', devCam ? '1' : '0'); } catch (x) { /* egal */ } cb.textContent = devCam ? 'Kamera: frei' : 'Kamera freischalten'; }, r);
+    btn('Testquelle setzen', () => { const a = Math.random() * 6.2832, d = 450 + Math.random() * 300; let x = S.x + Math.sin(a) * d, z = S.z + Math.cos(a) * d; const k = Math.hypot(x, z) > BOUNDS.r * 0.9 ? BOUNDS.r * 0.9 / Math.hypot(x, z) : 1; x *= k; z *= k; audio.clickSrc.length = 0; audio.clickSrc.push({ x, z }); buildDev(); }, r);
+    btn('Testquelle weg', () => { audio.clickSrc.length = 0; buildDev(); }, r); btn('zur Testquelle', () => { const q = audio.clickSrc[0]; if (q) devTp(q.x + 30, q.z + 30, q.x, q.z); }, r);
+    const q = audio.clickSrc[0], r2 = row(), l = document.createElement('span'); l.style.fontSize = '11px';
+    if (q) { const d = Math.hypot(q.x - S.x, q.z - S.z), b = ((S.h - Math.atan2(q.x - S.x, q.z - S.z)) * 180 / Math.PI % 360 + 360) % 360; l.textContent = `Testquelle: ${Math.round(d)} m, Peilung jetzt ≈${Math.round(b)}°`; } else l.textContent = 'keine Testquelle'; r2.appendChild(l); }
   h3('MISSIONEN'); { const r = row(); r.style.flexWrap = 'wrap';
-    btn('zur Dose', () => { if (!MS.active) return; const l = cans.lamp(misIdx(MS.active)); devTp(l.x + 6, l.z + 5, l.x, l.z); }, r);
-    btn('nächste starten', () => { startMission(); buildDev(); }, r); btn('alle zurücksetzen', () => { MS.active = null; MS.done.length = 0; MS.pageSeen = -1; cabin.state.tapeIn = 0; audio.tapeTrack(0); syncMis(); save(); }, r); }
+    btn('zur Dose', () => { if (!MS.active) return; const l = MS.stage === 'photo' ? photoTarget() : cans.lamp(misIdx(MS.active)); devTp(l.x + 14, l.z + 12, l.x, l.z); }, r);
+    btn('nächste starten', () => { startMission(); buildDev(); }, r); btn('alle zurücksetzen', () => { MS.active = null; MS.stage = null; MS.cam = false; MS.done.length = 0; MS.pageSeen = -1; cabin.state.tapeIn = 0; audio.tapeTrack(0); syncMis(); save(); }, r); }
   h3('SONSTIGES'); { const r = row(); r.style.flexWrap = 'wrap';
     btn('Tee sofort fertig', () => { tea.phase = 'ready'; }, r); btn('Logbuch leeren', () => { LOG.length = 0; seen.clear(); save(); }, r); btn('Menü sperren', () => { devOn = false; try { localStorage.removeItem('tiefenlicht.dev'); } catch (x) { /* egal */ } devEl.classList.remove('open'); }, r); btn('schließen', () => toggleDev(false), r); }
 }
@@ -573,12 +680,12 @@ try { const d = JSON.parse(localStorage.getItem('tiefenlicht.devcfg') || 'null')
 
 // ---------- Speichern: automatisch alle paar Sekunden und beim Verlassen ----------
 const SAVE_KEY = 'tiefenlicht.save.v1'; let noSave = false;
-function save() { if (noSave || !started) return; try { localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 1, s: [S.x, S.y, S.z, S.h], log: LOG, seen: [...seen], course: nav.course, lamp: cabin.state.lampT, play: playTime, ms: { a: MS.active, d: MS.done, p: MS.pageSeen, t: cabin.state.tapeIn, h: MS.hint }, at: Date.now() })); } catch (e) { /* ohne Speicher */ } }
+function save() { if (noSave || !started) return; try { localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 1, s: [S.x, S.y, S.z, S.h], log: LOG, seen: [...seen], course: nav.course, lamp: cabin.state.lampT, play: playTime, ms: { a: MS.active, d: MS.done, p: MS.pageSeen, t: cabin.state.tapeIn, h: MS.hint, s: MS.stage, c: MS.cam }, at: Date.now() })); } catch (e) { /* ohne Speicher */ } }
 function load() {
   try { const d = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); if (!d || d.v !== 1 || !Array.isArray(d.s)) return false;
     [S.x, S.y, S.z, S.h] = d.s; C.yaw = S.h; C.pos.set(S.x - Math.sin(S.h) * 14, S.y + 4, S.z - Math.cos(S.h) * 14); C.look.set(S.x, S.y + 1, S.z);
     for (const e of d.log || []) LOG.push(e); for (const k of d.seen || []) seen.add(k); nav.course = d.course || null; cabin.state.lampT = cabin.state.lamp = d.lamp == null ? 1 : d.lamp; playTime = d.play || 0;
-    if (d.ms) { MS.done = (d.ms.d || []).filter((id) => misIdx(id) >= 0); MS.active = misIdx(d.ms.a) >= 0 && !MS.done.includes(d.ms.a) ? d.ms.a : null; MS.pageSeen = d.ms.p == null ? -1 : d.ms.p; MS.hint = d.ms.h || null; cabin.state.tapeIn = d.ms.t || 0; audio.tapeTrack(cabin.state.tapeIn); }
+    if (d.ms) { MS.done = (d.ms.d || []).filter((id) => misIdx(id) >= 0); MS.active = misIdx(d.ms.a) >= 0 && !MS.done.includes(d.ms.a) ? d.ms.a : null; MS.pageSeen = d.ms.p == null ? -1 : d.ms.p; MS.hint = d.ms.h || null; MS.stage = MS.active ? d.ms.s || null : null; MS.cam = !!d.ms.c || MS.done.includes('m3'); cabin.state.tapeIn = d.ms.t || 0; audio.tapeTrack(cabin.state.tapeIn); }
     return true; } catch (e) { return false; }
 }
 const resumed = load(); syncMis();
