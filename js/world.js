@@ -1,7 +1,8 @@
 // world.js – die große Welt: Gelände in Kacheln, die beim Fahren nachgeladen werden; was wo steht (Felsen, Tang, Kristalle, Korallen, Fundstellen)
-import { T, rng, ico, noise } from './util.js';
+import { T, rng, ico, noise, smooth } from './util.js';
 import { rockMaterial } from './gfx.js';
-import { floorH, shelfH, handDist, steep, cxAt, halfW, GROTTO, WRECK, PLAIN, WHALE, BELL, plainK } from './terrain.js';
+import { floorH, shelfH, handDist, steep, cxAt, halfW, GROTTO, WRECK, PLAIN, WHALE, BELL, HOLE, plainK } from './terrain.js';
+import { CAVE } from './cave.js';
 import { buildWhale, buildBell, propMaterial } from './props.js';
 import { wreckFrame, buildWreck } from './wreck.js';
 
@@ -49,10 +50,10 @@ function placer(R) {
   P.ground = (it, x0, z0, size, nPeb, nGrass) => {
     for (let i = 0; i < nPeb; i++) {
       let x = x0 + R() * size, z = z0 + R() * size; if (R() < 0.5 && it.rocks.length) { const r = it.rocks[Math.floor(R() * it.rocks.length) % it.rocks.length], c = r.blob ? r.blob : r.pts[0]; const a = R() * 6.3, d = rr(1, 7); x = c[0] + Math.cos(a) * d; z = c[2] + Math.sin(a) * d; }
-      if (steep(x, z) > 3.2) continue; const y = floorH(x, z); if (y < -120) continue; const s = Math.pow(R(), 2.2) * 0.75 + 0.1;
+      if (steep(x, z) > 3.2 || Math.hypot(x - HOLE.x, z - HOLE.z) < 9.5) continue; const y = floorH(x, z); if (y < -120) continue; const s = Math.pow(R(), 2.2) * 0.75 + 0.1;
       it.peb.push(x, y - s * 0.12, z, s, R() * 6.3, rr(0.7, 1.4), rr(0.5, 1.1));
     }
-    for (let i = 0; i < nGrass; i++) { const cx = x0 + R() * size, cz = z0 + R() * size; if (steep(cx, cz) > 2.4 || floorH(cx, cz) < -95) continue; const cnt = 4 + Math.floor(R() * 9); for (let k = 0; k < cnt; k++) { const a = R() * 6.3, d = Math.sqrt(R()) * 3.2, x = cx + Math.cos(a) * d, z = cz + Math.sin(a) * d; it.grass.push(x, floorH(x, z) - 0.05, z, rr(0.5, 1.4), R() * 6.3, R() * 6.3); } }
+    for (let i = 0; i < nGrass; i++) { const cx = x0 + R() * size, cz = z0 + R() * size; if (steep(cx, cz) > 2.4 || floorH(cx, cz) < -95 || Math.hypot(cx - HOLE.x, cz - HOLE.z) < 13) continue; const cnt = 4 + Math.floor(R() * 9); for (let k = 0; k < cnt; k++) { const a = R() * 6.3, d = Math.sqrt(R()) * 3.2, x = cx + Math.cos(a) * d, z = cz + Math.sin(a) * d; it.grass.push(x, floorH(x, z) - 0.05, z, rr(0.5, 1.4), R() * 6.3, R() * 6.3); } }
   };
   P.dots = (it, x, y, z, n, rad, pal) => { for (let i = 0; i < n; i++) { const a = R() * 6.3, d = Math.sqrt(R()) * rad, c = pick(pal); it.dots.push(x + Math.cos(a) * d, y + rr(0.3, 1) * rad * 0.5 * R() + 0.4, z + Math.sin(a) * d, c[0], c[1], c[2], R() * 6.3); } };
   P.jelly = (it, x, y, z, s) => it.jelly.push(x, y, z, s, R() * 6.3, rr(1.5, 5), rr(0.03, 0.07) * (R() < 0.5 ? -1 : 1), rr(0.9, 1.3));
@@ -169,13 +170,18 @@ function handmade() {
     P.kelpPatch(g, BELL.x + 7, BELL.z + 5, 5, 0.7); P.kelpPatch(g, BELL.x - 8, BELL.z - 4, 4, 0.6); g.glows.push({ x: BELL.x, y: floorH(BELL.x, BELL.z) + 5, z: BELL.z, col: [0.4, 0.62, 0.72], power: 1.4, size: 4 });
     P.dots(g, Bl.top.x, Bl.top.y + 0.4, Bl.top.z, 6, 1.4, [PAL.cyan, PAL.turq]);
   }
+  // die Höhle unter dem Loch: in der Kammer ein schwaches, kaltes Leuchten und schwebende Lichtpünktchen; um die Mulde etwas Tang
+  { const m = CAVE.mid, g = at(m.x, m.z); g.glows.push({ x: (m.x + CAVE.tooth.x) / 2, y: CAVE.floorY + 1.8, z: (m.z + CAVE.tooth.z) / 2, col: [0.3, 0.95, 0.85], power: 0.9, size: 2.5 });
+    P.dots(g, m.x, m.y - 0.6, m.z, 46, 3.2, [PAL.turq, PAL.cyan, PAL.blue]);
+    for (const k of [0.45, 0.7]) { const s = CAVE.S[Math.round(CAVE.S.length * k)]; P.dots(at(s.x, s.z), s.x, s.y - 0.3, s.z, 10, 1.6, [PAL.turq, PAL.cyan]); }
+    for (const [dx, dz, n] of [[17, 7, 7], [-16, 11, 5], [5, -18, 6], [-12, -15, 4]]) P.kelpPatch(at(HOLE.x + dx, HOLE.z + dz), HOLE.x + dx, HOLE.z + dz, n, 1.2); }
   return B;
 }
 
 // ---------- alles Übrige entsteht je Kachel nach Regeln ----------
 function procedural(ix, iz, it) {
   const R = rng(h2(ix, iz)), P = placer(R), rr = P.rr, x0 = ix * CS, z0 = iz * CS;
-  const free = (x, z) => mainDist(x, z) > 48 && Math.hypot(x - GROTTO.x, z - GROTTO.z) > 36 && Math.hypot(x - WRECK.x, z - WRECK.z) > 52;
+  const free = (x, z) => mainDist(x, z) > 48 && Math.hypot(x - GROTTO.x, z - GROTTO.z) > 36 && Math.hypot(x - WRECK.x, z - WRECK.z) > 52 && Math.hypot(x - HOLE.x, z - HOLE.z) > 24;
   const pt = () => { const x = x0 + R() * CS, z = z0 + R() * CS, h = floorH(x, z); return { x, z, h, c: shelfH(x, z) - h, ok: free(x, z) && plainK(x, z) < 0.15 && Math.hypot(x - BELL.x, z - BELL.z) > 16 }; };
   for (let i = 0; i < 3; i++) { const p = pt(); if (p.ok && p.c > 18 && p.h > -105) P.spire(it, p.x, p.z, rr(9, 27), rr(2.2, 4.8), rr(0.02, 0.2), R() * 40); }
   for (let i = 0; i < 7; i++) { const p = pt(); if (p.ok && p.h > -110) P.boulder(it, p.x, p.z, Math.pow(R(), 2) * 4.2 + 1.1); }
@@ -259,11 +265,14 @@ export function createWorld(scene, life) {
       const n = NQ + 1, pos = new Float32Array(n * n * 3), nor = new Float32Array(n * n * 3), idx = new Uint16Array(NQ * NQ * 6);
       for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
         const o = (j * n + i) * 3, q = (j + 1) * M + i + 1, h = hh[q], dx = hh[q + 1] - hh[q - 1], dz = hh[q + M] - hh[q - M], l = Math.hypot(dx, 2 * STEP, dz);
-        pos[o] = x0 + i * STEP; pos[o + 1] = h; pos[o + 2] = z0 + j * STEP; nor[o] = -dx / l; nor[o + 1] = 2 * STEP / l; nor[o + 2] = -dz / l; if (h < lo) lo = h; if (h > hi) hi = h;
+        pos[o] = x0 + i * STEP; pos[o + 1] = h; pos[o + 2] = z0 + j * STEP;
+        { const hd = Math.hypot(pos[o] - HOLE.x, pos[o + 2] - HOLE.z); if (hd < 6.4) pos[o + 1] -= 1.0 * (1 - smooth(4.6, 6.4, hd)); }   // am Loch liegt das Gitter etwas tiefer, darüber der Rand der Höhle
+        nor[o] = -dx / l; nor[o + 1] = 2 * STEP / l; nor[o + 2] = -dz / l; if (h < lo) lo = h; if (h > hi) hi = h;
       }
       let q = 0;
       for (let j = 0; j < NQ; j++) for (let i = 0; i < NQ; i++) {
         const a = j * n + i, b = a + 1, c = a + n, d = c + 1;
+        if (Math.hypot(x0 + (i + 0.5) * STEP - HOLE.x, z0 + (j + 0.5) * STEP - HOLE.z) < HOLE.cut) { for (let k = 0; k < 6; k++) idx[q++] = a; continue; }   // über dem Loch: kein Gelände, dort liegt der Rand der Höhle
         if (Math.abs(pos[a * 3 + 1] - pos[d * 3 + 1]) < Math.abs(pos[b * 3 + 1] - pos[c * 3 + 1])) { idx[q++] = a; idx[q++] = c; idx[q++] = d; idx[q++] = a; idx[q++] = d; idx[q++] = b; } else { idx[q++] = a; idx[q++] = c; idx[q++] = b; idx[q++] = b; idx[q++] = c; idx[q++] = d; }
       }
       const g = new T.BufferGeometry(); g.setAttribute('position', new T.BufferAttribute(pos, 3)); g.setAttribute('normal', new T.BufferAttribute(nor, 3)); g.setIndex(new T.BufferAttribute(idx, 1));
