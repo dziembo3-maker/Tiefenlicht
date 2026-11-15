@@ -15,6 +15,7 @@ import { createCabin, SEAT, FLOOR_Y } from './cabin.js';
 import { createTable } from './sonartable.js';
 import { MISSIONS, HINTED, REACH, createCanisters } from './missions.js';
 import { createWhales, choosePod } from './whales.js';
+import { createDiver } from './diver.js';
 
 const Q = new URLSearchParams(location.search), $ = (id) => document.getElementById(id);
 const canvas = $('c');
@@ -26,7 +27,7 @@ createBackdrop(scene);
 let boatKind = 0; try { boatKind = +(localStorage.getItem('tiefenlicht.boat') || 0) || 0; } catch (e) { /* ohne Speicher */ }
 const life = createLife(scene), fauna = createFauna(scene), world = createWorld(scene, life), post = createPost(renderer), audio = createAudio();
 let boat = createSub(scene, boatKind);
-createShaft(scene, PLAIN.x + 6, PLAIN.z + 4, -8, PLAIN.floor - 1, 46); const snow = createSnow(scene), cans = createCanisters(scene, world), whales = createWhales(scene);
+createShaft(scene, PLAIN.x + 6, PLAIN.z + 4, -8, PLAIN.floor - 1, 46); const snow = createSnow(scene), cans = createCanisters(scene, world), whales = createWhales(scene), diver = createDiver(scene);
 const cabin = createCabin(), cabinScene = new T.Scene(), camIn = new T.PerspectiveCamera(72, 1, 0.04, 40); cabinScene.add(cabin.group);
 cabin.group.traverse((o) => { const p = o.position; if (Math.abs(p.x - 0.83) < 0.005 && Math.abs(p.z - 0.04) < 0.005) { if (o.isSprite) p.set(0.9, 0.82, -0.25); else if (Math.abs(p.y - 0.7725) < 0.005) o.visible = false; } });   // keine lose Seite mehr: neue Seiten kommen direkt ins Logbuch, das dann schimmert
 // Ansicht: draußen hinter dem Boot oder drinnen in der Kabine (gehen, am Steuer sitzen, am Sonartisch stehen)
@@ -52,7 +53,7 @@ function resize() {
 window.addEventListener('resize', resize); resize();
 
 // ---------- Sichtfeld (einstellbar, getrennt für draußen und drinnen; gespeichert) ----------
-function fovFor(m) { const p = window.innerHeight > window.innerWidth; return (m === 'in' ? FOV.in : FOV.out) + (p ? (m === 'in' ? 14 : 22) : 0); }
+function fovFor(m) { const p = window.innerHeight > window.innerWidth; const fp = m === 'in' || m === 'dive'; return (fp ? FOV.in : FOV.out) + (p ? (fp ? 14 : 22) : 0); }
 // ---------- Zustand ----------
 const S = { x: cxAt(-86), y: -45, z: -86, h: 0.12, vx: 0, vy: 0, vz: 0, yawV: 0, roll: 0, pitch: 0, thrust: 0, prop: 0 };
 const C = { yaw: 0.12, oy: 0, op: 0, dist: 11, pos: new T.Vector3(S.x, S.y + 3, S.z - 11), idle: 9, look: new T.Vector3() };
@@ -70,7 +71,7 @@ window.addEventListener('pointerdown', (e) => {
     if (I.lookId === null) { I.lookId = e.pointerId; I.lx = e.clientX; I.ly = e.clientY; } return;
   }
   if (e.pointerType === 'mouse') {
-    if (lockOK && e.target === canvas && !devOpen()) { if (document.pointerLockElement !== canvas) { try { const r = canvas.requestPointerLock(); if (r && r.catch) r.catch(() => { if (!hadLock) lockOK = false; else grabEl.style.opacity = 1; }); } catch (x) { if (!hadLock) lockOK = false; } } else if (e.button === 2) ping(); return; }
+    if (lockOK && e.target === canvas && !devOpen()) { if (document.pointerLockElement !== canvas) { try { const r = canvas.requestPointerLock(); if (r && r.catch) r.catch(() => { if (!hadLock) lockOK = false; else grabEl.style.opacity = 1; }); } catch (x) { if (!hadLock) lockOK = false; } } else if (e.button === 2 && V.mode !== 'dive') ping(); return; }
     if (I.lookId === null) { I.lookId = e.pointerId; I.lx = e.clientX; I.ly = e.clientY; } return;   // ohne Mausfang: Ziehen = umsehen
   }
   if (e.clientX < window.innerWidth * 0.5 && I.joyId === null) { I.joyId = e.pointerId; I.ox = e.clientX; I.oy = e.clientY; joy.style.left = e.clientX + 'px'; joy.style.top = e.clientY + 'px'; joy.style.opacity = 1; setJoy(0, 0); }
@@ -86,10 +87,10 @@ function unlock() { if (document.pointerLockElement) { quietUnlock = true; docum
 function lockMouse() { if (!PC || !lockOK || document.pointerLockElement === canvas || devOpen()) return; try { const r = canvas.requestPointerLock(); if (r && r.catch) r.catch(() => { grabEl.style.opacity = 1; }); } catch (x) { /* egal */ } }
 const grabEl = $('grab');
 document.addEventListener('mousemove', (e) => { if (document.pointerLockElement !== canvas) return; const dx = e.movementX || 0, dy = e.movementY || 0; if (Math.abs(dx) > 300 || Math.abs(dy) > 300) return;
-  if (CAMV.on) { CAMV.yaw = clamp(CAMV.yaw - dx * 0.0022, -2.6, 2.6); CAMV.pitch = clamp(CAMV.pitch - dy * 0.002, -1.2, 1.2); } else if (V.mode === 'in') { V.yaw -= dx * 0.0026; V.pitch = clamp(V.pitch - dy * 0.0022, -1.25, 1.25); } else { C.oy -= dx * 0.003; C.op = clamp(C.op + dy * 0.0024, -1.15, 1.1); C.idle = 0; } });
+  if (CAMV.on) { CAMV.yaw = clamp(CAMV.yaw - dx * 0.0022, -2.6, 2.6); CAMV.pitch = clamp(CAMV.pitch - dy * 0.002, -1.2, 1.2); } else if (V.mode === 'dive') { diver.yaw -= dx * 0.0024; diver.pitch = clamp(diver.pitch - dy * 0.002, -1.2, 1.2); } else if (V.mode === 'in') { V.yaw -= dx * 0.0026; V.pitch = clamp(V.pitch - dy * 0.0022, -1.25, 1.25); } else { C.oy -= dx * 0.003; C.op = clamp(C.op + dy * 0.0024, -1.15, 1.1); C.idle = 0; } });
 window.addEventListener('pointermove', (e) => {
   if (e.pointerId === I.joyId) setJoy(e.clientX - I.ox, e.clientY - I.oy);
-  else if (e.pointerId === I.lookId) { const dx = e.clientX - I.lx, dy = e.clientY - I.ly; I.lx = e.clientX; I.ly = e.clientY; if (CAMV.on) { CAMV.yaw = clamp(CAMV.yaw - dx * 0.0045, -2.6, 2.6); CAMV.pitch = clamp(CAMV.pitch - dy * 0.0038, -1.2, 1.2); } else if (V.mode === 'in') { V.yaw -= dx * 0.0052; V.pitch = clamp(V.pitch - dy * 0.0042, -1.25, 1.25); } else { C.oy -= dx * 0.0055; C.op = clamp(C.op + dy * 0.004, -1.15, 1.1); C.idle = 0; } }
+  else if (e.pointerId === I.lookId) { const dx = e.clientX - I.lx, dy = e.clientY - I.ly; I.lx = e.clientX; I.ly = e.clientY; if (CAMV.on) { CAMV.yaw = clamp(CAMV.yaw - dx * 0.0045, -2.6, 2.6); CAMV.pitch = clamp(CAMV.pitch - dy * 0.0038, -1.2, 1.2); } else if (V.mode === 'dive') { diver.yaw -= dx * 0.0048; diver.pitch = clamp(diver.pitch - dy * 0.004, -1.2, 1.2); } else if (V.mode === 'in') { V.yaw -= dx * 0.0052; V.pitch = clamp(V.pitch - dy * 0.0042, -1.25, 1.25); } else { C.oy -= dx * 0.0055; C.op = clamp(C.op + dy * 0.004, -1.15, 1.1); C.idle = 0; } }
 });
 const release = (e) => { if (e.pointerId === I.joyId) { I.joyId = null; I.jx = I.jy = 0; joy.style.opacity = 0; knob.style.transform = ''; } if (e.pointerId === I.lookId) I.lookId = null; };
 window.addEventListener('pointerup', release); window.addEventListener('pointercancel', release);
@@ -184,6 +185,7 @@ $('sonar').addEventListener('pointerdown', (e) => { e.preventDefault(); if (star
 const sphBuf = []; function nearSpheres() { if (!whales.list.length) return world.near; const c = whales.list[0]; if (Math.hypot(c.x - S.x, c.z - S.z) > 140) return world.near; sphBuf.length = 0; for (const s of world.near) sphBuf.push(s); for (const s of whales.spheres) sphBuf.push(s); return sphBuf; }
 const nT = { x: 0, y: 0, z: 0 }, CLEAR = 3.9, SOFT = 1.2;
 function props(dt) {   // Steuerrad, Tiefenruder, Tee: laufen immer mit, auch wenn man draußen ist
+  cabin.state.suit = suitState();
   const st = cabin.state; st.wheel += (S.yawV / 0.72 * 1.4 - st.wheel) * Math.min(1, dt * 5); st.lever += (-S.vy / 3.3 * 0.55 - st.lever) * Math.min(1, dt * 5);
   for (const p of boat.planes) p.rotation.x = -S.vy / 3.3 * 0.45 + st.lever * 0;
   if (tea.phase === 'heat') { tea.t += dt; if (tea.t > 22) tea.phase = 'ready'; } else if (tea.phase === 'cool') { tea.t += dt; if (tea.t > 30) { tea.phase = 'cold'; tea.t = 0; } }
@@ -263,15 +265,79 @@ C.look.set(S.x, S.y + 1, S.z + 2);
 // ---------- Kabine: Ego-Perspektive ----------
 const table = createTable(S, nav, $('tableCv'), () => sectors[0]), eyeL = new T.Vector3(), winCol = new T.Vector3(), tmpS = new T.Vector3(), fadeEl = $('fade'), actEl = $('act'), modeEl = $('mode');
 let switching = false;
-function ui() { document.body.className = (V.mode === 'in' ? 'in ' + V.st : 'out') + (PC ? ' pc' : '') + (M.open ? ' menu' : '') + (CAMV.on ? ' cam' : ''); $('modeL').textContent = V.mode === 'in' ? t('to_out') : t('to_in'); }
+function ui() { document.body.className = (V.mode === 'in' ? 'in ' + V.st : V.mode === 'dive' ? 'dive' : 'out') + (PC ? ' pc' : '') + (M.open ? ' menu' : '') + (CAMV.on ? ' cam' : ''); $('modeL').textContent = V.mode === 'in' ? t('to_out') : t('to_in'); }
 function applyMode() {
-  const inn = V.mode === 'in'; boatVis();
+  const inn = V.mode === 'in', dive = V.mode === 'dive'; boatVis();
   if (inn && MS.pageSeen < curPage() && started) setTimeout(() => note(t('page_new')), 1200);
   if (inn) { V.st = 'walk'; V.px = 0; V.pz = -0.95; V.yaw = 0; V.pitch = 0; V.hx = 0; V.hy = 1.56; V.hz = -0.95; table.reset(); if (!PC) { hintEl.textContent = t('hint_in_touch'); hintEl.style.opacity = 1; hintT = 6; } }
-  else { if (hintEl.textContent === t('hint_in_touch')) { hintEl.style.opacity = 0; hintT = 0; } C.yaw = S.h; C.oy = C.op = 0; C.dist = 14; C.pos.set(S.x - Math.sin(S.h) * 14, S.y + 4, S.z - Math.cos(S.h) * 14); C.look.set(S.x, S.y + 1, S.z); }
-  if (!inn) sonHint(); audio.setInside(inn); world.setSmall(!inn); life.setInside(inn); ui(); resize(); syncFov();
+  else if (dive) { hintEl.textContent = t(PC ? 'dive_hint_pc' : 'dive_hint_touch'); hintEl.style.opacity = 1; hintT = 9; }
+  else { if (hintEl.textContent === t('hint_in_touch') || hintEl.textContent === t('dive_hint_touch') || hintEl.textContent === t('dive_hint_pc')) { hintEl.style.opacity = 0; hintT = 0; } C.yaw = S.h; C.oy = C.op = 0; C.dist = 14; C.pos.set(S.x - Math.sin(S.h) * 14, S.y + 4, S.z - Math.cos(S.h) * 14); C.look.set(S.x, S.y + 1, S.z); }
+  if (!inn && !dive) sonHint(); audio.setInside(inn); audio.setSuit(dive); U.uLampOn.value = dive ? 0.5 : 1; world.setSmall(!inn); life.setInside(inn); cabin.state.suit = suitState(); ui(); resize(); syncFov(); if (dive) drawHelmet();
 }
 function setMode(m) { closeTapes(); closeHorch(); if (CAMV.on) closeCam(true); if (switching || !started || V.mode === m) return; switching = true; fadeEl.style.opacity = 1; setTimeout(() => { V.mode = m; applyMode(); fadeEl.style.opacity = 0; switching = false; }, 330); }
+// ---------- Taucheranzug: durch die Luke hinaus, am Schlauch über den Grund gehen, am Heck wieder hinein ----------
+let devSuit = false, nearHatch = false; try { devSuit = localStorage.getItem('tiefenlicht.devsuit') === '1'; } catch (e) { /* egal */ }
+const hasSuit = () => !!(MS.suit || devSuit), suitState = () => (!hasSuit() ? 0 : V.mode === 'dive' ? 2 : 1);
+const hoseA = new T.Vector3(), bodyS = [0, 1, 2, 3, 4].map(() => ({ x: 0, y: 0, z: 0, r: 1 })), tv2 = new T.Vector3();
+function boatSpheres() { const b = boat.body; for (let k = 0; k < 5; k++) { const z = b.z0 + 0.35 + (b.z1 - b.z0 - 0.5) * k / 4; tv2.set(0, 0, z).applyMatrix4(boat.group.matrixWorld); const s = bodyS[k]; s.x = tv2.x; s.y = tv2.y; s.z = tv2.z; s.r = b.r * 1.35 * (k === 0 ? 0.7 : 0.95); } return bodyS; }
+function suitOut() {
+  if (switching || !started || !hasSuit() || V.mode !== 'in') return; closeTapes(); closeHorch(); if (V.st !== 'walk') V.st = 'walk'; switching = true; fadeEl.style.opacity = 1; audio.hatch();
+  setTimeout(() => { boat.group.updateMatrixWorld(true); hoseA.copy(boat.hoseLocal).applyMatrix4(boat.group.matrixWorld); const e = new T.Vector3(3.2, -0.5, -0.9).applyMatrix4(boat.group.matrixWorld);
+    e.y = Math.max(e.y, floorH(e.x, e.z) + 1.75); diver.enter(e, S.h + 0.97, hoseA); V.mode = 'dive'; applyMode(); fadeEl.style.opacity = 0; switching = false; lockMouse(); }, 480);
+}
+function suitIn() {
+  if (switching || V.mode !== 'dive') return; switching = true; fadeEl.style.opacity = 1; audio.hatch();
+  setTimeout(() => { diver.exit(); V.mode = 'in'; applyMode(); V.px = V.hx = 0; V.pz = V.hz = -1.45; V.yaw = 0; V.pitch = 0; fadeEl.style.opacity = 0; switching = false; }, 480);
+}
+function diveStep(dt) {
+  const K = I.keys; let mx = I.jx, my = I.jy; if (K.KeyA || K.ArrowLeft) mx -= 1; if (K.KeyD || K.ArrowRight) mx += 1; if (K.KeyW || K.ArrowUp) my -= 1; if (K.KeyS || K.ArrowDown) my += 1;
+  const up = !!(I.up || K.Space), down = !!(I.down || K.KeyQ || K.ShiftLeft || K.ShiftRight);
+  hoseA.copy(boat.hoseLocal).applyMatrix4(boat.group.matrixWorld);
+  const e = diver.update(dt, { mx, my, up, down }, hoseA, nearSpheres(), boatSpheres());
+  audio.valve(up ? 1 : down ? 0.6 : 0); if (e.step) audio.step(e.step);
+  if (e.exhale) { audio.exhale(); helmetExhale(); life.emit(diver.x - Math.cos(diver.yaw) * 0.28, diver.y + 0.1, diver.z + Math.sin(diver.yaw) * 0.28, 0, 0.4, 0, 12 / Math.max(dt, 1e-3), dt); }
+  if (e.end && noteT <= 0 && tNote <= 0) note(t('hose_end'));
+  diver.draw(); diver.camera(camera, pxScale); diver.lamp(U.uLampPos.value, U.uLampDir.value);
+  U.uDeep.value = clamp(Math.exp((diver.y + 32) * 0.0085), 0.5, 1.12);
+  nearHatch = Math.hypot(diver.x - hoseA.x, clamp(hoseA.y, diver.y - 1.72, diver.y + 0.3) - hoseA.y, diver.z - hoseA.z) < 3.2;   // irgendwo am Taucher nah genug an der Luke
+}
+// Helm: runder Ausschnitt mit Messingrand und Bolzen, links und rechts angeschnitten die Seitenfenster mit Gitter; beim Ausatmen beschlägt das Glas kurz und Blasen steigen am Rand auf
+const helmEl = $('helmet'), helmFog = $('helmetFog'), helmBub = $('helmetBub'); let helmR = 200, helmC = [0, 0];
+function drawHelmet() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 1.5), W = Math.round(window.innerWidth * dpr), H = Math.round(window.innerHeight * dpr); helmEl.width = W; helmEl.height = H;
+  const x = helmEl.getContext('2d'), cx = W / 2, cy = H / 2, R = W > H ? Math.min(H * 0.53, W * 0.3) : W * 0.49, side = [[cx - R * 1.78, cy + R * 0.08, R * 0.56], [cx + R * 1.78, cy + R * 0.08, R * 0.56]], topW = [cx, cy - R * 1.42, R * 0.3];
+  helmR = R / dpr; helmC = [cx / dpr, cy / dpr]; const all = [[cx, cy, R], ...side, topW];
+  // Helminneres: fast schwarz, warm, um die Fenster ein Kupferschimmer
+  x.fillStyle = '#070403'; x.fillRect(0, 0, W, H);
+  for (const [px, py, r] of all) { const g = x.createRadialGradient(px, py, r, px, py, r * 1.9); g.addColorStop(0, 'rgba(120,62,28,0.42)'); g.addColorStop(0.35, 'rgba(60,30,14,0.22)'); g.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = g; x.fillRect(0, 0, W, H); }
+  // Fenster ausschneiden
+  x.globalCompositeOperation = 'destination-out'; x.fillStyle = '#000'; for (const [px, py, r] of all) { x.beginPath(); x.arc(px, py, r, 0, 6.2832); x.fill(); } x.globalCompositeOperation = 'source-over';
+  // Seitenfenster und oberes Fenster: dunkler, mit Gitterstäben
+  for (const [px, py, r] of [...side, topW]) { x.save(); x.beginPath(); x.arc(px, py, r, 0, 6.2832); x.clip(); x.fillStyle = 'rgba(4,3,2,0.45)'; x.fillRect(px - r, py - r, 2 * r, 2 * r);
+    const g = x.createRadialGradient(px, py, r * 0.55, px, py, r); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,0.75)'); x.fillStyle = g; x.fillRect(px - r, py - r, 2 * r, 2 * r);
+    x.fillStyle = '#2a1a0c'; for (const k of [-0.4, 0, 0.4]) x.fillRect(px - r, py + k * r - r * 0.045, 2 * r, r * 0.09); x.fillRect(px - r * 0.045, py - r, r * 0.09, 2 * r); x.restore(); }
+  // Hauptfenster: Schatten am Rand, beschlagener unterer Rand, eine Spiegelung oben links
+  x.save(); x.beginPath(); x.arc(cx, cy, R, 0, 6.2832); x.clip();
+  let g = x.createRadialGradient(cx, cy, R * 0.72, cx, cy, R); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(0.75, 'rgba(0,0,0,0.25)'); g.addColorStop(1, 'rgba(0,0,0,0.85)'); x.fillStyle = g; x.fillRect(cx - R, cy - R, 2 * R, 2 * R);
+  g = x.createLinearGradient(0, cy + R * 0.45, 0, cy + R); g.addColorStop(0, 'rgba(210,225,228,0)'); g.addColorStop(1, 'rgba(210,225,228,0.1)'); x.fillStyle = g; x.fillRect(cx - R, cy - R, 2 * R, 2 * R);
+  x.lineCap = 'round'; for (const [w, a] of [[R * 0.05, 0.035], [R * 0.018, 0.09]]) { x.strokeStyle = `rgba(235,245,248,${a})`; x.lineWidth = w; x.beginPath(); x.arc(cx, cy, R * 0.86, 3.55, 4.25); x.stroke(); }
+  x.restore();
+  // Messingrahmen mit Bolzen
+  const ring = (px, py, r0, r1, bolts) => { const lg = x.createLinearGradient(px - r1, py - r1, px + r1, py + r1); lg.addColorStop(0, '#d7a75a'); lg.addColorStop(0.35, '#8a5e26'); lg.addColorStop(0.6, '#4a2f12'); lg.addColorStop(1, '#a87a38');
+    x.fillStyle = lg; x.beginPath(); x.arc(px, py, r1, 0, 6.2832); x.arc(px, py, r0, 0, 6.2832, true); x.fill();
+    const sg = x.createRadialGradient(px, py, r0, px, py, r1); sg.addColorStop(0, 'rgba(0,0,0,0.55)'); sg.addColorStop(0.3, 'rgba(0,0,0,0)'); sg.addColorStop(0.8, 'rgba(255,220,160,0.08)'); sg.addColorStop(1, 'rgba(0,0,0,0.6)'); x.fillStyle = sg; x.beginPath(); x.arc(px, py, r1, 0, 6.2832); x.arc(px, py, r0, 0, 6.2832, true); x.fill();
+    for (let k = 0; k < bolts; k++) { const a = (k + 0.5) / bolts * 6.2832, bx = px + Math.cos(a) * (r0 + r1) / 2, by = py + Math.sin(a) * (r0 + r1) / 2, br = (r1 - r0) * 0.26, bg = x.createRadialGradient(bx - br * 0.35, by - br * 0.35, br * 0.1, bx, by, br); bg.addColorStop(0, '#f2cf8a'); bg.addColorStop(0.5, '#9a6c2c'); bg.addColorStop(1, '#2e1c0a'); x.fillStyle = bg; x.beginPath(); x.arc(bx, by, br, 0, 6.2832); x.fill(); } };
+  ring(cx, cy, R, R * 1.075, 10); for (const [px, py, r] of side) ring(px, py, r, r * 1.11, 6); ring(topW[0], topW[1], topW[2], topW[2] * 1.14, 4);
+  const fs = helmFog.style; fs.left = (cx - R) / dpr + 'px'; fs.top = (cy - R) / dpr + 'px'; fs.width = fs.height = 2 * R / dpr + 'px';
+}
+function helmetExhale() {
+  helmFog.style.transition = 'opacity 0.35s'; helmFog.style.opacity = 1; setTimeout(() => { helmFog.style.transition = 'opacity 2.6s'; helmFog.style.opacity = 0; }, 450);
+  const n = 6 + Math.floor(Math.random() * 5); for (let i = 0; i < n; i++) { const b = document.createElement('span'), s = 5 + Math.random() * 14, a = 0.25 + Math.random() * 0.5;
+    b.className = 'hb'; b.style.width = b.style.height = s + 'px'; b.style.left = (helmC[0] + Math.cos(a) * helmR * 0.92 - s / 2) + 'px'; b.style.top = (helmC[1] + Math.sin(a) * helmR * 0.92) + 'px';
+    b.style.animationDuration = (1.5 + Math.random() * 1.1) + 's'; b.style.animationDelay = (0.15 + i * 0.06 + Math.random() * 0.1) + 's'; b.style.setProperty('--dx', (-10 - Math.random() * 30) + 'px'); b.style.setProperty('--dy', (-helmR * (0.9 + Math.random() * 0.7)) + 'px');
+    b.addEventListener('animationend', () => b.remove()); helmBub.appendChild(b); }
+}
+window.addEventListener('resize', () => { if (V.mode === 'dive') drawHelmet(); });
 function setSt(s) {
   const was = V.st; V.st = s; if (s === 'table') unlock(); if (s === 'seat') sonHint();
   if (s === 'seat') { V.yaw = 0; V.pitch = 0; } else if (s === 'table') { V.yaw = -Math.PI / 2; V.pitch = -0.55; }
@@ -286,27 +352,27 @@ const LABEL = {
   kettle: () => (tea.phase === 'cold' ? t('kettle_on') : tea.phase === 'ready' ? t('kettle_pour') : ''),
   stove: () => (cabin.state.fireT > 1.2 ? '' : t('stove')),
   cupDesk: () => (cabin.state.cup === 'desk' ? t('cup_take') : ''), cupPult: () => (cabin.state.cup === 'pult' ? (cabin.state.cupHeat > 0.05 ? t('cup_drink') : t('cup_away')) : ''),
-  deck: () => t('tape_menu'), light: () => (cabin.state.lampT > 0.5 ? t('light_dim') : t('light_on')), log: () => t('log_read'), horch: () => t('horch'),
+  hatch: () => (hasSuit() ? t('suit_out') : ''), suit: () => (hasSuit() ? t('suit_out') : ''), deck: () => t('tape_menu'), light: () => (cabin.state.lampT > 0.5 ? t('light_dim') : t('light_on')), log: () => t('log_read'), horch: () => t('horch'),
 };
 const ACT = {
   seat: () => setSt('seat'), table: () => setSt('table'),
   kettle: () => { if (tea.phase === 'cold') { tea.phase = 'heat'; tea.t = 0; audio.click(0.6); } else if (tea.phase === 'ready') { tea.phase = 'cool'; tea.t = 0; cabin.state.cup = 'desk'; cabin.state.cupHeat = 1; audio.pour(); } },
   stove: () => { cabin.state.fireT = 1.7; setTimeout(() => { cabin.state.fireT = 1; }, 45000); audio.click(0.8); },
   cupDesk: () => { cabin.state.cup = 'pult'; audio.click(0.3); }, cupPult: () => { if (cabin.state.cupHeat > 0.05) { cabin.state.cupHeat = Math.max(0, cabin.state.cupHeat - 0.34); if (cabin.state.cupHeat <= 0.05) note(t('tea_done')); } else cabin.state.cup = 'none'; audio.click(0.25); },
-  deck: () => openTapes(), light: () => { cabin.state.lampT = cabin.state.lampT > 0.5 ? 0.12 : 1; audio.click(0.9); }, log: () => openLog(), horch: () => openHorch(),
+  hatch: () => suitOut(), suit: () => suitOut(), deck: () => openTapes(), light: () => { cabin.state.lampT = cabin.state.lampT > 0.5 ? 0.12 : 1; audio.click(0.9); }, log: () => openLog(), horch: () => openHorch(),
 };
 function pickTarget() {
   if (V.mode !== 'in' || V.st === 'table') return null;
   camera.getWorldDirection(fwd); let best = null, bs = 0;
   const keys = V.st === 'seat' ? ['cupPult', 'deck', 'horch'] : Object.keys(LABEL).filter((k) => k !== 'cupPult' || cabin.state.cup === 'pult');
-  for (const k of keys) { if (!LABEL[k]()) continue; cabin.toWorld(k, wv); const d = wv.sub(camera.position), l = d.length(), reach = k === 'seat' || k === 'table' ? 1.9 : 1.45; if (l > reach) continue; const c = d.dot(fwd) / l, need = k === 'seat' || k === 'table' ? 0.86 : 0.93; if (c > need && c - l * 0.02 > bs) { bs = c - l * 0.02; best = k; } }
+  for (const k of keys) { if (!LABEL[k]()) continue; cabin.toWorld(k, wv); const d = wv.sub(camera.position), l = d.length(), reach = k === 'seat' || k === 'table' ? 1.9 : 1.45; if (l > reach) continue; const c = d.dot(fwd) / l, need = k === 'seat' || k === 'table' || k === 'hatch' ? 0.86 : 0.93; if (c > need && c - l * 0.02 > bs) { bs = c - l * 0.02; best = k; } }
   return best;
 }
 const canHere = () => nearCan && (V.mode === 'out' || (V.st === 'seat' && !target));   // die Dose birgt man vom Steuer aus: draußen oder am Steuerrad
-const actLabel = () => (canHere() ? t('can_take') : V.mode !== 'in' || V.st === 'table' ? '' : target ? LABEL[target]() : V.st === 'seat' ? t('stand') : '');
-actEl.addEventListener('pointerdown', (e) => { e.preventDefault(); if (canHere()) takeCan(); else if (V.mode !== 'in') return; else if (target && LABEL[target]()) ACT[target](); else if (V.st === 'seat') setSt('walk'); });
+const actLabel = () => (canHere() ? t('can_take') : V.mode === 'dive' ? (nearHatch ? t('suit_in') : '') : V.mode !== 'in' || V.st === 'table' ? '' : target ? LABEL[target]() : V.st === 'seat' ? t('stand') : '');
+actEl.addEventListener('pointerdown', (e) => { e.preventDefault(); if (V.mode === 'dive') { if (nearHatch) suitIn(); return; } if (canHere()) takeCan(); else if (V.mode !== 'in') return; else if (target && LABEL[target]()) ACT[target](); else if (V.st === 'seat') setSt('walk'); });
 // ---------- Missionen: beginnen an der Seite auf dem Schreibtisch; gestartet liegt draußen eine Messingdose, die man birgt ----------
-const MS = { active: null, done: [], pageSeen: -1, hint: null, stage: null, cam: false, pod: null }, bannerEl = $('banner'); let nearCan = false, bannerT = 0, sonHintT = 0;
+const MS = { active: null, done: [], pageSeen: -1, hint: null, stage: null, cam: false, pod: null, suit: false }, bannerEl = $('banner'); let nearCan = false, bannerT = 0, sonHintT = 0;
 /** einmal pro Mission, beim ersten Mal am Steuer (oder draußen): kleiner Hinweis neben dem Sonar */
 function sonHint() { if (!started || !MS.active || MS.hint === MS.active) return; MS.hint = MS.active; const h = $('sonHint'); h.textContent = t(MISSIONS[misIdx(MS.active)].pod ? 'son_hint_m4' : 'son_hint'); h.style.opacity = 1; sonHintT = 9; save(); }
 const misIdx = (id) => MISSIONS.findIndex((m) => m.id === id), nextMis = () => MISSIONS[MS.done.length] || null, curPage = () => Math.min(MS.done.length, t('pages').length - 1);
@@ -563,6 +629,7 @@ window.addEventListener('keydown', (e) => { if (e.repeat) return;
   if (tapesOpen && (e.code === 'Escape' || e.code === 'KeyF')) { closeTapes(e.code === 'Escape'); return; }
   if (horchOpen && (e.code === 'Escape' || e.code === 'KeyF')) { closeHorch(e.code === 'Escape'); return; }
   if (CAMV.on) { if (e.code === 'Space') shoot(); else if (e.code === 'Escape' || e.code === 'KeyK') closeCam(); return; }
+  if (V.mode === 'dive') { if (e.code === 'KeyF') actEl.dispatchEvent(new Event('pointerdown')); else if (e.code === 'Escape' && performance.now() - escT > 400 && started) { escT = performance.now(); openMenu(); } return; }
   if (e.code === 'KeyK' && started) { openCam(); return; }
   if (e.code === 'KeyC') setMode(V.mode === 'in' ? 'out' : 'in'); if (e.code === 'KeyF') actEl.dispatchEvent(new Event('pointerdown'));
   if (e.code === 'KeyR' && started) ping(); if (e.code === 'KeyL' && started) { if ($('log').classList.contains('open')) $('log').classList.remove('open'); else openLog(); }
@@ -583,9 +650,10 @@ function frame(now) {
   if (started && run) { drive(dt); props(dt); sonarStep(dt); if (frames % 2 === 0 && (V.mode === 'out' || V.st === 'seat')) sonarDraw(); }
   else { boat.group.position.set(S.x, S.y, S.z); boat.group.rotation.set(0, S.h, 0); boat.group.updateMatrixWorld(true); U.uSubPos.value.set(S.x, S.y, S.z); U.uLampPos.value.copy(boat.lampLocal).applyMatrix4(boat.group.matrixWorld); U.uWarmPos.value.copy(boat.warmLocal).applyMatrix4(boat.group.matrixWorld); U.uLampDir.value.set(0, -0.1, 1).normalize().transformDirection(boat.group.matrixWorld); }
   if (showOut) { const w = window.innerWidth, h = window.innerHeight, ch = $('menu').querySelector('.card').offsetHeight + 14; camera.setViewOffset(w, h, 0, Math.min(h * 0.4, ch * 0.5 + h * 0.1), w, h); } else if (camera.view && camera.view.enabled) camera.clearViewOffset();   // Boot über der Karte zeigen
-  if (run || showOut) { world.update(S.x, S.z, started ? 1 : 0); if (CAMV.on && !showOut) camStep(); else if (V.mode === 'in' && !showOut) cabinStep(dt); else cameraStep(dt); }
+  if (run || showOut) { world.update(S.x, S.z, started ? 1 : 0); if (CAMV.on && !showOut) camStep(); else if (V.mode === 'in' && !showOut) cabinStep(dt); else if (V.mode === 'dive' && !showOut) diveStep(dt); else cameraStep(dt); }
   if (window.__cam) { camera.position.set(...window.__cam[0]); camera.lookAt(...window.__cam[1]); }
-  if (run) { life.update(dt, S, pxScale, world.glows); fauna.update(dt, S, U.uTime.value); cans.update(); whales.update(dt, U.uTime.value, pxScale); }
+  helmEl.style.visibility = showOut ? 'hidden' : '';
+  if (run) { life.update(dt, V.mode === 'dive' ? diver : S, pxScale, world.glows); fauna.update(dt, S, U.uTime.value); cans.update(); whales.update(dt, U.uTime.value, pxScale); }
   if (bannerT > 0 && run) { bannerT -= dt; if (bannerT <= 0) bannerEl.style.opacity = 0; }
   if (sonHintT > 0 && run) { sonHintT -= dt; if (sonHintT <= 0) $('sonHint').style.opacity = 0; }
   if (tapesOpen) drawTapes(dt);
@@ -663,7 +731,7 @@ $('mGo').addEventListener('pointerup', (e) => { e.preventDefault(); goBtn(); });
 for (const [id, p] of [['mBoat', 'boat'], ['mSet', 'set'], ['mHelp', 'help'], ['mMis', 'mis']]) $(id).addEventListener('pointerdown', (e) => { e.preventDefault(); showPanel(p); });
 for (const b of document.querySelectorAll('.mBack')) b.addEventListener('pointerdown', (e) => { e.preventDefault(); showPanel('main'); });
 $('menu').classList.add('ready');
-window.__sub = { audio, M, MS, cans, whales, syncPod, syncMis, sectors, echoes, CAMV, PHOTOS, openCam, closeCam, shoot, camTargetOk, photoTarget, openHorch, closeHorch, get horchDeg() { return horchDeg; }, set horchDeg(v) { horchDeg = v; }, startMission, takeCan, openPage, openLog, playTape, MISSIONS, openMenu, closeMenu, showPanel, setBoat, post, get boat() { return boat; }, save, load, texts, setLang, renderer, fauna, S, C, I, U, V, nav, setMode, setSt, table, cabin, tea, LOG, ACT, get target() { return target; }, start, ping, world, life, poisNear, floorH, get frames() { return frames; }, tp(x, y, z, h) { world.update(x, z, Infinity); S.x = x; S.y = y; S.z = z; S.h = h; S.vx = S.vy = S.vz = 0; C.yaw = h; C.oy = C.op = 0; C.pos.set(x - Math.sin(h) * 11, y + 3, z - Math.cos(h) * 11); C.look.set(x, y + 1, z); }, marks, info: () => ({ tris: renderer.info.render.triangles, calls: renderer.info.render.calls, PR, MSAA, chunks: world.chunks.size, near: world.near.length, glows: world.glows.length }) };
+window.__sub = { diver, suitOut, suitIn, helmetExhale, get nearHatch() { return nearHatch; }, audio, M, MS, cans, whales, syncPod, syncMis, sectors, echoes, CAMV, PHOTOS, openCam, closeCam, shoot, camTargetOk, photoTarget, openHorch, closeHorch, get horchDeg() { return horchDeg; }, set horchDeg(v) { horchDeg = v; }, startMission, takeCan, openPage, openLog, playTape, MISSIONS, openMenu, closeMenu, showPanel, setBoat, post, get boat() { return boat; }, save, load, texts, setLang, renderer, fauna, S, C, I, U, V, nav, setMode, setSt, table, cabin, tea, LOG, ACT, get target() { return target; }, start, ping, world, life, poisNear, floorH, get frames() { return frames; }, tp(x, y, z, h) { world.update(x, z, Infinity); S.x = x; S.y = y; S.z = z; S.h = h; S.vx = S.vy = S.vz = 0; C.yaw = h; C.oy = C.op = 0; C.pos.set(x - Math.sin(h) * 11, y + 3, z - Math.cos(h) * 11); C.look.set(x, y + 1, z); }, marks, info: () => ({ tris: renderer.info.render.triangles, calls: renderer.info.render.calls, PR, MSAA, chunks: world.chunks.size, near: world.near.length, glows: world.glows.length }) };
 // ---------- Entwicklermenü (unter ⚙, Passwort) ----------
 const DEV_PW = 'Entwicklung', devEl = $('dev'), pw = $('devPw');
 let devOn = false; try { devOn = localStorage.getItem('tiefenlicht.dev') === '1'; } catch (e) { /* egal */ }
@@ -704,6 +772,9 @@ function buildDev() {
   h3('KLANG · DIAGNOSE'); { const r = row(), l = document.createElement('span'); l.textContent = audio.info(); l.style.fontSize = '11px'; r.appendChild(l);
     const r2 = row(); r2.style.flexWrap = 'wrap'; const hb = btn('Hall ' + (audio.hall ? 'an' : 'aus'), () => { audio.setHall(!audio.hall); hb.textContent = 'Hall ' + (audio.hall ? 'an' : 'aus'); }, r2);
     btn('alles stumm', () => { for (const k in audio.mix) audio.setMix(k, 0); audio.whaleCfg.on = false; buildDev(); }, r2); }
+  h3('TAUCHERANZUG'); { const r = row(); r.style.flexWrap = 'wrap';
+    const sb = btn(devSuit ? 'Anzug: frei' : 'Anzug freischalten', () => { devSuit = !devSuit; try { localStorage.setItem('tiefenlicht.devsuit', devSuit ? '1' : '0'); } catch (x) { /* egal */ } sb.textContent = devSuit ? 'Anzug: frei' : 'Anzug freischalten'; }, r);
+    btn('jetzt aussteigen', () => { if (!hasSuit()) { devSuit = true; try { localStorage.setItem('tiefenlicht.devsuit', '1'); } catch (x) { /* egal */ } } if (V.mode === 'out') { V.mode = 'in'; applyMode(); } toggleDev(false); suitOut(); }, r); btn('zurück ins Boot', () => suitIn(), r); }
   h3('KAMERA & HORCHER'); { const r = row(); r.style.flexWrap = 'wrap';
     const cb = btn(devCam ? 'Kamera: frei' : 'Kamera freischalten', () => { devCam = !devCam; try { localStorage.setItem('tiefenlicht.devcam', devCam ? '1' : '0'); } catch (x) { /* egal */ } cb.textContent = devCam ? 'Kamera: frei' : 'Kamera freischalten'; }, r);
     btn('Testquelle setzen', () => { const a = Math.random() * 6.2832, d = 450 + Math.random() * 300; let x = S.x + Math.sin(a) * d, z = S.z + Math.cos(a) * d; const k = Math.hypot(x, z) > BOUNDS.r * 0.9 ? BOUNDS.r * 0.9 / Math.hypot(x, z) : 1; x *= k; z *= k; audio.clickSrc.length = 0; audio.clickSrc.push({ x, z }); buildDev(); }, r);
@@ -727,12 +798,12 @@ try { const d = JSON.parse(localStorage.getItem('tiefenlicht.devcfg') || 'null')
 
 // ---------- Speichern: automatisch alle paar Sekunden und beim Verlassen ----------
 const SAVE_KEY = 'tiefenlicht.save.v1'; let noSave = false;
-function save() { if (noSave || !started) return; try { localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 1, s: [S.x, S.y, S.z, S.h], log: LOG, seen: [...seen], course: nav.course, lamp: cabin.state.lampT, play: playTime, ms: { a: MS.active, d: MS.done, p: MS.pageSeen, t: cabin.state.tapeIn, h: MS.hint, s: MS.stage, c: MS.cam, w: MS.pod }, at: Date.now() })); } catch (e) { /* ohne Speicher */ } }
+function save() { if (noSave || !started) return; try { localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 1, s: [S.x, S.y, S.z, S.h], log: LOG, seen: [...seen], course: nav.course, lamp: cabin.state.lampT, play: playTime, ms: { a: MS.active, d: MS.done, p: MS.pageSeen, t: cabin.state.tapeIn, h: MS.hint, s: MS.stage, c: MS.cam, w: MS.pod, u: MS.suit }, at: Date.now() })); } catch (e) { /* ohne Speicher */ } }
 function load() {
   try { const d = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); if (!d || d.v !== 1 || !Array.isArray(d.s)) return false;
     [S.x, S.y, S.z, S.h] = d.s; C.yaw = S.h; C.pos.set(S.x - Math.sin(S.h) * 14, S.y + 4, S.z - Math.cos(S.h) * 14); C.look.set(S.x, S.y + 1, S.z);
     for (const e of d.log || []) LOG.push(e); for (const k of d.seen || []) seen.add(k); nav.course = d.course || null; cabin.state.lampT = cabin.state.lamp = d.lamp == null ? 1 : d.lamp; playTime = d.play || 0;
-    if (d.ms) { MS.done = (d.ms.d || []).filter((id) => misIdx(id) >= 0); MS.active = misIdx(d.ms.a) >= 0 && !MS.done.includes(d.ms.a) ? d.ms.a : null; MS.pageSeen = d.ms.p == null ? -1 : d.ms.p; MS.hint = d.ms.h || null; MS.stage = MS.active ? d.ms.s || null : null; MS.cam = !!d.ms.c || MS.done.includes('m3'); MS.pod = d.ms.w || null; cabin.state.tapeIn = d.ms.t || 0; audio.tapeTrack(cabin.state.tapeIn); }
+    if (d.ms) { MS.done = (d.ms.d || []).filter((id) => misIdx(id) >= 0); MS.active = misIdx(d.ms.a) >= 0 && !MS.done.includes(d.ms.a) ? d.ms.a : null; MS.pageSeen = d.ms.p == null ? -1 : d.ms.p; MS.hint = d.ms.h || null; MS.stage = MS.active ? d.ms.s || null : null; MS.cam = !!d.ms.c || MS.done.includes('m3'); MS.suit = !!d.ms.u; MS.pod = d.ms.w || null; cabin.state.tapeIn = d.ms.t || 0; audio.tapeTrack(cabin.state.tapeIn); }
     return true; } catch (e) { return false; }
 }
 const resumed = load(); syncMis();
