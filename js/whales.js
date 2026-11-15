@@ -14,6 +14,11 @@ const PROF = [
   [0.880, 0.041, 0.022, 0.002, 2.5], [0.950, 0.029, 0.013, 0.002, 2.6], [1.000, 0.021, 0.010, 0.002, 2.6],
 ];
 function prof(t) {
+  // vorn: die Stirn wölbt sich rund nach vorn statt flach abgeschnitten zu enden (kastenförmig, aber ohne Kante)
+  if (t < 0.07) { const q = prof0(0.07), r = prof0(t), d = Math.pow(Math.max(0, 1 - (1 - t / 0.07) ** 2), 0.42); return [q[0] * d, q[1] * d, r[2], r[3]]; }
+  return prof0(t);
+}
+function prof0(t) {
   let i = 0; while (i < PROF.length - 2 && t > PROF[i + 1][0]) i++;
   const a = PROF[i], b = PROF[i + 1], k = clamp((t - a[0]) / (b[0] - a[0]), 0, 1), s = k * k * (3 - 2 * k);
   return [a[1] + (b[1] - a[1]) * s, a[2] + (b[2] - a[2]) * s, a[3] + (b[3] - a[3]) * s, a[4] + (b[4] - a[4]) * s];
@@ -109,14 +114,17 @@ const FS = /* glsl */ `precision highp float; ${COMMON} varying vec3 vW, vN, vL;
     float headK = 1.0 - smoothstep(0.26, 0.36, t);
     if (part < 0.5) {   // Haut: schiefergrau mit einem Hauch Braun, der Kopf heller und voller Narben, der Leib dahinter in tiefen Falten
       float ang = vv * 6.2832, belly = smoothstep(0.2, -0.9, sin(ang));
-      base = mix(vec3(0.26, 0.27, 0.29), vec3(0.37, 0.365, 0.36), headK * 0.85) * (0.88 + 0.24 * seed) + vec3(0.03) * belly * (1.0 - headK);
+      float bodyK = smoothstep(0.2, 0.52, t);   // vom Kopf zum Leib: weicher Übergang über ein gutes Stück Körper statt einer Kante
+      base = mix(vec3(0.27, 0.275, 0.29), vec3(0.33, 0.33, 0.335), headK * 0.6) * (0.88 + 0.24 * seed) + vec3(0.03) * belly * bodyK;
       vec2 sp = vec2(t * 7.0 + seed * 3.1, vv * 2.3);
       float n1 = nz(sp), n2 = nz(sp * 3.1 + 0.37), n3 = nz(vec2(t * 26.0, vv * 9.0) + seed), mott = nz(vec2(t * 4.0, vv * 3.0) + seed * 0.7);
       // Falten: quer laufende, unruhige Rillen wie eine gedörrte Pflaume; am Kopf fast glatt
-      float wr = sin(t * 230.0 + n1 * 9.0 + sin(ang * 3.0 + t * 20.0) * 1.2) * 0.5 + 0.5, wr2 = sin(t * 520.0 + n2 * 14.0 + ang * 2.0) * 0.5 + 0.5;
-      bump = (wr * 0.7 + wr2 * 0.3) * smoothstep(0.28, 0.4, t) * (1.0 - smoothstep(0.92, 1.0, t)) + n3 * 0.2 * (1.0 - 0.85 * headK); base *= 0.9 + 0.18 * mott;
-      bk = mix(0.9, 2.6, smoothstep(0.28, 0.4, t));
-      base *= 0.86 + 0.2 * wr * smoothstep(0.28, 0.4, t);
+      // feiner als früher, wirken über Licht und Schatten statt über Farbe; aus der Ferne blenden sie aus, damit nichts flimmert
+      float wr = sin(t * 300.0 + n1 * 9.0 + sin(ang * 3.0 + t * 20.0) * 1.2) * 0.5 + 0.5, wr2 = sin(t * 680.0 + n2 * 14.0 + ang * 2.0) * 0.5 + 0.5;
+      float lod = 1.0 - smoothstep(0.35, 1.1, fwidth(t * 300.0)), wk = (0.15 + 0.85 * bodyK) * (1.0 - smoothstep(0.92, 1.0, t)) * lod;
+      bump = (wr * 0.7 + wr2 * 0.3) * wk + n3 * 0.22 + nz(vec2(t * 3.0, vv * 2.0) + seed * 2.3) * 0.5 * headK; base *= 0.9 + 0.16 * mott;
+      bk = mix(1.0, 1.7, bodyK);
+      base *= 0.95 + 0.07 * wr * wk;
       // Narben von Kämpfen mit Kalmaren: feine, helle Kratzer und runde Saugnapfspuren, fast nur am Kopf
       float sc = nz(vec2(t * 2.2 + seed, vv * 1.6)), line = 1.0 - smoothstep(0.0, 0.035, abs(fract(t * 18.0 + vv * 11.0 + sc * 4.0 + seed) - 0.5) - 0.465);
       line *= step(0.55, nz(vec2(t * 5.0, vv * 3.0) + seed * 1.7)) * (0.35 + 0.65 * headK);
