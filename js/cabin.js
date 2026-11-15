@@ -11,7 +11,7 @@ export const WIN = { x: 0, y: 1.15, r: 0.82 }, SEAT = { x: 0, y: 1.27, z: 0.52 }
 const wallPt = (f, z, inset = 0) => [(RC - inset) * Math.sin(f), CY - (RC - inset) * Math.cos(f), z];
 const wallX = (y, inset = 0) => Math.sqrt(Math.max(0, (RC - inset) ** 2 - (y - CY) ** 2));
 // Materialarten (aWind): -1 Holz, 0 matt, 1 Metall, 2 Lampe (schaltbar), 3 Feuer, 4 Lampe (fest), 5 Glas/Zifferblatt
-const WOOD = -1, MET = 1, LAMP = 2, FIRE = 3, STEADY = 4, MAP = 6;
+const WOOD = -1, MET = 1, LAMP = 2, FIRE = 3, STEADY = 4, MAP = 6, CLOTH = 7;
 
 /** Geometrie mit Holz-Texturkoordinaten (u quer, v längs, Variante; Variante < 0 = keine Planke → Triplanar) */
 class CGeo extends Geo {
@@ -47,13 +47,15 @@ function soft(g, c, s, m, col, seed = 0, dent = 0.04, fl = 0, rotY = 0) {
 const dome = (g, c, n, r, col) => { col = col === BRASS_ ? [0.5, 0.36, 0.17] : col; const N = new T.Vector3(...n).normalize(); lathe(g, c, Math.abs(N.x) > 0.7 ? 'x' : Math.abs(N.z) > 0.7 ? 'z' : 'y', (Math.abs(N.x) > 0.7 ? N.x : Math.abs(N.z) > 0.7 ? N.z : N.y) > 0 ? [[0, r], [r * 0.45, r * 0.8], [r * 0.7, 0]] : [[0, r], [-r * 0.45, r * 0.8], [-r * 0.7, 0]], 6, col, 0, MET); };
 
 /** gebackene Verschattung: Flächen in ein Gitter rastern, je Eckpunkt Strahlen in die Halbkugel prüfen */
-function bakeAO(g) {
-  const V = 0.04, X0 = -1.55, Y0 = -0.05, Z0 = -2.2, NX = Math.ceil(3.1 / V), NY = Math.ceil(2.35 / V), NZ = Math.ceil(3.85 / V), grid3 = new Uint8Array(NX * NY * NZ);
+let ROOM = null;   // Belegung des Kabinengitters, damit später gebaute Teile (Anzug, Kiste) auch Schatten von Wand und Boden bekommen
+function bakeAO(g, room = false, k = 0.85) {
+  const V = 0.04, X0 = -1.55, Y0 = -0.05, Z0 = -2.2, NX = Math.ceil(3.1 / V), NY = Math.ceil(2.35 / V), NZ = Math.ceil(3.85 / V), grid3 = room && ROOM ? ROOM.slice() : new Uint8Array(NX * NY * NZ);
   const P = g.p, I = g.i, mark = (x, y, z) => { const i = Math.floor((x - X0) / V), j = Math.floor((y - Y0) / V), k = Math.floor((z - Z0) / V); if (i >= 0 && j >= 0 && k >= 0 && i < NX && j < NY && k < NZ) grid3[(k * NY + j) * NX + i] = 1; };
   for (let t = 0; t < I.length; t += 3) {
     const a = I[t] * 3, b = I[t + 1] * 3, c = I[t + 2] * 3, l1 = Math.hypot(P[b] - P[a], P[b + 1] - P[a + 1], P[b + 2] - P[a + 2]), l2 = Math.hypot(P[c] - P[a], P[c + 1] - P[a + 1], P[c + 2] - P[a + 2]), n1 = Math.max(1, Math.ceil(l1 / (V * 0.7))), n2 = Math.max(1, Math.ceil(l2 / (V * 0.7)));
     for (let i = 0; i <= n1; i++) for (let j = 0; j <= n2 - i * n2 / n1; j++) { const u = i / n1, w = j / n2; mark(P[a] + (P[b] - P[a]) * u + (P[c] - P[a]) * w, P[a + 1] + (P[b + 1] - P[a + 1]) * u + (P[c + 1] - P[a + 1]) * w, P[a + 2] + (P[b + 2] - P[a + 2]) * u + (P[c + 2] - P[a + 2]) * w); }
   }
+  if (!room) ROOM = grid3;
   const occ = (x, y, z) => { const i = Math.floor((x - X0) / V), j = Math.floor((y - Y0) / V), k = Math.floor((z - Z0) / V); return i >= 0 && j >= 0 && k >= 0 && i < NX && j < NY && k < NZ && grid3[(k * NY + j) * NX + i] === 1; };
   const DIRS = []; for (let i = 0; i < 14; i++) { const y = 1 - (i + 0.5) / 14 * 2, r = Math.sqrt(1 - y * y), a = i * 2.39996; DIRS.push([Math.cos(a) * r, y, Math.sin(a) * r]); }
   const N = g.n, n = P.length / 3, ao = new Float32Array(n);
@@ -62,7 +64,7 @@ function bakeAO(g) {
     if (nx * (0 - px) + ny * (1.0 - py) + nz * (-0.3 - pz) < 0) { nx = -nx; ny = -ny; nz = -nz; }   // zur Raummitte zeigen lassen
     let o = 0, w = 0;
     for (const d of DIRS) { const c = d[0] * nx + d[1] * ny + d[2] * nz; if (c <= 0.05) continue; w += c; for (let s = 1; s <= 6; s++) { const r = 0.035 + s * s * 0.013; if (occ(px + nx * 0.03 + d[0] * r, py + ny * 0.03 + d[1] * r, pz + nz * 0.03 + d[2] * r)) { o += c * (1 - (s - 1) / 7); break; } } }
-    ao[v] = 1 - Math.min(1, o / Math.max(w, 1e-3)) * 0.85;
+    ao[v] = 1 - Math.min(1, o / Math.max(w, 1e-3)) * k;
   }
   return ao;
 }
@@ -85,6 +87,27 @@ function chartTexture() {
   x.fillStyle = 'rgba(130,40,25,0.85)'; x.beginPath(); x.arc(470, 170, 5, 0, 6.283); x.fill(); x.font = 'italic 15px Georgia, serif'; x.fillStyle = 'rgba(70,40,20,0.85)'; x.fillText('Tiefenlicht', 20, 28); x.font = 'italic 11px Georgia, serif'; x.fillText('Schlucht', 205, 290); x.fillText('?', 476, 162);
   x.strokeStyle = 'rgba(80,50,25,0.6)'; x.lineWidth = 3; x.strokeRect(6, 6, W - 12, H - 12);
   const t = new T.CanvasTexture(cv); t.anisotropy = 4; return t;
+}
+/** Segeltuch des Taucheranzugs: Köperbindung (schräge Rippen), ungleich dicke Fäden, fleckig, Salzränder, abgeschabte Stellen.
+ *  Nahtlos kachelbar; wird mit der Anzugfarbe multipliziert (Mittel ≈ 0,64). */
+function clothTexture() {
+  const N = 512, TAU = 2 * Math.PI, R = rng(31), cv = document.createElement('canvas'); cv.width = cv.height = N; const x = cv.getContext('2d'), im = x.createImageData(N, N), d = im.data;
+  // glatte, kachelbare Felder aus Sinuswellen mit ganzzahligen Frequenzen, auf grobem Raster gerechnet und weich ausgelesen
+  const field = (M, n, f0, f1) => { const W = []; for (let k = 0; k < n; k++) { const f = f0 + R() * (f1 - f0), a = R() * TAU; W.push([Math.round(Math.cos(a) * f), Math.round(Math.sin(a) * f), R() * TAU, 0.5 + R()]); }
+    const F = new Float32Array(M * M); let lo = 1e9, hi = -1e9; for (let j = 0; j < M; j++) for (let i = 0; i < M; i++) { let v = 0; for (const w of W) v += w[3] * Math.sin(TAU * (w[0] * i + w[1] * j) / M + w[2]); F[j * M + i] = v; lo = Math.min(lo, v); hi = Math.max(hi, v); }
+    for (let k = 0; k < F.length; k++) F[k] = (F[k] - lo) / (hi - lo); const s = M / N;
+    return (px, py) => { const fx = px * s, fy = py * s, i0 = Math.floor(fx), j0 = Math.floor(fy), u = fx - i0, v = fy - j0, A = (i, j) => F[((j + M) % M) * M + ((i + M) % M)]; return (A(i0, j0) * (1 - u) + A(i0 + 1, j0) * u) * (1 - v) + (A(i0, j0 + 1) * (1 - u) + A(i0 + 1, j0 + 1) * u) * v; }; };
+  const low = field(64, 12, 1, 4), mid = field(128, 14, 5, 16), stain = field(64, 8, 1, 3), slub = field(128, 8, 3, 12);
+  const row = Array.from({ length: N }, () => R() * 2 - 1), col = Array.from({ length: N }, () => R() * 2 - 1), TW = Array.from({ length: 8 }, (_, k) => Math.sin(TAU * k / 8));
+  for (let py = 0; py < N; py++) for (let px = 0; px < N; px++) {
+    const tw = TW[(px + py) & 7] + 0.35 * TW[(px - 2 * py) & 7], m = low(px, py) - 0.5, md = mid(px, py) - 0.5, st = stain(px, py), sl = slub(px, py);
+    let v = 0.64 + 0.05 * tw + 0.035 * row[py] * (0.3 + sl) + 0.015 * col[px] + 0.03 * (R() - 0.5);   // Gewebe: Rippen, dicke und dünne Fäden, Fasern
+    v *= 1 + 0.09 * m + 0.05 * md;                                                                     // fleckig gewalkt
+    const inS = Math.min(1, Math.max(0, (st - 0.78) / 0.1)), tide = Math.exp(-(((st - 0.8) / 0.03) ** 2));   // getrocknete Wasserflecken mit dunklem Salzrand
+    v *= 1 - 0.08 * inS - 0.07 * tide; if (R() < 0.003) v += 0.1;                                       // abgeschabte, helle Fasern
+    const k = (py * N + px) * 4; d[k] = Math.min(255, v * 255); d[k + 1] = Math.min(255, v * (0.985 - 0.03 * inS) * 255); d[k + 2] = Math.min(255, v * (0.95 - 0.06 * inS) * 255); d[k + 3] = 255;
+  }
+  x.putImageData(im, 0, 0); const t = new T.CanvasTexture(cv); t.wrapS = t.wrapT = T.RepeatWrapping; t.anisotropy = 4; return t;
 }
 export function createCabin() {
   const g = new CGeo(), R = rng(77), rr = (a, b) => a + R() * (b - a);
@@ -253,7 +276,7 @@ export function createCabin() {
   disc(g, [0, 0.95, ZA + 0.03], [0, 0, 1], 0.56, sh(IRON, 1.6), 0, 24, MET); ring(g, [0, 0.95, ZA + 0.05], [0, 0, 1], 0.56, 0.05, 32, 6, BRASS, 0, MET); ring(g, [0, 0.95, ZA + 0.12], [0, 0, 1], 0.17, 0.02, 20, 6, BRASS, 0, MET);
   for (let k = 0; k < 3; k++) { const a = k * PI / 3; tube(g, [[-Math.cos(a) * 0.17, 0.95 - Math.sin(a) * 0.17, ZA + 0.12], [Math.cos(a) * 0.17, 0.95 + Math.sin(a) * 0.17, ZA + 0.12]], 0.012, 0.012, 5, BRASS, 0, MET); } tube(g, [[0, 0.95, ZA + 0.03], [0, 0.95, ZA + 0.12]], 0.025, 0.025, 8, BRASS, 0, MET);
   for (let k = 0; k < 12; k++) { const a = k / 12 * 2 * PI; dome(g, [Math.cos(a) * 0.48, 0.95 + Math.sin(a) * 0.48, ZA + 0.04], [0, 0, 1], 0.018, BRASS); }
-  disc(g, [0.72, 1.55, ZA + 0.04], [0, 0, 1], 0.11, [0.95, 0.9, 0.72], 0.6, 18); lathe(g, [0.72, 1.55, ZA + 0.02], 'z', [[0, 0.135], [0.02, 0.135], [0.03, 0.115], [0.025, 0.105]], 18, BRASS, 0, MET); quad(g, [0.716, 1.55, ZA + 0.045], [0.724, 1.55, ZA + 0.045], [0.76, 1.61, ZA + 0.045], [0.752, 1.615, ZA + 0.045], IRON); quad(g, [0.716, 1.55, ZA + 0.045], [0.724, 1.55, ZA + 0.045], [0.69, 1.5, ZA + 0.045], [0.684, 1.505, ZA + 0.045], IRON);
+  disc(g, [0.33, 1.76, ZA + 0.04], [0, 0, 1], 0.11, [0.95, 0.9, 0.72], 0.6, 18); lathe(g, [0.33, 1.76, ZA + 0.02], 'z', [[0, 0.135], [0.02, 0.135], [0.03, 0.115], [0.025, 0.105]], 18, BRASS, 0, MET); quad(g, [0.326, 1.76, ZA + 0.045], [0.334, 1.76, ZA + 0.045], [0.37, 1.82, ZA + 0.045], [0.362, 1.825, ZA + 0.045], IRON); quad(g, [0.326, 1.76, ZA + 0.045], [0.334, 1.76, ZA + 0.045], [0.3, 1.71, ZA + 0.045], [0.294, 1.715, ZA + 0.045], IRON);
   { const s = [0.45, 1.3, ZA + 0.03]; box(g, s, [0.09, 0.14, 0.012], 0, BRASS, 0, 0, MET); for (const dy of [-0.05, 0.05]) dome(g, [s[0], s[1] + dy, s[2] + 0.008], [0, 0, 1], 0.008, BRASS); }
   box(g, [-0.62, 1.62, ZA + 0.06], [0.05, 0.05, 0.1], 0, BRASS, 0, 0, MET);
   lathe(g, [-0.3, 1.62, ZA + 0.1], 'z', [[0, 0.16], [0.03, 0.15], [0.06, 0.08], [0.1, 0.07], [0.11, 0]], 12, [0.32, 0.22, 0.12]);
@@ -280,11 +303,11 @@ export function createCabin() {
   // ---------- Material ----------
   const wood = new T.TextureLoader().load('wood.jpg'); wood.wrapS = T.ClampToEdgeWrapping; wood.wrapT = T.RepeatWrapping; wood.anisotropy = 4;
   const LP = [[0, 1.95, -0.55], [-1.0, 1.36, 1.36], [1.0, 1.36, 1.36], [0.86, 0.98, 0.35], [-0.6, 0.4, 0.25], [0.86, 1.1, -1.42]], LC = [[1.0, 0.68, 0.38, 1.7], [1.0, 0.68, 0.38, 0.7], [1.0, 0.68, 0.38, 0.7], [1.0, 0.7, 0.4, 0.6], [1.0, 0.4, 0.12, 0.9], [0.2, 1.0, 0.5, 0.1]];
-  const UC = { uNoise: U.uNoise, uTime: U.uTime, uWood: { value: wood }, uMap: { value: chartTexture() }, uWin: { value: new T.Vector3(0.1, 0.4, 0.6) }, uEye: { value: new T.Vector3() }, uLamp: { value: 1 }, uFire: { value: 1 },
+  const UC = { uNoise: U.uNoise, uTime: U.uTime, uWood: { value: wood }, uMap: { value: chartTexture() }, uCloth: { value: clothTexture() }, uWin: { value: new T.Vector3(0.1, 0.4, 0.6) }, uEye: { value: new T.Vector3() }, uLamp: { value: 1 }, uFire: { value: 1 },
     uLP: { value: LP.map((p) => new T.Vector3(p[0], p[1], p[2])) }, uLC: { value: LC.map((c) => new T.Vector3(c[0] * c[3], c[1] * c[3], c[2] * c[3])) } };
   const LC0 = LC.map((c) => new T.Vector3(c[0] * c[3], c[1] * c[3], c[2] * c[3]));
   const VS = `attribute float aWind, aShade, aAO; attribute vec3 aUV; varying vec3 vL, vN, vC, vUV; varying float vE, vG, vA; void main(){ vL = position; vN = normal; vC = color; vE = aShade; vG = aWind; vA = aAO; vUV = aUV; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
-  const FS = /* glsl */ `precision highp float; uniform sampler2D uNoise, uWood, uMap; uniform float uTime, uLamp, uFire; uniform vec3 uWin, uEye, uLP[6], uLC[6]; varying vec3 vL, vN, vC, vUV; varying float vE, vG, vA;
+  const FS = /* glsl */ `precision highp float; uniform sampler2D uNoise, uWood, uMap, uCloth; uniform float uTime, uLamp, uFire; uniform vec3 uWin, uEye, uLP[6], uLC[6]; varying vec3 vL, vN, vC, vUV; varying float vE, vG, vA;
     vec3 woodAt(vec2 uv, float k) { return texture2D(uWood, vec2((k + 0.03 + uv.x * 0.94) * 0.25, uv.y)).rgb; }
     void main(){ vec3 N = normalize(vN), V = normalize(uEye - vL); if (dot(N, V) < 0.0) N = -N;
       vec3 base = vC; float ao = vA;
@@ -293,6 +316,9 @@ export function createCabin() {
         if (vUV.z >= 0.0) w = woodAt(vUV.xy, vUV.z);
         else { vec3 a = abs(N); vec3 p = vL * vec3(4.0, 0.9, 0.9); w = (woodAt(fract(vec2(p.y * 4.0, p.z)), 1.0) * a.x + woodAt(fract(vec2(p.x * 1.1, p.z)), 2.0) * a.y + woodAt(fract(vec2(p.x * 1.1, p.y)), 3.0) * a.z) / (a.x + a.y + a.z); }
         base = w * vC * 1.25;
+      } else if (vG > 6.5) {   // Segeltuch: Gewebe von drei Seiten projiziert, je nach Flächenrichtung gemischt
+        vec3 a = N * N, p = vL * 2.2;
+        base = vC * (texture2D(uCloth, p.xy).rgb * a.z + texture2D(uCloth, p.zy + 0.37).rgb * a.x + texture2D(uCloth, p.xz + 0.71).rgb * a.y) * 1.55;
       } else if (vG > 5.5) { base = texture2D(uMap, vUV.xy).rgb;
       } else if (vG > 0.5 && vG < 1.5) {   // Messing/Eisen: Patina in Vertiefungen, Flecken
         float n = texture2D(uNoise, vL.xz * 3.0 + vL.y * 2.0).r, n2 = texture2D(uNoise, vL.zy * 7.0).g;
@@ -336,36 +362,73 @@ export function createCabin() {
   const cupDesk = part(cupGeo, [0.74, 0.769, 0.32]), cupPult = part(cupGeo, [0.66, 0.795, 1.02]); cupDesk.visible = cupPult.visible = false;
   const kettle = part((q) => { lathe(q, [0, 0, 0], 'y', [[0, 0.085], [0.02, 0.115], [0.1, 0.118], [0.14, 0.085], [0.155, 0.04], [0.16, 0.035], [0.17, 0.02], [0.175, 0]], 14, COPPER, 0, MET); tube(q, [[0.1, 0.06, 0], [0.18, 0.12, 0], [0.22, 0.17, 0]], 0.024, 0.01, 8, COPPER, 0, MET); const hp = []; for (let k = 0; k <= 10; k++) { const a = k / 10 * PI; hp.push([0, 0.15 + Math.sin(a) * 0.12, -0.08 + k * 0.016]); } tube(q, hp, 0.01, 0.01, 6, IRON, 0, MET); soft(q, [0, 0.27, 0], [0.04, 0.03, 0.12], 3, [0.12, 0.08, 0.06], 1, 0); }, [-0.82, 0.76, 0.22]);
 
-  // ---------- Taucheranzug: hängt am Haken neben der Luke (statt des Mantels), Helm mit Brustplatte liegt auf der Koje, Bleischuhe davor ----------
+  // ---------- Taucheranzug: hängt hinten rechts in der Ecke hinter dem Sonartisch auf einem Bügel (statt des Mantels links),
+  //            Helm mit Brustplatte steht links der Luke auf einer Holzkiste, die Bleischuhe rechts unter der Luke ----------
   const coat = part((q) => { soft(q, [0, 0, 0], [0.34, 0.72, 0.1], 5, [0.2, 0.24, 0.2], 9, 0.08); soft(q, [0, 0.36, 0.02], [0.2, 0.08, 0.1], 3, [0.18, 0.22, 0.18], 10, 0.05); }, [-0.62, 1.22, ZA + 0.1]);
-  const CANV = [0.56, 0.48, 0.34], RUB = [0.15, 0.105, 0.08], COP = [0.62, 0.33, 0.17], LEAD = [0.21, 0.22, 0.23], LTH = [0.3, 0.17, 0.09], GLS = [0.03, 0.05, 0.06];
-  const canv = (k, s2, t2) => sh(CANV, (0.8 + 0.22 * noise(s2 * 9 + 3, t2 * 7)) * k);
-  const suitHang = part((q) => {
-    const x0 = -0.64, z0 = ZA + 0.14, yT = 1.6, yB = 0.98;
-    // Rumpf: leer und flach, hängt vom Bügel, Stoff in senkrechten Falten, unten sackt er etwas zusammen
-    const fz = (a, t) => 0.016 * Math.sin(a * 7 + t * 3 + 1.3) * (0.4 + t) + 0.01 * Math.sin(a * 13 - t * 5);
-    grid(q, 36, 22, (i, j) => { const a = i / 36 * 2 * PI, t = j / 22, ca = Math.cos(a), sa = Math.sin(a);
-      const w = t < 0.12 ? 0.09 + 0.115 * Math.sin(t / 0.12 * PI / 2) : 0.205 - 0.025 * Math.sin(Math.min(1, (t - 0.12) / 0.45) * PI / 2) + 0.025 * Math.max(0, t - 0.65) / 0.35;
-      const d = (t < 0.08 ? 0.03 : 0.05 - 0.008 * t) * (sa < 0 ? 0.45 : 1) + (sa > 0 ? fz(a, t) : 0);
-      return [x0 + Math.sign(ca) * Math.pow(Math.abs(ca), 0.6) * w * (1 + 0.03 * Math.sin(t * 17 + a)), yT - t * (yT - yB) - 0.03 * Math.max(0, sa) * t * t, z0 + Math.sign(sa) * Math.pow(Math.abs(sa), 0.8) * d]; },
-      (s2, t2, p) => (t2 < 0.05 ? [0.3, 0.17, 0.11] : Math.abs(p[0] - x0) < 0.01 && p[2] > z0 ? sh(CANV, 0.6) : canv(0.88 + 3.2 * fz(s2 * 2 * PI, t2), s2, t2)), 0, 0, true);
-    // Kragen aus Gummi mit Bolzenlöchern, hängt schlaff nach vorn über
-    grid(q, 28, 4, (i, j) => { const a = i / 28 * 2 * PI, r = 0.07 + j * 0.022, f = Math.max(0, Math.sin(a)); return [x0 + Math.cos(a) * r * 1.5, yT + 0.008 - j * 0.014 - f * j * 0.035, z0 + Math.sin(a) * r * 0.6 + f * j * 0.014]; }, [0.3, 0.17, 0.11], 0, 0, true);
-    for (let k = 0; k < 10; k++) { const a = (k + 0.5) / 10 * 2 * PI, f = Math.max(0, Math.sin(a)); dome(q, [x0 + Math.cos(a) * 0.165, yT - 0.025 - f * 0.1, z0 + Math.sin(a) * 0.08 + f * 0.05], [0, 1, 0], 0.008, BRASS); }
-    // Bügel und Haken
-    box(q, [x0, yT - 0.01, z0], [0.5, 0.025, 0.03], 0, WD3, 0, 0, WOOD); tube(q, [[x0, yT + 0.002, z0], [x0, yT + 0.07, z0 - 0.02], [x0, yT + 0.1, z0 - 0.07], [x0, yT + 0.06, ZA + 0.03]], 0.006, 0.006, 6, BRASS, 0, MET);
-    // Ärmel: leer, schmal, hängen dicht am Rumpf herab, voller Knitter; am Ende Gummimanschetten
-    for (const sx of [-1, 1]) { const P = [], Rr = [];
-      for (let k = 0; k <= 16; k++) { const t = k / 16; P.push([x0 + sx * (0.2 + 0.025 * Math.sin(t * 2.4) - 0.015 * t), 1.53 - t * 0.6, z0 + 0.012 + 0.035 * t + 0.008 * Math.sin(t * 9 + sx)]); Rr.push((0.056 - 0.012 * t) * (1 + 0.16 * Math.sin(k * 2.9 + sx)) * (sx > 0 ? 0.92 : 1)); }
-      tube(q, P, Rr, 0, 9, CANV); const e = P[16]; tube(q, [[e[0], e[1] + 0.015, e[2]], [e[0], e[1] - 0.05, e[2] + 0.004]], 0.04, 0.034, 9, sh(RUB, 1.3)); disc(q, [e[0], e[1] - 0.05, e[2] + 0.004], [0, -1, 0], 0.034, sh(RUB, 0.6), 0, 9); }
-    // Beine: aus der Hüfte nach unten, dann über das Kissen auf die Koje gelegt; Füße zeigen nach oben
-    for (const sx of [-1, 1]) { const xl = -0.68 + sx * 0.11, P = [[x0 + sx * 0.1, 1.0, z0], [xl, 0.87, z0 + 0.03], [xl, 0.77, z0 + 0.09], [xl, 0.74, z0 + 0.19], [xl, 0.735, -1.72], [xl, 0.69, -1.56], [xl + sx * 0.01, 0.66, -1.4]], Rr = [0.085, 0.078, 0.072, 0.066, 0.064, 0.058, 0.054];
-      const PP = [], RR = []; for (let k = 0; k < P.length - 1; k++) for (let u = 0; u < 3; u++) { const f = u / 3, a = P[k], b = P[k + 1]; PP.push([a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f]); RR.push((Rr[k] + (Rr[k + 1] - Rr[k]) * f) * (1 + 0.14 * Math.sin((k * 3 + u) * 2.7 + sx))); } PP.push(P[P.length - 1]); RR.push(Rr[Rr.length - 1]);
-      tube(q, PP, RR, 0, 10, CANV); const kn = P[4]; soft(q, [kn[0], kn[1] + 0.035, kn[2] + 0.03], [0.15, 0.06, 0.14], 2.4, sh(RUB, 1.3), 5 + sx, 0.1);   // Knieflicken
-      const e = P[P.length - 1]; soft(q, [e[0], e[1] + 0.06, e[2] + 0.05], [0.12, 0.16, 0.2], 2.6, sh(CANV, 0.85), 7 + sx, 0.12); }
-  }, [0, 0, 0]);
-  const helmP = part((q) => {
-    const cx = -0.87, by = 0.605, cz = -1.08, CY2 = by + 0.165;
+  const CANV = [0.5, 0.42, 0.29], RUB = [0.12, 0.09, 0.07], COP = [0.62, 0.33, 0.17], LEAD = [0.21, 0.22, 0.23], LTH = [0.3, 0.17, 0.09], GLS = [0.03, 0.05, 0.06];
+  const sm = (a, b, v) => { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); }, spow = (v, e) => Math.sign(v) * Math.pow(Math.abs(v), e);
+  const lerpK = (K, t) => { for (let i = 1; i < K.length; i++) if (t <= K[i][0]) { const f = sm(K[i - 1][0], K[i][0], t); return K[i - 1][1] + (K[i][1] - K[i - 1][1]) * f; } return K[K.length - 1][1]; };
+  /** Teil in Kabinenkoordinaten mit gebackener Verschattung gegen Raum und sich selbst */
+  const partAO = (fn) => { const q = new CGeo(); fn(q); const ao = bakeAO(q, true, 0.7), m = new T.Mesh(withAO(q.build(), ao), mat); m.frustumCulled = false; const p = new T.Group(); p.add(m); inner.add(p); return p; };
+  /** ein Netz gedreht (um y) und verschoben in ein anderes kopieren */
+  const mergeXf = (q, h, ry, t) => { const c = Math.cos(ry), s = Math.sin(ry), base = q.count;
+    for (let v = 0; v < h.count; v++) { const x = h.p[v * 3], y = h.p[v * 3 + 1], z = h.p[v * 3 + 2], nx = h.n[v * 3], ny = h.n[v * 3 + 1], nz = h.n[v * 3 + 2]; q.p.push(x * c + z * s + t[0], y + t[1], -x * s + z * c + t[2]); q.n.push(nx * c + nz * s, ny, -nx * s + nz * c); }
+    for (const k of h.c) q.c.push(k); for (const k of h.w) q.w.push(k); for (const k of h.s) q.s.push(k); for (const k of h.u) q.u.push(k); for (const k of h.i) q.i.push(k + base); q.count += h.count; };
+  /** Stoffschlauch (Ärmel, Hosenbein) entlang eines Pfades; Querschnitt und Farbe frei */
+  const sleeve = (q, path, rad, nj, ni, col) => { const T3 = new T.Vector3(), U3 = new T.Vector3(), W3 = new T.Vector3(), Z3 = new T.Vector3(0, 0, 1);
+    grid(q, ni, nj, (i, j) => { const t = j / nj, a = i / ni * 2 * PI, p = path(t), p2 = path(Math.min(1, t + 0.01)), p1 = path(Math.max(0, t - 0.01));
+      T3.set(p2[0] - p1[0], p2[1] - p1[1], p2[2] - p1[2]).normalize(); U3.crossVectors(T3, Z3).normalize(); W3.crossVectors(T3, U3); const r = rad(t, a), ca = Math.cos(a), sa = Math.sin(a);
+      return [p[0] + (U3.x * ca + W3.x * sa) * r, p[1] + (U3.y * ca + W3.y * sa) * r, p[2] + (U3.z * ca + W3.z * sa) * r]; }, col, CLOTH, 0, true); };
+  const SX = 0.82, SZ = ZA + 0.135, SH = 1.69;   // Mitte, Abstand zur Wand, Schulterhöhe
+  const suitHang = partAO((q) => {
+    const yT = SH + 0.015, L = 0.72;
+    // Rumpf: leer, flach, hängt an den Schultern; Falten fallen vom Bügel, unter der Brust v-förmig, an der Taille sackt der Stoff zusammen
+    const WK = [[0, 0.12], [0.1, 0.222], [0.3, 0.218], [0.62, 0.184], [0.86, 0.208], [1, 0.2]], DK = [[0, 0.035], [0.2, 0.062], [0.6, 0.046], [1, 0.056]];
+    const fold = (u, t) => 0.012 * Math.sin(u * 10.5 + 0.9 * Math.sin(t * 4.1 + u * 2.3)) * sm(0.04, 0.4, t) + 0.009 * Math.sin(17 * (t - 0.55 * Math.abs(u))) * Math.exp(-(((t - 0.33) / 0.17) ** 2)) + 0.007 * Math.sin(t * 58) * Math.exp(-(((t - 0.68) / 0.07) ** 2)) * (1 - 0.6 * Math.abs(u));
+    const surf = (a, t) => { const u = spow(Math.cos(a), 0.55), sa = Math.sin(a), f = fold(u, t), w = lerpK(WK, t), dd = sa > 0 ? lerpK(DK, t) : 0.034;
+      return [SX + u * w * (1 + 0.02 * Math.sin(t * 19 + a * 3)), yT - t * L - 0.085 * u * u * (1 - sm(0, 0.32, t)) + 0.0025 * Math.sin(u * 8 + t * 40), SZ + spow(sa, 0.7) * dd + (sa > 0 ? f : 0.4 * f) * Math.sqrt(Math.abs(sa))]; };
+    grid(q, 48, 40, (i, j) => surf(i / 48 * 2 * PI, j / 40), (s2, t2) => { const a = s2 * 2 * PI, u = spow(Math.cos(a), 0.55), front = Math.sin(a) > 0, f = fold(u, t2);
+      const k = (0.93 + (front ? 9 : 3) * f) * (1 - 0.13 * sm(0.5, 1, t2)) * (1 - 0.08 * Math.exp(-(((t2 - 0.68) / 0.06) ** 2))); return [CANV[0] * k, CANV[1] * k, CANV[2] * k * (1 - 0.06 * t2)]; }, CLOTH, 0, true);
+    // aufgesteppte Nähte: zwei Längsnähte vorn, Passe unter den Schultern, Taillennaht – leicht erhaben und dunkler
+    const SEAM = sh(CANV, 0.74), aS = Math.acos(Math.pow(0.5, 1 / 0.55));
+    for (const a of [aS, PI - aS]) tube(q, Array.from({ length: 22 }, (_, k) => { const p = surf(a, 0.12 + k / 21 * 0.86); return [p[0], p[1], p[2] + 0.0025]; }), 0.0032, 0.0032, 5, SEAM, 0, CLOTH);
+    for (const [t2, a0, a1] of [[0.63, 0.12, PI - 0.12], [0.12, 0.2, aS], [0.12, PI - aS, PI - 0.2]]) tube(q, Array.from({ length: 16 }, (_, k) => { const p = surf(a0 + (a1 - a0) * k / 15, t2); return [p[0], p[1], p[2] + 0.0025]; }), 0.0032, 0.0032, 5, SEAM, 0, CLOTH);
+    soft(q, [SX, yT - L + 0.01, SZ + 0.005], [0.2, 0.08, 0.09], 3, sh(CANV, 0.8), 2, 0.1, CLOTH);   // Schritt
+    // Gummikragen: breite, schlaffe Manschette mit Messingösen, fällt vorn über die Schultern
+    const cpt = (a, r) => { const f = Math.max(0, Math.sin(a)), e = (r - 0.08) / 0.075, xo = Math.cos(a) * r * 1.32, u = Math.min(1, Math.abs(xo) / 0.22); return [SX + xo, yT + 0.03 - 0.075 * u * u - 0.008 * e - f * e * 0.022 + 0.005 * Math.sin(a * 6) * e, SZ + Math.sin(a) * r * 0.62 + f * e * 0.03]; };   // liegt auf den abfallenden Schultern, vorn leicht übergeschlagen
+    grid(q, 40, 5, (i, j) => cpt(i / 40 * 2 * PI, 0.08 + j / 5 * 0.085), (s2, t2) => sh([0.24, 0.13, 0.085], 0.8 + 0.3 * t2 + 0.08 * Math.sin(s2 * 40)), 0, 0, true);   // vulkanisierter Gummi, rötlich braun
+    disc(q, [SX, yT - 0.006, SZ], [0, 1, 0], 0.085, [0.02, 0.015, 0.012], 0, 14);
+    for (let k = 0; k < 12; k++) { const a = (k + 0.5) / 12 * 2 * PI, p = cpt(a, 0.127), f = Math.max(0, Math.sin(a)); ring(q, [p[0], p[1] + 0.003, p[2]], [0, 1, f * 0.9], 0.0105, 0.0035, 10, 4, BRASS, 0, MET); disc(q, [p[0], p[1] + 0.004, p[2]], [0, 1, f * 0.9], 0.007, [0.02, 0.015, 0.01], 0, 8); }
+    // Bügel aus Holz, Drahthaken über einem Messinghaken in der Wand
+    tube(q, Array.from({ length: 13 }, (_, k) => { const u = -1 + k / 6; return [SX + u * 0.235, SH + 0.022 - 0.05 * u * u, SZ - 0.004]; }), 0.013, 0.013, 6, tint(0.8), 0, WOOD);
+    tube(q, [[SX, SH + 0.03, SZ - 0.004], [SX, SH + 0.09, SZ - 0.01], [SX, SH + 0.13, SZ - 0.05], [SX, SH + 0.12, ZA + 0.06], [SX, SH + 0.1, ZA + 0.05]], 0.0045, 0.0045, 6, sh(IRON, 2.5), 0, MET);
+    box(q, [SX, SH + 0.1, ZA + 0.012], [0.045, 0.07, 0.012], 0, BRASS, 0, 0, MET); tube(q, [[SX, SH + 0.09, ZA + 0.01], [SX, SH + 0.1, ZA + 0.075], [SX, SH + 0.125, ZA + 0.085]], 0.008, 0.007, 6, BRASS, 0, MET);
+    for (const dy of [0.075, 0.125]) dome(q, [SX, SH + dy, ZA + 0.02], [0, 0, 1], 0.006, BRASS);
+    // Ärmel: leer und flach gedrückt, hängen dicht am Rumpf, am Ellbogen geknittert; Gummimanschetten an den Handgelenken
+    for (const s2 of [-1, 1]) {
+      const path = (t) => [SX + s2 * (0.2 + 0.03 * Math.sin(Math.min(t, 0.5) * PI) - 0.03 * Math.max(0, t - 0.5)), SH - 0.105 - t * 0.52, SZ + 0.01 + 0.035 * sm(0.4, 0.6, t) + 0.006 * Math.sin(t * 7)];
+      sleeve(q, path, (t, a) => (0.054 - 0.02 * t) * (0.55 + 0.45 * sm(0, 0.1, t)) * (1 + 0.16 * Math.sin(t * 34 + s2) * Math.exp(-(((t - 0.5) / 0.12) ** 2)) + 0.06 * Math.sin(a * 3 + t * 11 + s2) + 0.04 * Math.sin(a * 5 - t * 17)) * (1 - 0.18 * Math.sin(a) ** 2), 26, 14,
+        (u, t) => { const k = (0.9 - 0.14 * Math.exp(-(((t - 0.5) / 0.1) ** 2)) * (0.5 + 0.5 * Math.sin(t * 31 + s2))) * (1 - 0.1 * t); return [CANV[0] * k, CANV[1] * k, CANV[2] * k]; });
+      const e = path(1); lathe(q, [e[0], e[1] + 0.01, e[2]], 'y', [[0.0, 0.035], [-0.03, 0.039], [-0.07, 0.037], [-0.08, 0.031]], 12, RUB); disc(q, [e[0], e[1] - 0.069, e[2]], [0, -1, 0], 0.03, [0.02, 0.015, 0.01], 0, 12);
+      ring(q, [e[0], e[1] - 0.004, e[2]], [0, 1, 0], 0.039, 0.004, 14, 4, sh(RUB, 0.7)); }
+    // Hosenbeine: hängen hinter dem Sonartisch zu Boden und stauchen sich dort, die Füße kippen zur Seite
+    for (const s2 of [-1, 1]) {
+      const path = (t) => { const y = t < 0.8 ? 1.03 - t * 0.95 : 0.27 - (t - 0.8) / 0.2 * 0.21; return [SX + s2 * (0.102 + 0.015 * t) + 0.01 * Math.sin(t * 5 + s2), y, SZ + 0.006 + 0.01 * Math.sin(t * 4)]; };
+      sleeve(q, path, (t, a) => (0.086 - 0.012 * t) * (1 + 0.25 * sm(0.75, 1, t) * (0.6 + 0.4 * Math.sin(t * 70 + a))) * (1 - 0.22 * Math.sin(a) ** 2), 16, 12, (u, t) => sh(CANV, 0.9 - 0.25 * t));
+      soft(q, [SX + s2 * 0.16, 0.055, SZ + 0.01], [0.24, 0.09, 0.12], 2.6, sh(CANV, 0.7), 7 + s2, 0.12, CLOTH); }
+  });
+  // Holzkiste links der Luke; darauf der Kupferhelm mit Brustplatte, Sichtfenster in den Raum gedreht
+  const KX = -0.28, KZ = -1.89, KW = 0.44, KD = 0.34, KH = 0.31;
+  const helmP = partAO((q) => {
+    const x0 = KX - KW / 2, x1 = KX + KW / 2, z0 = KZ - KD / 2, z1 = KZ + KD / 2;
+    for (let k = 0; k < 3; k++) { const y0 = k * KH / 3 + 0.004, y1 = (k + 1) * KH / 3 - 0.004; plank(q, [x0, y0, z1], [x0, y1, z1], [x1, y1, z1], [x1, y0, z1], tint(0.85 + 0.15 * R()), k, R, KW); plank(q, [x1, y0, z0], [x1, y1, z0], [x1, y1, z1], [x1, y0, z1], tint(0.75 + 0.15 * R()), (k + 1) % 4, R, KD); }
+    for (let k = 0; k < 3; k++) { const xa = x0 + k * KW / 3 + 0.003, xb = xa + KW / 3 - 0.006; plank(q, [xa, KH, z0], [xb, KH, z0], [xb, KH, z1], [xa, KH, z1], tint(0.85 + 0.15 * R()), (k + 2) % 4, R, KD); }
+    for (const [x, z] of [[x0, z1], [x1, z1], [x1, z0]]) box(q, [x + (x === x0 ? 0.012 : -0.012), KH / 2, z + (z === z1 ? -0.012 : 0.012)], [0.03, KH, 0.03], 0, tint(0.55), 0, 0, WOOD);
+    for (const z of [z0, z1]) box(q, [KX, KH - 0.015, z + (z === z1 ? -0.012 : 0.012)], [KW, 0.03, 0.03], 0, tint(0.55), 0, 0, WOOD);
+    for (const [x, y] of [[x0, KH], [x1, KH], [x0, 0.02], [x1, 0.02]]) box(q, [x + (x === x0 ? 0.03 : -0.03), y - (y > 0.1 ? 0.03 : 0), z1 + 0.003], [0.07, 0.06, 0.006], 0, sh(IRON, 1.6), 0, 0, MET);
+    { const pts = []; for (let k = 0; k <= 10; k++) { const a = k / 10 * PI; pts.push([x1 + 0.012 + 0.035 * Math.sin(a), KH * 0.62 - 0.03 * Math.sin(a), KZ - 0.07 + 0.14 * k / 10]); } tube(q, pts, 0.009, 0.009, 6, [0.5, 0.4, 0.26]); for (const z of [KZ - 0.07, KZ + 0.07]) soft(q, [x1 + 0.012, KH * 0.62, z], [0.03, 0.035, 0.03], 2.4, [0.45, 0.36, 0.23], 3, 0.1); }
+    const hq = new CGeo(), q0 = q; ((q) => {
+    const cx = 0, by = 0, cz = 0, CY2 = by + 0.165;
     // Brustplatte: oval unten, rund am Hals, Messingband mit Bolzen und Flügelmuttern
     grid(q, 32, 9, (i, j) => { const a = i / 32 * 2 * PI, s2 = j / 9, e = Math.pow(s2, 0.9), rx = 0.2 + (0.142 - 0.2) * e, rz = 0.255 + (0.142 - 0.255) * e; return [cx + Math.cos(a) * rx, by + 0.155 * Math.sin(s2 * PI / 2), cz + Math.sin(a) * rz]; }, (s2, t2) => sh(COP, 0.88 + 0.12 * noise(s2 * 12, t2 * 4)), MET, 0, true);
     const rim = []; for (let k = 0; k < 40; k++) { const a = k / 40 * 2 * PI; rim.push([cx + Math.cos(a) * 0.205, by + 0.008, cz + Math.sin(a) * 0.26]); } tube(q, rim, 0.016, 0.016, 6, BRASS, 0, MET, true);
@@ -388,14 +451,15 @@ export function createCabin() {
     tube(q, [[cx - 0.15, CY2 + 0.17, cz + 0.04], [cx - 0.23, CY2 + 0.17, cz + 0.05], [cx - 0.28, CY2 + 0.1, cz + 0.05], [cx - 0.29, CY2 + 0.02, cz + 0.05]], 0.022, 0.022, 10, BRASS, 0, MET); lathe(q, [cx - 0.29, CY2 + 0.02, cz + 0.05], 'y', [[-0.03, 0.03], [0.0, 0.032], [0.01, 0.024]], 10, BRASS, 0, MET);
     lathe(q, [cx + 0.03, CY2 + 0.03, cz + 0.17], 'z', [[-0.02, 0.03], [0.04, 0.03], [0.05, 0.022], [0.07, 0.012]], 12, BRASS, 0, MET);
     { const c = [cx + 0.05, CY2 + 0.26, cz - 0.11]; lathe(q, c, 'x', [[-0.05, 0.03], [0.03, 0.034], [0.05, 0.04], [0.055, 0.036]], 12, BRASS, 0, MET); disc(q, [c[0] + 0.055, c[1], c[2]], [1, 0, 0], 0.035, [0.75, 0.62, 0.42], 0.25, 12, MET); box(q, [c[0] - 0.02, c[1] - 0.04, c[2]], [0.05, 0.05, 0.015], 0, BRASS, 0, 0, MET); }
-  }, [0, 0, 0]);
-  const bootsP = part((q) => {
-    for (const [bx, rot] of [[-0.36, 0.08], [-0.17, -0.05]]) { const bz = -1.88, cr = Math.cos(rot), sr = Math.sin(rot), at = (dx, y, dz) => [bx + dx * cr + dz * sr, y, bz - dx * sr + dz * cr];
+      })(hq); mergeXf(q0, hq, -0.62, [KX + 0.01, KH + 0.012, KZ + 0.02]);
+  });
+  const bootsP = partAO((q) => {
+    for (const [bx, rot] of [[0.17, 0.1], [0.36, -0.07]]) { const bz = -1.86, cr = Math.cos(rot), sr = Math.sin(rot), at = (dx, y, dz) => [bx + dx * cr + dz * sr, y, bz - dx * sr + dz * cr];
       box(q, at(0, 0.03, 0.01), [0.13, 0.06, 0.32], rot, LEAD); box(q, at(0, 0.064, 0.01), [0.135, 0.008, 0.325], rot, sh(LEAD, 1.3), 0, 0, MET);
       soft(q, at(0, 0.1, 0.1), [0.125, 0.09, 0.13], 2.3, BRASS, 3, 0.02, MET, rot);
       soft(q, at(0, 0.17, -0.04), [0.12, 0.22, 0.2], 3.2, LTH, 4, 0.06, 0, rot); lathe(q, at(0, 0.27, -0.05), 'y', [[0, 0.062], [0.02, 0.066], [0.03, 0.06]], 12, sh(LTH, 0.7));
       for (const y of [0.14, 0.21]) box(q, at(0, y, -0.04), [0.128, 0.014, 0.205], rot, sh(LTH, 0.55)); box(q, at(0.064, 0.21, -0.04), [0.012, 0.022, 0.03], rot, BRASS, 0, 0, MET); }
-  }, [0, 0, 0]);
+  });
   // Bildschirm des Sonartischs
   const scv = document.createElement('canvas'); scv.width = scv.height = 256; const stex = new T.CanvasTexture(scv); stex.minFilter = T.LinearFilter; stex.generateMipmaps = false;
   const smesh = new T.Mesh(new T.CircleGeometry(0.285, 40), new T.MeshBasicMaterial({ map: stex, stencilWrite: true, stencilRef: 1, stencilFunc: T.AlwaysStencilFunc, stencilZPass: T.ReplaceStencilOp })); smesh.position.set(sc[0] + sn[0] * 0.012, sc[1] + sn[1] * 0.012, sc[2]); smesh.lookAt(sc[0] + sn[0], sc[1] + sn[1], sc[2]); inner.add(smesh); stex.wrapS = T.RepeatWrapping; stex.repeat.x = -1; stex.offset.x = 1;
@@ -421,7 +485,7 @@ export function createCabin() {
   const head = new T.Object3D(); head.rotation.order = 'YXZ'; group.add(head);
 
   // Stellen, an denen man etwas tun kann (Kabinenkoordinaten)
-  const TG = { seat: [0, 0.75, 0.72], table: [0.9, 1.02, -1.42], kettle: [-0.82, 0.92, 0.22], stove: [-0.6, 0.42, 0.25], cupDesk: [0.74, 0.82, 0.32], cupPult: [0.66, 0.84, 1.02], deck: [1.0, 1.19, 0.05], light: [0.45, 1.3, ZA + 0.05], log: [0.9, 0.8, -0.25], page: [0.83, 0.79, 0.04], horch: [HX + 0.06, 1.03, HZ], hatch: [0, 1.1, ZA + 0.14], suit: [-0.64, 1.3, ZA + 0.2] }; for (let k = 0; k < 6; k++) TG['cas' + k] = [1.09, 0.835, CASZ(k)];
+  const TG = { seat: [0, 0.75, 0.72], table: [0.9, 1.02, -1.42], kettle: [-0.82, 0.92, 0.22], stove: [-0.6, 0.42, 0.25], cupDesk: [0.74, 0.82, 0.32], cupPult: [0.66, 0.84, 1.02], deck: [1.0, 1.19, 0.05], light: [0.45, 1.3, ZA + 0.05], log: [0.9, 0.8, -0.25], page: [0.83, 0.79, 0.04], horch: [HX + 0.06, 1.03, HZ], hatch: [0, 1.1, ZA + 0.14], suit: [0.82, 1.35, ZA + 0.2] }; for (let k = 0; k < 6; k++) TG['cas' + k] = [1.09, 0.835, CASZ(k)];
   const pglow = new T.Sprite(new T.SpriteMaterial({ map: gt, color: 0xffd9a0, transparent: true, opacity: 0, blending: T.AdditiveBlending, depthWrite: false })); pglow.position.set(0.83, 0.8, 0.04); pglow.scale.set(0.3, 0.3, 1); pglow.layers.set(1); inner.add(pglow);
   const hlamp = new T.Sprite(new T.SpriteMaterial({ map: gt, color: 0x9dffb0, transparent: true, opacity: 0, blending: T.AdditiveBlending, depthWrite: false })); hlamp.position.set(HX + 0.1, 1.04, HZ - 0.075); hlamp.scale.set(0.07, 0.07, 1); hlamp.layers.set(1); inner.add(hlamp);
   const C = { group, head, scopeCtx: scv.getContext('2d'), scopeTex: stex, uni: UC, TG, inner };
