@@ -255,7 +255,7 @@ export function createCabin() {
   for (let k = 0; k < 12; k++) { const a = k / 12 * 2 * PI; dome(g, [Math.cos(a) * 0.48, 0.95 + Math.sin(a) * 0.48, ZA + 0.04], [0, 0, 1], 0.018, BRASS); }
   disc(g, [0.72, 1.55, ZA + 0.04], [0, 0, 1], 0.11, [0.95, 0.9, 0.72], 0.6, 18); lathe(g, [0.72, 1.55, ZA + 0.02], 'z', [[0, 0.135], [0.02, 0.135], [0.03, 0.115], [0.025, 0.105]], 18, BRASS, 0, MET); quad(g, [0.716, 1.55, ZA + 0.045], [0.724, 1.55, ZA + 0.045], [0.76, 1.61, ZA + 0.045], [0.752, 1.615, ZA + 0.045], IRON); quad(g, [0.716, 1.55, ZA + 0.045], [0.724, 1.55, ZA + 0.045], [0.69, 1.5, ZA + 0.045], [0.684, 1.505, ZA + 0.045], IRON);
   { const s = [0.45, 1.3, ZA + 0.03]; box(g, s, [0.09, 0.14, 0.012], 0, BRASS, 0, 0, MET); for (const dy of [-0.05, 0.05]) dome(g, [s[0], s[1] + dy, s[2] + 0.008], [0, 0, 1], 0.008, BRASS); }
-  soft(g, [-0.62, 1.22, ZA + 0.1], [0.34, 0.72, 0.1], 5, [0.2, 0.24, 0.2], 9, 0.08); soft(g, [-0.62, 1.58, ZA + 0.12], [0.2, 0.08, 0.1], 3, [0.18, 0.22, 0.18], 10, 0.05); box(g, [-0.62, 1.62, ZA + 0.06], [0.05, 0.05, 0.1], 0, BRASS, 0, 0, MET);
+  box(g, [-0.62, 1.62, ZA + 0.06], [0.05, 0.05, 0.1], 0, BRASS, 0, 0, MET);
   lathe(g, [-0.3, 1.62, ZA + 0.1], 'z', [[0, 0.16], [0.03, 0.15], [0.06, 0.08], [0.1, 0.07], [0.11, 0]], 12, [0.32, 0.22, 0.12]);
   // Hängelampe und Teppich
   { const p = [0, 2.02, -0.55]; tube(g, [[0, CY + RC - 0.02, p[2]], [0, p[1] + 0.12, p[2]]], 0.008, 0.008, 4, IRON); lathe(g, p, 'y', [[0.12, 0.012], [0.108, 0.03], [0.072, 0.08], [0.066, 0.03]], 12, BRASS, 0, MET); lathe(g, p, 'y', [[0.066, 0.03], [0.024, 0.046], [-0.024, 0.037], [-0.042, 0.018], [-0.045, 0]], 12, WARM, 1.5, LAMP); }
@@ -336,6 +336,66 @@ export function createCabin() {
   const cupDesk = part(cupGeo, [0.74, 0.769, 0.32]), cupPult = part(cupGeo, [0.66, 0.795, 1.02]); cupDesk.visible = cupPult.visible = false;
   const kettle = part((q) => { lathe(q, [0, 0, 0], 'y', [[0, 0.085], [0.02, 0.115], [0.1, 0.118], [0.14, 0.085], [0.155, 0.04], [0.16, 0.035], [0.17, 0.02], [0.175, 0]], 14, COPPER, 0, MET); tube(q, [[0.1, 0.06, 0], [0.18, 0.12, 0], [0.22, 0.17, 0]], 0.024, 0.01, 8, COPPER, 0, MET); const hp = []; for (let k = 0; k <= 10; k++) { const a = k / 10 * PI; hp.push([0, 0.15 + Math.sin(a) * 0.12, -0.08 + k * 0.016]); } tube(q, hp, 0.01, 0.01, 6, IRON, 0, MET); soft(q, [0, 0.27, 0], [0.04, 0.03, 0.12], 3, [0.12, 0.08, 0.06], 1, 0); }, [-0.82, 0.76, 0.22]);
 
+  // ---------- Taucheranzug: hängt am Haken neben der Luke (statt des Mantels), Helm mit Brustplatte liegt auf der Koje, Bleischuhe davor ----------
+  const coat = part((q) => { soft(q, [0, 0, 0], [0.34, 0.72, 0.1], 5, [0.2, 0.24, 0.2], 9, 0.08); soft(q, [0, 0.36, 0.02], [0.2, 0.08, 0.1], 3, [0.18, 0.22, 0.18], 10, 0.05); }, [-0.62, 1.22, ZA + 0.1]);
+  const CANV = [0.56, 0.48, 0.34], RUB = [0.15, 0.105, 0.08], COP = [0.62, 0.33, 0.17], LEAD = [0.21, 0.22, 0.23], LTH = [0.3, 0.17, 0.09], GLS = [0.03, 0.05, 0.06];
+  const canv = (k, s2, t2) => sh(CANV, (0.8 + 0.22 * noise(s2 * 9 + 3, t2 * 7)) * k);
+  const suitHang = part((q) => {
+    const x0 = -0.64, z0 = ZA + 0.14, yT = 1.6, yB = 0.98;
+    // Rumpf: leer und flach, hängt vom Bügel, Stoff in senkrechten Falten, unten sackt er etwas zusammen
+    const fz = (a, t) => 0.016 * Math.sin(a * 7 + t * 3 + 1.3) * (0.4 + t) + 0.01 * Math.sin(a * 13 - t * 5);
+    grid(q, 36, 22, (i, j) => { const a = i / 36 * 2 * PI, t = j / 22, ca = Math.cos(a), sa = Math.sin(a);
+      const w = t < 0.12 ? 0.09 + 0.115 * Math.sin(t / 0.12 * PI / 2) : 0.205 - 0.025 * Math.sin(Math.min(1, (t - 0.12) / 0.45) * PI / 2) + 0.025 * Math.max(0, t - 0.65) / 0.35;
+      const d = (t < 0.08 ? 0.03 : 0.05 - 0.008 * t) * (sa < 0 ? 0.45 : 1) + (sa > 0 ? fz(a, t) : 0);
+      return [x0 + Math.sign(ca) * Math.pow(Math.abs(ca), 0.6) * w * (1 + 0.03 * Math.sin(t * 17 + a)), yT - t * (yT - yB) - 0.03 * Math.max(0, sa) * t * t, z0 + Math.sign(sa) * Math.pow(Math.abs(sa), 0.8) * d]; },
+      (s2, t2, p) => (t2 < 0.05 ? [0.3, 0.17, 0.11] : Math.abs(p[0] - x0) < 0.01 && p[2] > z0 ? sh(CANV, 0.6) : canv(0.88 + 3.2 * fz(s2 * 2 * PI, t2), s2, t2)), 0, 0, true);
+    // Kragen aus Gummi mit Bolzenlöchern, hängt schlaff nach vorn über
+    grid(q, 28, 4, (i, j) => { const a = i / 28 * 2 * PI, r = 0.07 + j * 0.022, f = Math.max(0, Math.sin(a)); return [x0 + Math.cos(a) * r * 1.5, yT + 0.008 - j * 0.014 - f * j * 0.035, z0 + Math.sin(a) * r * 0.6 + f * j * 0.014]; }, [0.3, 0.17, 0.11], 0, 0, true);
+    for (let k = 0; k < 10; k++) { const a = (k + 0.5) / 10 * 2 * PI, f = Math.max(0, Math.sin(a)); dome(q, [x0 + Math.cos(a) * 0.165, yT - 0.025 - f * 0.1, z0 + Math.sin(a) * 0.08 + f * 0.05], [0, 1, 0], 0.008, BRASS); }
+    // Bügel und Haken
+    box(q, [x0, yT - 0.01, z0], [0.5, 0.025, 0.03], 0, WD3, 0, 0, WOOD); tube(q, [[x0, yT + 0.002, z0], [x0, yT + 0.07, z0 - 0.02], [x0, yT + 0.1, z0 - 0.07], [x0, yT + 0.06, ZA + 0.03]], 0.006, 0.006, 6, BRASS, 0, MET);
+    // Ärmel: leer, schmal, hängen dicht am Rumpf herab, voller Knitter; am Ende Gummimanschetten
+    for (const sx of [-1, 1]) { const P = [], Rr = [];
+      for (let k = 0; k <= 16; k++) { const t = k / 16; P.push([x0 + sx * (0.2 + 0.025 * Math.sin(t * 2.4) - 0.015 * t), 1.53 - t * 0.6, z0 + 0.012 + 0.035 * t + 0.008 * Math.sin(t * 9 + sx)]); Rr.push((0.056 - 0.012 * t) * (1 + 0.16 * Math.sin(k * 2.9 + sx)) * (sx > 0 ? 0.92 : 1)); }
+      tube(q, P, Rr, 0, 9, CANV); const e = P[16]; tube(q, [[e[0], e[1] + 0.015, e[2]], [e[0], e[1] - 0.05, e[2] + 0.004]], 0.04, 0.034, 9, sh(RUB, 1.3)); disc(q, [e[0], e[1] - 0.05, e[2] + 0.004], [0, -1, 0], 0.034, sh(RUB, 0.6), 0, 9); }
+    // Beine: aus der Hüfte nach unten, dann über das Kissen auf die Koje gelegt; Füße zeigen nach oben
+    for (const sx of [-1, 1]) { const xl = -0.68 + sx * 0.11, P = [[x0 + sx * 0.1, 1.0, z0], [xl, 0.87, z0 + 0.03], [xl, 0.77, z0 + 0.09], [xl, 0.74, z0 + 0.19], [xl, 0.735, -1.72], [xl, 0.69, -1.56], [xl + sx * 0.01, 0.66, -1.4]], Rr = [0.085, 0.078, 0.072, 0.066, 0.064, 0.058, 0.054];
+      const PP = [], RR = []; for (let k = 0; k < P.length - 1; k++) for (let u = 0; u < 3; u++) { const f = u / 3, a = P[k], b = P[k + 1]; PP.push([a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f]); RR.push((Rr[k] + (Rr[k + 1] - Rr[k]) * f) * (1 + 0.14 * Math.sin((k * 3 + u) * 2.7 + sx))); } PP.push(P[P.length - 1]); RR.push(Rr[Rr.length - 1]);
+      tube(q, PP, RR, 0, 10, CANV); const kn = P[4]; soft(q, [kn[0], kn[1] + 0.035, kn[2] + 0.03], [0.15, 0.06, 0.14], 2.4, sh(RUB, 1.3), 5 + sx, 0.1);   // Knieflicken
+      const e = P[P.length - 1]; soft(q, [e[0], e[1] + 0.06, e[2] + 0.05], [0.12, 0.16, 0.2], 2.6, sh(CANV, 0.85), 7 + sx, 0.12); }
+  }, [0, 0, 0]);
+  const helmP = part((q) => {
+    const cx = -0.87, by = 0.605, cz = -1.08, CY2 = by + 0.165;
+    // Brustplatte: oval unten, rund am Hals, Messingband mit Bolzen und Flügelmuttern
+    grid(q, 32, 9, (i, j) => { const a = i / 32 * 2 * PI, s2 = j / 9, e = Math.pow(s2, 0.9), rx = 0.2 + (0.142 - 0.2) * e, rz = 0.255 + (0.142 - 0.255) * e; return [cx + Math.cos(a) * rx, by + 0.155 * Math.sin(s2 * PI / 2), cz + Math.sin(a) * rz]; }, (s2, t2) => sh(COP, 0.88 + 0.12 * noise(s2 * 12, t2 * 4)), MET, 0, true);
+    const rim = []; for (let k = 0; k < 40; k++) { const a = k / 40 * 2 * PI; rim.push([cx + Math.cos(a) * 0.205, by + 0.008, cz + Math.sin(a) * 0.26]); } tube(q, rim, 0.016, 0.016, 6, BRASS, 0, MET, true);
+    for (let k = 0; k < 12; k++) { const a = (k + 0.5) / 12 * 2 * PI; dome(q, [cx + Math.cos(a) * 0.2, by + 0.024, cz + Math.sin(a) * 0.253], [Math.cos(a), 0.4, Math.sin(a)], 0.011, BRASS); }
+    for (const a of [0.5, 2.6, 3.7, 5.8]) { const p = [cx + Math.cos(a) * 0.212, by + 0.03, cz + Math.sin(a) * 0.268]; lathe(q, p, 'y', [[0, 0.014], [0.03, 0.01]], 6, BRASS, 0, MET); box(q, [p[0], p[1] + 0.035, p[2]], [0.012, 0.016, 0.06], a, BRASS, 0, 0, MET); }
+    ring(q, [cx, by + 0.158, cz], [0, 1, 0], 0.146, 0.018, 28, 6, BRASS, 0, MET);
+    // Haube aus Kupfer
+    lathe(q, [cx, CY2, cz], 'y', [[0, 0.149], [0.03, 0.165], [0.1, 0.18], [0.17, 0.173], [0.23, 0.146], [0.275, 0.098], [0.3, 0.045], [0.307, 0]], 28, (t2) => sh(COP, 0.95 + 0.1 * Math.sin(t2 * 9)), 0, MET);
+    ring(q, [cx, CY2 + 0.03, cz], [0, 1, 0], 0.166, 0.01, 28, 5, BRASS, 0, MET);
+    // Frontfenster mit Messingrahmen und Scharnier
+    { const c = [cx + 0.168, CY2 + 0.115, cz]; lathe(q, c, 'x', [[-0.02, 0.098], [0.012, 0.098], [0.022, 0.088], [0.03, 0.074]], 24, BRASS, 0, MET); disc(q, [c[0] + 0.026, c[1], c[2]], [1, 0, 0], 0.074, GLS, 0, 24, MET); ring(q, [c[0] + 0.03, c[1], c[2]], [1, 0, 0], 0.08, 0.008, 24, 5, BRASS, 0, MET);
+      for (let k = 0; k < 8; k++) { const a = k / 8 * 2 * PI; dome(q, [c[0] + 0.024, c[1] + Math.cos(a) * 0.091, c[2] + Math.sin(a) * 0.091], [1, 0, 0], 0.007, BRASS); }
+      box(q, [c[0] + 0.02, c[1], c[2] + 0.1], [0.025, 0.05, 0.02], 0, BRASS, 0, 0, MET); disc(q, [c[0] + 0.0275, c[1] + 0.035, c[2] - 0.02], [1, 0.3, 0], 0.02, [0.45, 0.55, 0.6], 0.15, 8, MET); }
+    // Seitenfenster mit Gittern, ein kleines Fenster oben
+    for (const sz of [-1, 1]) { const c = [cx + 0.015, CY2 + 0.115, cz + sz * 0.172]; lathe(q, c, 'z', [[-sz * 0.015, 0.075], [sz * 0.012, 0.075], [sz * 0.02, 0.064]], 20, BRASS, 0, MET); disc(q, [c[0], c[1], c[2] + sz * 0.018], [0, 0, sz], 0.062, GLS, 0, 20, MET);
+      for (const dy of [-0.03, 0, 0.03]) box(q, [c[0], c[1] + dy, c[2] + sz * 0.03], [0.13, 0.009, 0.009], 0, BRASS, 0, 0, MET); box(q, [c[0], c[1], c[2] + sz * 0.032], [0.009, 0.13, 0.009], 0, BRASS, 0, 0, MET); }
+    { const d = new T.Vector3(0.62, 0.78, 0).normalize(), c = [cx + d.x * 0.24, CY2 + 0.1 + d.y * 0.19, cz]; ring(q, c, [d.x, d.y, 0], 0.045, 0.012, 18, 5, BRASS, 0, MET); disc(q, c, [d.x, d.y, 0], 0.044, GLS, 0, 14, MET);
+      for (const dz of [-0.016, 0.016]) box(q, [c[0], c[1] + 0.003, c[2] + dz], [0.07, 0.008, 0.008], -0, BRASS, 0, 0, MET, Math.atan2(d.y, d.x) - PI / 2); }
+    // hinten der Luftanschluss (Schwanenhals), rechts das Auslassventil, oben links die kleine Helmlampe
+    tube(q, [[cx - 0.15, CY2 + 0.17, cz + 0.04], [cx - 0.23, CY2 + 0.17, cz + 0.05], [cx - 0.28, CY2 + 0.1, cz + 0.05], [cx - 0.29, CY2 + 0.02, cz + 0.05]], 0.022, 0.022, 10, BRASS, 0, MET); lathe(q, [cx - 0.29, CY2 + 0.02, cz + 0.05], 'y', [[-0.03, 0.03], [0.0, 0.032], [0.01, 0.024]], 10, BRASS, 0, MET);
+    lathe(q, [cx + 0.03, CY2 + 0.03, cz + 0.17], 'z', [[-0.02, 0.03], [0.04, 0.03], [0.05, 0.022], [0.07, 0.012]], 12, BRASS, 0, MET);
+    { const c = [cx + 0.05, CY2 + 0.26, cz - 0.11]; lathe(q, c, 'x', [[-0.05, 0.03], [0.03, 0.034], [0.05, 0.04], [0.055, 0.036]], 12, BRASS, 0, MET); disc(q, [c[0] + 0.055, c[1], c[2]], [1, 0, 0], 0.035, [0.75, 0.62, 0.42], 0.25, 12, MET); box(q, [c[0] - 0.02, c[1] - 0.04, c[2]], [0.05, 0.05, 0.015], 0, BRASS, 0, 0, MET); }
+  }, [0, 0, 0]);
+  const bootsP = part((q) => {
+    for (const [bx, rot] of [[-0.36, 0.08], [-0.17, -0.05]]) { const bz = -1.88, cr = Math.cos(rot), sr = Math.sin(rot), at = (dx, y, dz) => [bx + dx * cr + dz * sr, y, bz - dx * sr + dz * cr];
+      box(q, at(0, 0.03, 0.01), [0.13, 0.06, 0.32], rot, LEAD); box(q, at(0, 0.064, 0.01), [0.135, 0.008, 0.325], rot, sh(LEAD, 1.3), 0, 0, MET);
+      soft(q, at(0, 0.1, 0.1), [0.125, 0.09, 0.13], 2.3, BRASS, 3, 0.02, MET, rot);
+      soft(q, at(0, 0.17, -0.04), [0.12, 0.22, 0.2], 3.2, LTH, 4, 0.06, 0, rot); lathe(q, at(0, 0.27, -0.05), 'y', [[0, 0.062], [0.02, 0.066], [0.03, 0.06]], 12, sh(LTH, 0.7));
+      for (const y of [0.14, 0.21]) box(q, at(0, y, -0.04), [0.128, 0.014, 0.205], rot, sh(LTH, 0.55)); box(q, at(0.064, 0.21, -0.04), [0.012, 0.022, 0.03], rot, BRASS, 0, 0, MET); }
+  }, [0, 0, 0]);
   // Bildschirm des Sonartischs
   const scv = document.createElement('canvas'); scv.width = scv.height = 256; const stex = new T.CanvasTexture(scv); stex.minFilter = T.LinearFilter; stex.generateMipmaps = false;
   const smesh = new T.Mesh(new T.CircleGeometry(0.285, 40), new T.MeshBasicMaterial({ map: stex, stencilWrite: true, stencilRef: 1, stencilFunc: T.AlwaysStencilFunc, stencilZPass: T.ReplaceStencilOp })); smesh.position.set(sc[0] + sn[0] * 0.012, sc[1] + sn[1] * 0.012, sc[2]); smesh.lookAt(sc[0] + sn[0], sc[1] + sn[1], sc[2]); inner.add(smesh); stex.wrapS = T.RepeatWrapping; stex.repeat.x = -1; stex.offset.x = 1;
@@ -361,22 +421,23 @@ export function createCabin() {
   const head = new T.Object3D(); head.rotation.order = 'YXZ'; group.add(head);
 
   // Stellen, an denen man etwas tun kann (Kabinenkoordinaten)
-  const TG = { seat: [0, 0.75, 0.72], table: [0.9, 1.02, -1.42], kettle: [-0.82, 0.92, 0.22], stove: [-0.6, 0.42, 0.25], cupDesk: [0.74, 0.82, 0.32], cupPult: [0.66, 0.84, 1.02], deck: [1.0, 1.19, 0.05], light: [0.45, 1.3, ZA + 0.05], log: [0.9, 0.8, -0.25], page: [0.83, 0.79, 0.04], horch: [HX + 0.06, 1.03, HZ] }; for (let k = 0; k < 6; k++) TG['cas' + k] = [1.09, 0.835, CASZ(k)];
+  const TG = { seat: [0, 0.75, 0.72], table: [0.9, 1.02, -1.42], kettle: [-0.82, 0.92, 0.22], stove: [-0.6, 0.42, 0.25], cupDesk: [0.74, 0.82, 0.32], cupPult: [0.66, 0.84, 1.02], deck: [1.0, 1.19, 0.05], light: [0.45, 1.3, ZA + 0.05], log: [0.9, 0.8, -0.25], page: [0.83, 0.79, 0.04], horch: [HX + 0.06, 1.03, HZ], hatch: [0, 1.1, ZA + 0.14], suit: [-0.64, 1.3, ZA + 0.2] }; for (let k = 0; k < 6; k++) TG['cas' + k] = [1.09, 0.835, CASZ(k)];
   const pglow = new T.Sprite(new T.SpriteMaterial({ map: gt, color: 0xffd9a0, transparent: true, opacity: 0, blending: T.AdditiveBlending, depthWrite: false })); pglow.position.set(0.83, 0.8, 0.04); pglow.scale.set(0.3, 0.3, 1); pglow.layers.set(1); inner.add(pglow);
   const hlamp = new T.Sprite(new T.SpriteMaterial({ map: gt, color: 0x9dffb0, transparent: true, opacity: 0, blending: T.AdditiveBlending, depthWrite: false })); hlamp.position.set(HX + 0.1, 1.04, HZ - 0.075); hlamp.scale.set(0.07, 0.07, 1); hlamp.layers.set(1); inner.add(hlamp);
   const C = { group, head, scopeCtx: scv.getContext('2d'), scopeTex: stex, uni: UC, TG, inner };
   /** Horchgerät nachführen: Peilung in Grad (im Uhrzeigersinn ab Bug, 90 = Steuerbord), Signal 0..1 */
   C.setHorch = (deg, lvl) => { const b = deg * PI / 180; hNeedle.rotation.y = b; hWheel.rotation.x = b * 3; hlamp.material.opacity = 0.08 + Math.min(1, lvl * 2.5) * 0.9; };
-  const st = { fire: 1, fireT: 1, lamp: 1, lampT: 1, boil: 0, cup: 'none', cupHeat: 0, tape: false, wheel: 0, lever: 0, own: [true, false, false, false, false, false], tapeIn: 0, pageNew: false };
+  const st = { fire: 1, fireT: 1, lamp: 1, lampT: 1, boil: 0, cup: 'none', cupHeat: 0, tape: false, wheel: 0, lever: 0, own: [true, false, false, false, false, false], tapeIn: 0, pageNew: false, suit: 0 };   // suit: 0 = kein Anzug (Mantel am Haken), 1 = hängt in der Kabine, 2 = man trägt ihn draußen
   C.state = st;
   C.toWorld = (k, out) => out.set(TG[k][0], TG[k][1], TG[k][2]).applyMatrix4(inner.matrixWorld);
-  C.highlight = (k) => { if (!k) { hint.material.opacity = Math.max(0, hint.material.opacity - 0.08); return; } hint.position.set(...TG[k]); const s = k === 'seat' || k === 'table' ? 0.32 : k.startsWith('cas') ? 0.09 : 0.16; hint.scale.set(s, s, 1); hint.material.opacity = 0.16 + 0.07 * Math.sin(U.uTime.value * 3); };
+  C.highlight = (k) => { if (!k) { hint.material.opacity = Math.max(0, hint.material.opacity - 0.08); return; } hint.position.set(...TG[k]); const s = k === 'seat' || k === 'table' ? 0.32 : k === 'hatch' ? 0.5 : k === 'suit' ? 0.4 : k.startsWith('cas') ? 0.09 : 0.16; hint.scale.set(s, s, 1); hint.material.opacity = 0.16 + 0.07 * Math.sin(U.uTime.value * 3); };
   C.update = (dt, eyeLocal, winCol, pxScale) => {
     UC.uEye.value.copy(eyeLocal); UC.uWin.value.copy(winCol); dust.material.uniforms.uPx.value = pxScale;
     st.fire += (st.fireT - st.fire) * Math.min(1, dt * 0.8); st.lamp += (st.lampT - st.lamp) * Math.min(1, dt * 6); UC.uFire.value = st.fire; UC.uLamp.value = st.lamp;
     for (let i = 0; i < 3; i++) UC.uLC.value[i].copy(LC0[i]).multiplyScalar(st.lamp); UC.uLC.value[4].copy(LC0[4]).multiplyScalar(st.fire);
     wheel.quaternion.setFromUnitVectors(new T.Vector3(0, 0, -1), wn); wheel.rotateZ(st.wheel);
     lever.rotation.x = st.lever;
+    coat.visible = st.suit === 0; suitHang.visible = helmP.visible = bootsP.visible = st.suit === 1;
     for (let k = 0; k < 6; k++) cass[k].visible = st.own[k] && st.tapeIn !== k; pglow.material.opacity = st.pageNew ? 0.1 + 0.07 * Math.sin(U.uTime.value * 2.2) : 0;
     if (st.tape) for (const r of reels) r.rotation.x += dt * 2.6; tapeLed.visible = st.tape;
     for (const s of steamK) { s.userData.t = (s.userData.t + dt * (0.22 + 0.25 * st.boil)) % 1; const t = s.userData.t; s.position.set(-0.6 + Math.sin(t * 5 + s.id) * 0.03 + t * 0.06, 0.95 + t * (0.4 + 0.4 * st.boil), 0.22 + Math.cos(t * 4 + s.id) * 0.03); const k = 0.06 + t * (0.2 + 0.2 * st.boil); s.scale.set(k, k, 1); s.material.opacity = Math.sin(t * PI) * (0.05 + 0.2 * st.boil); }
