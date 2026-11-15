@@ -299,7 +299,16 @@ function diveStep(dt) {
   if (e.end && noteT <= 0 && tNote <= 0) note(t('hose_end'));
   diver.draw(); diver.camera(camera, pxScale); diver.lamp(U.uLampPos.value, U.uLampDir.value);
   U.uDeep.value = clamp(Math.exp((diver.y + 32) * 0.0085), 0.5, 1.12);
-  nearHatch = Math.hypot(diver.x - hoseA.x, clamp(hoseA.y, diver.y - 1.72, diver.y + 0.3) - hoseA.y, diver.z - hoseA.z) < 3.2;   // irgendwo am Taucher nah genug an der Luke
+  nearHatch = hullGap() < 4.5;   // einsteigen geht vom ganzen Rumpf aus, auch von unten, bis gut 4 m Abstand
+}
+/** kleinster Abstand zwischen Taucher (senkrechte Strecke Füße bis Helm) und Rumpf (Strecke entlang der Bootsachse), abzüglich Rumpfradius */
+const hA = new T.Vector3(), hB = new T.Vector3();
+function hullGap() {
+  const b = boat.body; hA.set(0, 0, b.z0).applyMatrix4(boat.group.matrixWorld); hB.set(0, 0, b.z1).applyMatrix4(boat.group.matrixWorld);
+  const p0 = [diver.x, diver.y - 1.72, diver.z], d1 = [0, 2.02, 0], d2 = [hB.x - hA.x, hB.y - hA.y, hB.z - hA.z], r = [p0[0] - hA.x, p0[1] - hA.y, p0[2] - hA.z];
+  const dot = (u, v) => u[0] * v[0] + u[1] * v[1] + u[2] * v[2], a = dot(d1, d1), e = dot(d2, d2), f = dot(d2, r), c = dot(d1, r), bb = dot(d1, d2), den = a * e - bb * bb;
+  let s = den > 1e-6 ? clamp((bb * f - c * e) / den, 0, 1) : 0, t = (bb * s + f) / e; if (t < 0) { t = 0; s = clamp(-c / a, 0, 1); } else if (t > 1) { t = 1; s = clamp((bb - c) / a, 0, 1); }
+  return Math.hypot(p0[0] + d1[0] * s - hA.x - d2[0] * t, p0[1] + d1[1] * s - hA.y - d2[1] * t, p0[2] + d1[2] * s - hA.z - d2[2] * t) - b.r;
 }
 // Helm: runder Ausschnitt mit Messingrand und Bolzen, links und rechts angeschnitten die Seitenfenster mit Gitter; beim Ausatmen beschlägt das Glas kurz und Blasen steigen am Rand auf
 const helmEl = $('helmet'), helmFog = $('helmetFog'), helmBub = $('helmetBub'); let helmR = 200, helmC = [0, 0];
@@ -731,7 +740,7 @@ $('mGo').addEventListener('pointerup', (e) => { e.preventDefault(); goBtn(); });
 for (const [id, p] of [['mBoat', 'boat'], ['mSet', 'set'], ['mHelp', 'help'], ['mMis', 'mis']]) $(id).addEventListener('pointerdown', (e) => { e.preventDefault(); showPanel(p); });
 for (const b of document.querySelectorAll('.mBack')) b.addEventListener('pointerdown', (e) => { e.preventDefault(); showPanel('main'); });
 $('menu').classList.add('ready');
-window.__sub = { diver, suitOut, suitIn, helmetExhale, get nearHatch() { return nearHatch; }, audio, M, MS, cans, whales, syncPod, syncMis, sectors, echoes, CAMV, PHOTOS, openCam, closeCam, shoot, camTargetOk, photoTarget, openHorch, closeHorch, get horchDeg() { return horchDeg; }, set horchDeg(v) { horchDeg = v; }, startMission, takeCan, openPage, openLog, playTape, MISSIONS, openMenu, closeMenu, showPanel, setBoat, post, get boat() { return boat; }, save, load, texts, setLang, renderer, fauna, S, C, I, U, V, nav, setMode, setSt, table, cabin, tea, LOG, ACT, get target() { return target; }, start, ping, world, life, poisNear, floorH, get frames() { return frames; }, tp(x, y, z, h) { world.update(x, z, Infinity); S.x = x; S.y = y; S.z = z; S.h = h; S.vx = S.vy = S.vz = 0; C.yaw = h; C.oy = C.op = 0; C.pos.set(x - Math.sin(h) * 11, y + 3, z - Math.cos(h) * 11); C.look.set(x, y + 1, z); }, marks, info: () => ({ tris: renderer.info.render.triangles, calls: renderer.info.render.calls, PR, MSAA, chunks: world.chunks.size, near: world.near.length, glows: world.glows.length }) };
+window.__sub = { diver, hullGap, suitOut, suitIn, helmetExhale, get nearHatch() { return nearHatch; }, audio, M, MS, cans, whales, syncPod, syncMis, sectors, echoes, CAMV, PHOTOS, openCam, closeCam, shoot, camTargetOk, photoTarget, openHorch, closeHorch, get horchDeg() { return horchDeg; }, set horchDeg(v) { horchDeg = v; }, startMission, takeCan, openPage, openLog, playTape, MISSIONS, openMenu, closeMenu, showPanel, setBoat, post, get boat() { return boat; }, save, load, texts, setLang, renderer, fauna, S, C, I, U, V, nav, setMode, setSt, table, cabin, tea, LOG, ACT, get target() { return target; }, start, ping, world, life, poisNear, floorH, get frames() { return frames; }, tp(x, y, z, h) { world.update(x, z, Infinity); S.x = x; S.y = y; S.z = z; S.h = h; S.vx = S.vy = S.vz = 0; C.yaw = h; C.oy = C.op = 0; C.pos.set(x - Math.sin(h) * 11, y + 3, z - Math.cos(h) * 11); C.look.set(x, y + 1, z); }, marks, info: () => ({ tris: renderer.info.render.triangles, calls: renderer.info.render.calls, PR, MSAA, chunks: world.chunks.size, near: world.near.length, glows: world.glows.length }) };
 // ---------- Entwicklermenü (unter ⚙, Passwort) ----------
 const DEV_PW = 'Entwicklung', devEl = $('dev'), pw = $('devPw');
 let devOn = false; try { devOn = localStorage.getItem('tiefenlicht.dev') === '1'; } catch (e) { /* egal */ }
