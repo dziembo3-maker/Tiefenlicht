@@ -665,7 +665,8 @@ function frame(now) {
   if (run || showOut) { world.update(S.x, S.z, started ? 1 : 0); if (CAMV.on && !showOut) camStep(); else if (V.mode === 'in' && !showOut) cabinStep(dt); else if (V.mode === 'dive' && !showOut) diveStep(dt); else cameraStep(dt); }
   if (window.__cam) { camera.position.set(...window.__cam[0]); camera.lookAt(...window.__cam[1]); }
   helmEl.style.visibility = showOut ? 'hidden' : '';
-  if (run) { life.update(dt, V.mode === 'dive' ? diver : S, pxScale, world.glows); fauna.update(dt, S, U.uTime.value); schools.update(dt, S, V.mode === 'dive' ? { x: diver.x, y: diver.y - 0.8, z: diver.z } : S); cans.update(); whales.update(dt, U.uTime.value, pxScale); }
+  if (run) { camera.getWorldDirection(fwd); S.vh = Math.atan2(fwd.x, fwd.z);   // Blickrichtung: dort tauchen Begegnungen und Schwärme auf
+    life.update(dt, V.mode === 'dive' ? diver : S, pxScale, world.glows); fauna.update(dt, S, U.uTime.value); schools.update(dt, S, V.mode === 'dive' ? { x: diver.x, y: diver.y - 0.8, z: diver.z } : S); cans.update(); whales.update(dt, U.uTime.value, pxScale); }
   if (bannerT > 0 && run) { bannerT -= dt; if (bannerT <= 0) bannerEl.style.opacity = 0; }
   if (sonHintT > 0 && run) { sonHintT -= dt; if (sonHintT <= 0) $('sonHint').style.opacity = 0; }
   if (tapesOpen) drawTapes(dt);
@@ -780,8 +781,8 @@ function buildDev() {
     sl('Hai alle', 20, 300, 5, () => fauna.sharkGap, (x) => { fauna.sharkGap = x; fauna.sharkT = Math.min(fauna.sharkT, x); });
     sl('Schwarm alle', 15, 300, 5, () => schools.gap, (x) => { schools.gap = x; schools.timer = Math.min(schools.timer, x); });
     const r = row(); r.style.flexWrap = 'wrap';
-    btn('Begegnung jetzt', () => fauna.encounter(S), r); btn('Hai jetzt vorbei', () => fauna.sharkPass(S), r);
-    ['Kometenschwarm', 'Saphir-Plättchen', 'Neon-Säbelfische'].forEach((n, ti) => btn(n + ' jetzt', () => { const t = schools.types[ti]; t.on = false; t.m.visible = false; schools.spawn(ti, S, true); }, r));
+    btn('Begegnung jetzt', () => { if (!fauna.encounter(S)) note('Keine Begegnung möglich (zu flach)'); }, r); btn('Hai jetzt vorbei', () => fauna.sharkPass(S), r);
+    ['Kometenschwarm', 'Saphir-Plättchen', 'Neon-Säbelfische'].forEach((n, ti) => btn(n + ' jetzt', () => { const t = schools.types[ti]; t.on = false; t.m.visible = false; if (!schools.spawn(ti, S, true)) note('Hier ist kein Platz für den Schwarm (zu flach)'); devLive(); }, r));
     btn('Schwärme weg', () => schools.clear(), r);
     const r2 = row(), l = document.createElement('span'); l.id = 'devLive'; l.style.fontSize = '11px'; r2.appendChild(l); devLive(); }
   h3('WALGESÄNGE'); { const wc = audio.whaleCfg;
@@ -817,10 +818,10 @@ function buildDev() {
 }
 /** baut ein Knopf das Menü neu auf, leuchtet der neue Knopf an derselben Stelle kurz auf, damit man den Druck trotzdem sieht */
 function devFlash(i) { const nb = devEl.querySelectorAll('.pill.mini')[i]; if (!nb) return; nb.classList.add('press'); setTimeout(() => nb.classList.remove('press'), 160); }
-function devSave() { try { localStorage.setItem('tiefenlicht.devcfg', JSON.stringify({ n: fauna.cfg.map((c) => c.n), attract: fauna.attract, mix: audio.mix, mixV: 1, enc: fauna.encGap, shk: fauna.sharkGap, sch: schools.gap, nV: 2 })); } catch (e) { /* egal */ } }
+function devSave() { try { localStorage.setItem('tiefenlicht.devcfg', JSON.stringify({ n: fauna.cfg.map((c) => c.n), attract: fauna.attract, mix: audio.mix, mixV: 1, enc: fauna.encGap, shk: fauna.sharkGap, sch: schools.gap, nV: 3 })); } catch (e) { /* egal */ } }
 /** Live-Anzeige im Entwicklermenü: was gerade in der Nähe schwimmt */
 function devLive() { const l = $('devLive'); if (!l) return; const f = fauna.countNear(S.x, S.z, 60), sc = schools.countNear(S.x, S.z, 60), names = ['Komet', 'Saphir', 'Säbel'], on = schools.types.filter((t) => t.on).map((t) => names[t.ti] + ' ' + Math.round(Math.hypot(t.x - S.x, t.z - S.z)) + ' m'); l.textContent = `im Umkreis 60 m: ${f} Tiere, ${sc} Schwarmfische · Schwärme: ${on.length ? on.join(', ') : 'keiner'} · nächster Hai in ${Math.max(0, Math.round(fauna.sharkT))} s`; }
-try { const d = JSON.parse(localStorage.getItem('tiefenlicht.devcfg') || 'null'); if (d) { if (d.nV === 2) d.n.forEach((n, si) => fauna.setCount(si, n)); if (d.enc) fauna.encGap = d.enc; if (d.shk) fauna.sharkGap = d.shk; if (d.sch) schools.gap = d.sch; fauna.attract = !!d.attract; if (d.mix && d.mixV === 1) for (const k in d.mix) if (k in audio.mix) audio.setMix(k, +d.mix[k]); } } catch (e) { /* egal */ }
+try { const d = JSON.parse(localStorage.getItem('tiefenlicht.devcfg') || 'null'); if (d) { if (d.nV === 3) { d.n.forEach((n, si) => fauna.setCount(si, n)); if (d.enc) fauna.encGap = d.enc; if (d.shk) fauna.sharkGap = d.shk; if (d.sch) schools.gap = d.sch; } fauna.attract = !!d.attract; if (d.mix && d.mixV === 1) for (const k in d.mix) if (k in audio.mix) audio.setMix(k, +d.mix[k]); } } catch (e) { /* egal */ }
 
 // ---------- Speichern: automatisch alle paar Sekunden und beim Verlassen ----------
 const SAVE_KEY = 'tiefenlicht.save.v1'; let noSave = false;
