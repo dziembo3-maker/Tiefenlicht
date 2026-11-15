@@ -150,8 +150,8 @@ export function buildWhale(calf) {
 }
 
 const VS = /* glsl */ `attribute vec4 aK; attribute vec4 iP, iR, iA, iB; uniform float uTime; varying vec3 vW, vN, vTa; varying vec4 vK; varying vec2 vI;
-  float env(float t){ float e = smoothstep(0.26, 1.18, t); return 0.07 + e * e * 1.05; }
-  float wave(float t, float ph, float amp){ return amp * env(t) * sin(ph - t * 3.3); }
+  float env(float t, float r){ float e = smoothstep(0.26 - r, 1.18, t); return 0.07 + e * e * 1.05; }
+  float wave(float t, float ph, float amp){ float r = clamp(amp / 0.045 - 1.0, 0.0, 1.0) * 0.2; return amp * env(t, r) * sin(ph - t * 3.3); }   // beim Kraftschlag reicht die Welle weiter nach vorn
   void main(){ vec3 p = position, nr = normalize(normal); float part = aK.y, ph = iA.x, amp = iA.w;
     float t = 0.5 - position.z; t += max(0.0, t - 0.984) * 0.8;   // nach der Lage, damit Fluke, Finne, Knubbel und Seepocken genau mit dem Körper gehen; die Fluke federt etwas nach
     // die Welle läuft durch den ganzen Körper zur Fluke; die Normalen kippen mit
@@ -159,12 +159,15 @@ const VS = /* glsl */ `attribute vec4 aK; attribute vec4 iP, iR, iA, iB; uniform
     p.y += d; nr = vec3(nr.x, nr.y * c + nr.z * s, -nr.y * s + nr.z * c);
     // in der Kurve biegt sich der Körper
     p.x += iA.y * 0.5 * (t - 0.45) * (t - 0.45);
+    p.y += iB.w * 0.5 * (t - 0.45) * (t - 0.45);   // beim Abtauchen wölbt sich der Rücken, beim Aufsteigen biegt er sich durch
     // Brustflossen (und was auf ihnen sitzt): rudern mit dem Schlag des Körpers, die Spitze hinkt nach; dazu drehen sie sich leicht um ihre Längsachse und pendeln vor und zurück
     bool onFin = part > 7.5 && aK.w > 0.5;
     if ((part > 3.5 && part < 4.5) || onFin) { float w = onFin ? aK.w - 1.0 : aK.z, pc = onFin ? aK.x : mod(aK.w, 2.0), sd = sign(p.x), lag = w * 1.2;
       float a1 = uTime * 0.55 + iA.z * 9.0 + sd * 0.8 - lag, a2 = ph - 0.9 - lag, k2 = amp / 0.045;
       float fl = sin(a1) * 0.05 + sin(a2) * 0.04 * k2 + iB.x + sd * iB.y, tw = cos(a1) * 0.5 + cos(a2) * 0.5 * k2;
       p.y += fl * pow(w, 1.3) * 0.31 + tw * (pc - 0.35) * 0.03 * (0.3 + w); p.z += fl * 0.25 * w * w * 0.31 + sin(uTime * 0.31 + iA.z * 5.0 + sd) * 0.02 * w; p.x -= sd * abs(fl) * 0.1 * w * w * 0.31; }
+    // Drehen auf die Seite: vorn mit den Flossen zuerst, das Hinterteil folgt in einer Welle
+    { float tw = iB.z * smoothstep(0.12, 1.1, t), ct = cos(tw), st = sin(tw); p.xy = vec2(ct * p.x - st * p.y, st * p.x + ct * p.y); nr.xy = vec2(ct * nr.x - st * nr.y, st * nr.x + ct * nr.y); }
     vK = aK; vTa = vec3(0.0);
     if (part < 0.5) { float a = aK.z * 6.2832; vTa = vec3(-sin(a), cos(a), 0.0); }
     p *= iP.w;
@@ -304,9 +307,10 @@ export function createHumpbacks(scene) {
     const lead = H.list[0];
     if (H.mode === 'play') {
       w.evT -= dt; if (w.evT < 0 && !w.ev) { w.ev = Math.random() < 0.55 ? 1 : 2; w.evS = 0; w.evT = 18 + Math.random() * 26; if (Math.random() < 0.4) w.radT = w.band + (Math.random() - 0.5) * 6; }
-      if (w.ev) { w.evS += dt; w.yT = w.ev === 1 ? -6.5 : -26; if (w.evS > (w.ev === 1 ? 8 : 10)) w.ev = 0; } else w.yT = H.Y0 + w.up;   // 1: steil hinauf bis dicht unter die Oberfläche, 2: kurz hinab und wieder herauf
+      if (w.ev) { w.evS += dt; w.yT = w.ev === 1 ? -6.5 : -42; if (w.evS > (w.ev === 1 ? 8 : 13)) w.ev = 0; } else w.yT = H.Y0 + w.up;   // 1: steil hinauf bis dicht unter die Oberfläche, 2: fast senkrecht hinab, über die Fluke, und wieder herauf
       w.rad += (w.radT - w.rad) * Math.min(1, dt * 0.15);
-      w.ang += H.dir * w.spd * (1 + 0.35 * k) / Math.max(6, w.rad) * dt;
+      const dv = w.ev === 2 && w.evS < 6 ? 0.25 : 1;   // beim steilen Abtauchen kaum Fahrt nach vorn, damit er fast senkrecht steht
+      w.ang += H.dir * w.spd * dv * (1 + 0.35 * k) / Math.max(6, w.rad) * dt;
     } else {
       const f = FORM[Math.min(w.slot, 3)], angT = lead.ang - H.dir * f[1] * (w === lead ? 0 : 1); let e = Math.atan2(Math.sin(angT - w.ang), Math.cos(angT - w.ang)) * H.dir; if (w === lead) e = 0;
       w.rad += (f[0] - w.rad) * Math.min(1, dt * 0.25);
@@ -316,7 +320,7 @@ export function createHumpbacks(scene) {
     const tx = H.pod.x + Math.sin(w.ang) * w.rad, tz = H.pod.z + Math.cos(w.ang) * w.rad;
     w.x = tx; w.z = tz;
     if (H.mode === 'dive' && H.time > w.dive0) { const s = H.time - w.dive0; w.vy = -1.9 * (1 - Math.exp(-s / 5)); }   // abtauchen: sacht beginnen, dann gleichmäßig tiefer
-    else w.vy += (clamp((w.yT - w.y) * 0.35, -2.2, 2.2) - w.vy) * Math.min(1, dt * 0.8);   // steigen und sinken mit Schwung
+    else w.vy += (clamp((w.yT - w.y) * 0.4, w.ev === 2 ? -5 : -2.4, w.ev === 1 ? 3.6 : 2.4) - w.vy) * Math.min(1, dt * 0.9);   // steigen und sinken mit Schwung
     w.y = Math.min(-6, w.y + w.vy * dt);
   }
   /** ein Kalb: hält sich neben und etwas über der Mutter, mit eigenem Übermut */
@@ -340,18 +344,20 @@ export function createHumpbacks(scene) {
           const vx = (w.x - w.px) / dt, vy = (w.y - w.py) / dt, vz = (w.z - w.pz) / dt, vh = Math.hypot(vx, vz);
           if (vh > 0.2) { const yaw = Math.atan2(vx, vz); let dy = Math.atan2(Math.sin(yaw - w.yaw), Math.cos(yaw - w.yaw)); if (!w.init) dy = 0, w.yaw = yaw;
             const yr = dy / dt; w.yaw += dy * Math.min(1, dt * 3); w.turn += (clamp(yr / Math.max(vh, 0.5), -0.06, 0.06) * w.L - w.turn) * Math.min(1, dt * 2); }
-          w.pitch += (Math.atan2(vy, Math.max(vh, 0.5)) - w.pitch) * Math.min(1, dt * 2); w.init = true;
+          const pOld = w.pitch; w.pitch += (Math.atan2(vy, Math.max(vh, 0.3)) - w.pitch) * Math.min(1, dt * 2); w.init = true;
+          const pr = (w.pitch - pOld) / dt, sp = Math.max(Math.hypot(vh, vy), 0.8); w.arch = (w.arch || 0) + (clamp(pr / sp * w.L, -0.5, 0.5) - (w.arch || 0)) * Math.min(1, dt * 2);
         } else w.init = true;
         if (w.y < -340) { w.gone = true; continue; }
         // ab und zu dreht sich ein Großer langsam auf die Seite und zeigt die weiße Flosse
-        if (!w.calf && H.mode === 'play' && !H.still) { w.rollT -= dt; if (w.rollT < 0) { const s = -w.rollT; w.roll = 1.15 * Math.pow(Math.sin(Math.min(PI, s / 9 * PI)), 2) * (w.seed < 0.5 ? 1 : -1); if (s > 9) { w.rollT = 25 + Math.random() * 35; w.roll = 0; } } }
+        if (!w.calf && H.mode === 'play' && !H.still) { w.rollT -= dt; if (w.rollT < 0) { const s = -w.rollT; w.roll = 1.75 * Math.pow(Math.sin(Math.min(PI, s / 10 * PI)), 2) * (w.seed < 0.5 ? 1 : -1); if (s > 10) { w.rollT = 25 + Math.random() * 35; w.roll = 0; } } }
         else if (w.roll) w.roll *= 1 - Math.min(1, dt);
+        w.rollLag = (w.rollLag || 0) + (w.roll - (w.rollLag || 0)) * Math.min(1, dt * 1.3);   // das Hinterteil dreht sich hinterher
         const ampT = (w.calf ? 0.055 : 0.045) * (1 + 1.15 * k); w.amp += (ampT - w.amp) * Math.min(1, dt * 3);
         w.ph += dt * (w.calf ? 1.6 : 1.15) * (1 + 0.9 * k);
         w.flap += (k * 0.07 - w.flap) * Math.min(1, dt * 2);
         const bank = clamp(-w.turn * 0.8, -0.25, 0.25), D = w.calf ? CA : AD, o = D.k * 4;
         D.iP[o] = w.x; D.iP[o + 1] = w.y; D.iP[o + 2] = w.z; D.iP[o + 3] = w.L; D.iR[o] = w.yaw; D.iR[o + 1] = w.pitch; D.iR[o + 2] = w.roll + bank; D.iA[o] = w.ph; D.iA[o + 1] = w.turn; D.iA[o + 2] = w.seed; D.iA[o + 3] = w.amp;
-        D.iB[o] = w.flap; D.iB[o + 1] = clamp(w.turn * 0.4, -0.06, 0.06); D.k++;
+        D.iB[o] = w.flap; D.iB[o + 1] = clamp(w.turn * 0.4, -0.06, 0.06); D.iB[o + 2] = (w.rollLag || 0) - w.roll; D.iB[o + 3] = w.arch || 0; D.k++;
         // Kugelkette entlang der Achse, damit das Boot nicht hindurchfährt
         const cp = Math.cos(w.pitch), ax = Math.sin(w.yaw) * cp, ay = Math.sin(w.pitch), az = Math.cos(w.yaw) * cp;
         for (let s = 0; s < 4; s++) { const f = 0.3 - s * 0.2, sph = H.spheres[si] || (H.spheres[si] = { x: 0, y: 0, z: 0, r: 0 }); sph.x = w.x + ax * f * w.L; sph.y = w.y + ay * f * w.L; sph.z = w.z + az * f * w.L; sph.r = w.L * (s < 2 ? 0.11 : 0.075); si++; }

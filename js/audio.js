@@ -94,7 +94,7 @@ export function createAudio() {
   A.setListener = (x, z, h) => { L.x = x; L.z = z; L.h = h; };
   /** Horcher auf (true) oder ab; bearWorld: Weltrichtung, in die er zeigt */
   A.hydro = (open, bearWorld) => {
-    H.bear = bearWorld; if (open === H.open) return; H.open = open; if (open) songT = Math.min(songT, 0.6); if (!ctx) return; const t = ctx.currentTime;
+    H.bear = bearWorld; if (open === H.open) return; H.open = open; if (open) songT = Math.min(songT, 0.3); if (!ctx) return; const t = ctx.currentTime;
     hydroHiss.gain.setTargetAtTime(open ? 0.05 : 0, t, 0.25); master.gain.setTargetAtTime(A.muted ? 0 : open ? 0.3 : 0.9, t, 0.3);
     for (const k of ['kassette', 'kabine']) BUS[k].gain.setTargetAtTime(A.mix[k] * (open ? 0.35 : 1), t, 0.3);
     BUS.wale.gain.setTargetAtTime(waleGain(), t, 0.3);   // Gesänge treten weit zurück, damit man die Klicks hört
@@ -141,9 +141,10 @@ export function createAudio() {
     { ch: [[45, [64, 67, 69, 71, 76]], [43, [62, 67, 71, 74, 79]], [40, [64, 67, 71, 72, 76]], [41, [60, 64, 69, 72, 76]], [38, [62, 65, 69, 72, 77]], [43, [62, 67, 71, 74, 76]]], L: 9, pad: 1150, padV: 0.0048, bass: 0.04, n: 9, gap: 0.82, skip: 0.32, type: 'sine', oct: 12, rel: 2.6, vol: 0.022, send: 1.7 },
     { ch: [[39, [55, 58, 62, 65, 70]], [36, [55, 58, 63, 67, 70]], [44, [55, 60, 63, 67, 72]], [41, [57, 60, 63, 67, 72]], [39, [55, 58, 62, 67, 70]], [46, [53, 58, 62, 65, 70]]], L: 10, pad: 900, padV: 0.0058, bass: 0.05, n: 6, gap: 1.45, skip: 0.38, type: 'triangle', oct: 0, rel: 2.2, vol: 0.02, send: 1.5,
       drip: { n: 14, gap: 0.62, skip: 0.55, oct: 24, vol: 0.017 } },
-    // 5 = Die Sänger: tief und weit, Des-Dur mit lydischen Farben, sehr langsam; lange, gleitende Töne wie ferne Rufe, darüber wenige helle Tropfen
-    { ch: [[37, [53, 56, 61, 65, 68]], [42, [54, 58, 61, 66, 70]], [39, [55, 58, 63, 67, 70]], [44, [56, 60, 63, 68, 72]], [37, [56, 61, 65, 67, 72]], [34, [53, 58, 61, 65, 70]]], L: 14, pad: 760, padV: 0.0072, bass: 0.06, n: 4, gap: 2.6, skip: 0.3, type: 'sine', oct: 0, rel: 5.5, vol: 0.026, send: 2.4,
-      glide: true, drip: { n: 8, gap: 1.5, skip: 0.6, oct: 24, vol: 0.011 } },
+    // 5 = Die Sänger: dunkel und weit, a-Moll mit dorischer Sexte, sehr langsam; tiefe, gestrichen klingende Töne schwellen an und ab,
+    // darüber lange Rufe, die gleiten wie Walgesang, und ab und zu eine einzelne hohe Glocke. Keine Tropfen (die gehören der Krakenhöhle)
+    { ch: [[33, [57, 60, 64, 66, 69]], [29, [57, 60, 65, 69, 72]], [36, [55, 60, 64, 67, 71]], [31, [55, 59, 62, 66, 69]], [33, [57, 60, 64, 69, 71]], [26, [57, 62, 65, 69, 72]]], L: 16, pad: 520, padV: 0.0095, bass: 0.075, n: 3, gap: 3.8, skip: 0.25, type: 'triangle', oct: -12, rel: 6.5, vol: 0.03, send: 2.6,
+      glide: 0.95, bell: { n: 3, skip: 0.55, vol: 0.012 } },
   ];
   let trk = 0;
   const hz = (m) => 440 * Math.pow(2, (m - 69) / 12);
@@ -175,7 +176,8 @@ export function createAudio() {
     g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(v, t0 + 1.2); g.gain.setValueAtTime(v, t0 + 3.6); g.gain.linearRampToValueAtTime(0, t0 + 5.6); chain(o, g, lp, mus.in); lp.connect(sg); sg.connect(mus.send); o.start(t0); o.stop(t0 + 5.7); }
   function chord(t0) {
     const tr = TR[trk] || TR[0], [root, ns] = tr.ch[mus.step % tr.ch.length], L = tr.L, pad = filt('lowpass', tr.pad, 0.6); pad.connect(mus.in);
-    if (tr.glide && Math.random() < 0.7) call(hz(ns[Math.floor(Math.random() * 3)] + 12), t0 + 1.5 + Math.random() * 4, 0.011);
+    if (tr.glide && Math.random() < tr.glide) { call(hz(ns[Math.floor(Math.random() * 3)] + 12), t0 + 1.5 + Math.random() * 4, 0.014); if (Math.random() < 0.5) call(hz(ns[2 + Math.floor(Math.random() * 3)]), t0 + 7 + Math.random() * 4, 0.011); }
+    if (tr.bell) for (let k = 0; k < tr.bell.n; k++) { if (Math.random() < tr.bell.skip) continue; const bt = t0 + 2 + k * 4.5 + Math.random() * 1.5, f = filt('lowpass', 4000, 0.6), sg = gain(2.5); f.connect(mus.in); f.connect(sg); sg.connect(mus.send); note('sine', hz(ns[Math.floor(Math.random() * ns.length)] + 24), bt, 0.004, 0.02, 3.2, tr.bell.vol, f); }
     for (const m of ns.slice(0, 4)) for (const d of [-8, 7]) note('sawtooth', hz(m), t0, 2.6, L - 1.2, 3.2, tr.padV, pad, d);
     note('sine', hz(root), t0, 0.8, L - 1, 2.5, tr.bass, mus.in); note('triangle', hz(root + 12), t0, 1.5, L - 1.5, 2.5, 0.012, mus.in);
     if (tr.drip) { const D = tr.drip; for (let k = 0; k < D.n; k++) { if (Math.random() < D.skip) continue; drip(hz(ns[Math.floor(Math.random() * ns.length)] + D.oct), t0 + 0.7 + k * D.gap + (k % 2) * 0.07 + (Math.random() - 0.5) * 0.06, D.vol * (0.55 + 0.45 * Math.random())); } }
@@ -248,14 +250,20 @@ export function createAudio() {
   A.whale = (force, at) => {
     if (!ctx || !master) return; if (!wBus) whaleSetup();
     const t = ctx.currentTime + 0.1, far = at ? at.far : force ? rnd(0.75, 1) : rnd(0.3, 1), k = rnd(0.82, 1.2), pan = at ? at.pan : rnd(-0.75, 0.75), vol = 0.175 * far * A.whaleCfg.vol;
-    const lp = filt('lowpass', at ? at.lp : 500 + far * 1300, 0.6), pn = ctx.createStereoPanner ? ctx.createStereoPanner() : gain(1); if (pn.pan) pn.pan.value = pan; chain(lp, pn, wBus);
+    const lp = filt('lowpass', at ? at.lp : 500 + far * 1300, 0.6), pn = ctx.createStereoPanner ? ctx.createStereoPanner() : gain(1); if (pn.pan) pn.pan.value = pan;
+    if (at) { if (!songBus) { songBus = gain(0); songBus.connect(wBus); } chain(lp, pn, songBus); } else chain(lp, pn, wBus);   // Buckelwale: über einen eigenen Regler, dessen Lautstärke laufend der Richtung folgt
     const motif = []; const n = 2 + Math.floor(Math.random() * 3); for (let i = 0; i < n; i++) motif.push(WK[Math.floor(Math.random() * WK.length)]);
     let x = 0; const reps = Math.random() < 0.55 ? 2 : 1;
     for (let r = 0; r < reps; r++) for (const u of motif) { x += W[u](t + x, k * (r ? rnd(0.97, 1.03) : 1), vol, lp) + rnd(0.5, 1.8); }
-    if (at) for (let q = 0; q < x; q += 0.35) H.pend.push([t + q, at.meter * (0.75 + 0.25 * Math.sin(q * 2.1))]);   // der Zeiger im Horcher schlägt mit dem Gesang aus
+    if (at) songEnd = Math.max(songEnd, t + x);
   };
   /** ein Gesang aus der Richtung der Buckelwale: aus der Nähe mit bloßem Ohr, von Weitem nur im Hörkegel des Horchers */
-  function songFrom(src) { const h = heard(src); if (h.g < 0.01) return; A.whale(true, { far: H.open ? Math.min(4.5, h.g * 2.2) : Math.min(1.5, h.g * 0.75), pan: h.pan, lp: H.open ? 2600 : Math.max(600, 2200 - h.d * 10), meter: Math.min(1, h.far * 1.4) }); }   // im Horcher so deutlich wie die Klicks der Pottwale
+  // Die Gesänge laufen immer, aber ihr Regler folgt in jedem Moment der Richtung: Dreht man den Horcher weg, verstummen sie sofort.
+  // Hörkegel eng (etwa ±12°), damit man die Richtung genau findet; ohne Horcher hört man sie nur aus der Nähe
+  let songBus = null, songEnd = 0;
+  function songAim(src) { const dx = src.x - L.x, dz = src.z - L.z, d = Math.hypot(dx, dz), da = wrapA(Math.atan2(dx, dz) - H.bear), near = Math.max(0, Math.min(1, 1 - (d - 40) / 100)), dist = 0.35 + 0.65 * Math.max(0, 1 - d / 1500);
+    const aim = H.open ? (0.12 * Math.exp(-((da / 0.5) ** 2)) + 0.88 * Math.exp(-((da / 0.2) ** 2))) * dist : 0; return { g: H.open ? Math.max(near * 0.6, aim * 5.5) : near * 1.4, aim, d }; }
+  function songFrom(src) { const h = songAim(src); A.whale(true, { far: 1, pan: 0, lp: H.open ? 2700 : Math.max(600, 2200 - h.d * 10) }); }
   // ---------- Taucheranzug: Luft zischt leise durch den Schlauch, beim Ausatmen blubbert es aus dem Ventil, Schritte dumpf, Ventil faucht ----------
   let suitHiss = null, valveG = null, suitOn = false;
   A.setSuit = (on) => { suitOn = on; if (!ctx) return; const t = ctx.currentTime;
@@ -282,7 +290,9 @@ export function createAudio() {
     bubT -= dt * (0.5 + thrust * 2.5);
     if (bubT <= 0) { bubT = rnd(0.25, 1.3); const f = rnd(320, 760), n = 1 + Math.floor(Math.random() * 3); for (let i = 0; i < n; i++) tone('sine', f * (1 + i * 0.12), f * 2.1 * (1 + i * 0.12), 0.006, rnd(0.05, 0.09), rnd(0.006, 0.02), 0.25, i * rnd(0.05, 0.09), BUS.blasen); }
     groanT -= dt;
-    if (A.songSrc) { songT -= dt; if (songT <= 0) { songT = H.open ? rnd(2.2, 3.8) : rnd(5, 8); songFrom(A.songSrc); } }
+    if (A.songSrc) { songT -= dt; if (songT <= 0) { songT = rnd(2.4, 4); songFrom(A.songSrc); } const h = songAim(A.songSrc);
+      if (songBus) songBus.gain.setTargetAtTime(h.g, t, 0.06); if (H.open && t < songEnd) H.lvl = Math.max(H.lvl, h.aim * 0.42); }   // das Lämpchen leuchtet nur, wenn man genau auf sie zeigt und gerade gesungen wird
+    else if (songBus) songBus.gain.setTargetAtTime(0, t, 0.3);
     else if (A.whaleCfg.on) { whaleT -= dt; if (whaleT <= 0) { whaleT = A.whaleCfg.gap * rnd(0.5, 1.5); A.whale(); } }
     if (groanT <= 0) {
       groanT = rnd(20, 50);
