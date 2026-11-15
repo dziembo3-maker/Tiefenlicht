@@ -4,14 +4,14 @@ import { wrapPi } from './util.js';
 import { floorH } from './terrain.js';
 import { poisNear } from './world.js';
 
-export function createTable(S, nav, cv, sector = () => null) {
+export function createTable(S, nav, cv, sector = () => null, extra = () => []) {
   const N = cv.width, c = N / 2, R = c - 16, TR = 500, k = R / TR, cx = cv.getContext('2d');
   const ph = document.createElement('canvas'); ph.width = ph.height = N; const px = ph.getContext('2d');
   const TB = { a: 0, blobs: [], pois: [], poiT: 0, fadeT: 0, open: false };
   const scr = (x, z) => { const dx = x - S.x, dz = z - S.z, ch = Math.cos(S.h), sh = Math.sin(S.h); return [c - (dx * ch - dz * sh) * k, c - (dx * sh + dz * ch) * k]; };
   TB.reset = () => { px.clearRect(0, 0, N, N); TB.blobs.length = 0; TB.poiT = 0; };
   TB.step = (dt) => {
-    TB.poiT -= dt; if (TB.poiT <= 0) { TB.poiT = 4; TB.pois = poisNear(S.x, S.z, TR); }
+    TB.poiT -= dt; if (TB.poiT <= 0) { TB.poiT = 4; TB.pois = poisNear(S.x, S.z, TR).concat(extra()); }   // extra: Stellen, die nur der Tisch kennt (das Loch während der Mission)
     TB.fadeT += dt; if (TB.fadeT > 0.07) { TB.fadeT = 0; px.fillStyle = 'rgba(0,5,2,0.045)'; px.fillRect(0, 0, N, N); }
     const a0 = TB.a, a1 = a0 + dt * 1.2, n = Math.max(1, Math.ceil((a1 - a0) / 0.011)), yRef = Math.min(S.y, -34);
     for (let i = 1; i <= n; i++) {
@@ -26,7 +26,7 @@ export function createTable(S, nav, cv, sector = () => null) {
     }
     const b0 = ((a0 % 6.2832) + 6.2832) % 6.2832;
     for (const p of TB.pois) {
-      const d = Math.hypot(p.x - S.x, p.z - S.z); if (d > TR || d < 8) continue;
+      const d = Math.hypot(p.x - S.x, p.z - S.z); if (d > TR || (d < 8 && !p.always)) continue;
       const rel = ((wrapPi(S.h - Math.atan2(p.x - S.x, p.z - S.z)) % 6.2832) + 6.2832) % 6.2832, dl = ((rel - b0) % 6.2832 + 6.2832) % 6.2832; if (dl >= a1 - a0) continue;
       const q = scr(p.x, p.z), hsh = Math.abs(Math.sin(p.x * 12.9898 + p.z * 78.233) * 43758.5453) % 1, rb = 10 + hsh * 10, g = px.createRadialGradient(q[0], q[1], 0, q[0], q[1], rb);
       g.addColorStop(0, 'rgba(225,255,235,0.95)'); g.addColorStop(0.45, 'rgba(120,255,170,0.5)'); g.addColorStop(1, 'rgba(60,255,130,0)'); px.fillStyle = g; px.beginPath(); px.ellipse(q[0], q[1], rb, rb * (0.6 + hsh * 0.4), hsh * 3, 0, 6.2832); px.fill();

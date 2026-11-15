@@ -58,13 +58,15 @@ export function createDiver(scene) {
     const vyT = inp.up ? UP : inp.down ? -DOWN : D.ground ? 0 : -SINK; D.vy = damp(D.vy, vyT, inp.up ? 1.3 : 2.0, dt);
     D.x += D.vx * dt; D.y += D.vy * dt; D.z += D.vz * dt;
     // Grund: begehbare Hänge heben den Taucher, steile Wände halten ihn auf
+    // in der Höhle: ihre Wände statt des Grunds; über der Öffnung gibt es keinen Boden
+    const cs = D.cave ? D.cave.diver(D, EYE, RAD) : 0; D.inCave = cs === 2;
     const fh = floorH(D.x, D.z), feet = D.y - EYE; floorN(D.x, D.z, nT);
-    if (feet < fh) {
+    if (cs === 0 && feet < fh) {
       const pen = fh - feet;
       if (nT.y > 0.55 || pen < 0.35) { D.y += pen * Math.min(1, dt * 14 + (pen > 0.3 ? 1 : 0)); if (D.vy < 0) D.vy = 0; }
       else { const hl = Math.hypot(nT.x, nT.z) || 1; D.x += nT.x / hl * pen * 0.6; D.z += nT.z / hl * pen * 0.6; const vn = (D.vx * nT.x + D.vz * nT.z) / hl; if (vn < 0) { D.vx -= nT.x / hl * vn; D.vz -= nT.z / hl * vn; } }
     }
-    D.ground = D.y - EYE <= floorH(D.x, D.z) + 0.04 && D.vy < 0.3;
+    if (cs === 0) D.ground = D.y - EYE <= floorH(D.x, D.z) + 0.04 && D.vy < 0.3; else if (cs === 1) D.ground = false;
     // Felsen und Bootsrumpf: Kapsel vom Fuß bis zum Helm gegen Kugeln
     const push = (s) => { const cy2 = clamp(s.y, D.y - EYE + RAD, D.y), dx = D.x - s.x, dy = cy2 - s.y, dz = D.z - s.z, min = s.r + RAD; if (Math.abs(dx) > min || Math.abs(dz) > min || Math.abs(dy) > min) return; const d = Math.hypot(dx, dy, dz); if (d >= min || d < 1e-4) return; const nx = dx / d, ny = dy / d, nz = dz / d, pen = min - d; D.x += nx * pen; D.y += ny * pen; D.z += nz * pen; const vn = D.vx * nx + D.vy * ny + D.vz * nz; if (vn < 0) { D.vx -= nx * vn; D.vy -= ny * vn; D.vz -= nz * vn; } };
     for (const s of spheres) push(s); for (const s of boat) push(s);
@@ -75,7 +77,7 @@ export function createDiver(scene) {
       if (vo > 0) { D.vx -= nx * vo * f; D.vy -= ny * vo * f; D.vz -= nz * vo * f; } if (hd > lim) { const o = hd - lim; D.x -= nx * o; D.y -= ny * o; D.z -= nz * o; } if (f > 0.6 && mag > 0.3) ev.end = true; }
     // Schritte: nur auf dem Grund, schwer, mit Sand
     D.speed = Math.hypot(D.vx, D.vz);
-    if (D.ground && D.speed > 0.15) { const was = Math.floor(D.ph * 2); D.ph += dt * D.speed * 0.78; if (Math.floor(D.ph * 2) !== was) { ev.step = Math.min(1, D.speed / WALK); const side = Math.floor(D.ph * 2) % 2 ? 1 : -1; puff(D.x + cy * 0.15 * side, floorH(D.x, D.z), D.z - sy * 0.15 * side, 5, 0.6 + 0.4 * ev.step); } }
+    if (D.ground && D.speed > 0.15) { const was = Math.floor(D.ph * 2); D.ph += dt * D.speed * 0.78; if (Math.floor(D.ph * 2) !== was) { ev.step = Math.min(1, D.speed / WALK); const side = Math.floor(D.ph * 2) % 2 ? 1 : -1; puff(D.x + cy * 0.15 * side, cs === 2 ? D.y - EYE : floorH(D.x, D.z), D.z - sy * 0.15 * side, 5, 0.6 + 0.4 * ev.step); } }
     const step = D.ground ? Math.abs(Math.sin(D.ph * Math.PI)) : 0;
     D.bob = damp(D.bob, D.ground && D.speed > 0.15 ? -step * 0.07 * Math.min(1, D.speed / WALK) : Math.sin(U.uTime.value * 0.9) * 0.03, 8, dt);
     D.roll = damp(D.roll, D.ground ? Math.sin(D.ph * Math.PI) * 0.018 * Math.min(1, D.speed / WALK) : Math.sin(U.uTime.value * 0.6) * 0.01, 5, dt);
@@ -98,7 +100,8 @@ export function createDiver(scene) {
         P[a] += dx * diff * wa; P[a + 1] += dy * diff * wa; P[a + 2] += dz * diff * wa; P[b] -= dx * diff * wb; P[b + 1] -= dy * diff * wb; P[b + 2] -= dz * diff * wb; }
       P[N * 3] = B.x; P[N * 3 + 1] = B.y; P[N * 3 + 2] = B.z;
     }
-    for (let i = 1; i < N; i++) { const o = i * 3, f = floorH(P[o], P[o + 2]) + 0.07; FL[i] = f; if (P[o + 1] < f) { P[o + 1] = f; Q[o] = P[o] - (P[o] - Q[o]) * 0.5; Q[o + 2] = P[o + 2] - (P[o + 2] - Q[o + 2]) * 0.5; }
+    const cv = D.cave && D.inCave !== undefined && (D.inCave || D.cave.near(D.x, D.z, 40)) ? D.cave : null;
+    for (let i = 1; i < N; i++) { const o = i * 3; if (cv && cv.hose(P, o)) continue; const f = floorH(P[o], P[o + 2]) + 0.07; FL[i] = f; if (P[o + 1] < f) { P[o + 1] = f; Q[o] = P[o] - (P[o] - Q[o]) * 0.5; Q[o + 2] = P[o + 2] - (P[o + 2] - Q[o + 2]) * 0.5; }
       for (const s of boat) { const dx = P[o] - s.x, dy = P[o + 1] - s.y, dz = P[o + 2] - s.z, m = s.r + 0.08, d = Math.hypot(dx, dy, dz); if (d < m && d > 1e-4) { const k = (m - d) / d; P[o] += dx * k; P[o + 1] += dy * k; P[o + 2] += dz * k; } } }
   }
   // Rohr um die Kette: Catmull-Rom zwischen den Gliedern, Ringe quer zur Richtung

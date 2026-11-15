@@ -10,6 +10,8 @@ export const BOUNDS = { r: 1500, top: -5, deep: -90 };
 export const PLAIN = { x: -310, z: -240, r: 92, floor: -92 };
 export const WHALE = { x: -312, z: -238, yaw: 0.55 };
 export const BELL = { x: -128, z: -174, yaw: 2.2 };
+// das Loch im Boden einer Schlucht südöstlich der Glocke: eine flache Mulde, in der Mitte der Schacht (r = Öffnung, cut = so weit fehlt das Geländegitter)
+export const HOLE = { x: 102, z: -318, r: 2.0, cut: 3.8 };
 const plainR = (x, z) => { const dx = x - PLAIN.x, dz = z - PLAIN.z, a = Math.atan2(dz, dx); return Math.hypot(dx, dz) / (PLAIN.r * (1 + 0.36 * (fbm(Math.cos(a) * 1.4 + 5.3, Math.sin(a) * 1.4 + 2.1, 2) - 0.5))); };
 /** 1 mitten in der Ebene, 0 weit draußen (für Schnee, Bewuchs, Tiefengrenze) */
 export const plainK = (x, z) => 1 - smooth(0.85, 1.35, Math.hypot(x - PLAIN.x, z - PLAIN.z) / PLAIN.r);
@@ -65,7 +67,9 @@ export function floorH(x, z) {
     const basin = smooth(0.61, 0.72, fbm(x * 0.0011 + 70.3, z * 0.0011 - 30.7, 2)); if (basin > 0) dn += 135 * terr(basin, 3);
     depth = Math.max(depth, dn * m);
   }
-  return shelf - depth + (fbm(x * 0.085, z * 0.085, 3) - 0.5) * 3.4 + (noise(x * 0.31, z * 0.31) - 0.5) * 0.7;
+  let h = shelf - depth + (fbm(x * 0.085, z * 0.085, 3) - 0.5) * 3.4 + (noise(x * 0.31, z * 0.31) - 0.5) * 0.7;
+  const hx = x - HOLE.x, hz = z - HOLE.z; if (hx * hx + hz * hz < 400) { const d = Math.sqrt(hx * hx + hz * hz); h -= 3.0 * (1 - smooth(3, 17, d)); }   // Mulde um das Loch
+  return h;
 }
 export function floorN(x, z, out) {
   const e = 1.2, dx = floorH(x + e, z) - floorH(x - e, z), dz = floorH(x, z + e) - floorH(x, z - e), l = Math.hypot(dx, 2 * e, dz);
