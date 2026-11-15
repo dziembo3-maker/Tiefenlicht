@@ -30,8 +30,10 @@ export const CAVE = (() => {
   const floorY = mid.y - mid.fl;
   // Zahn: auf einem flachen Stein in der Kammer, etwas zur Seite
   const tooth = { x: mid.x + 1.2, y: floorY + 0.62, z: mid.z + 0.6 };
+  // die Messingdose, die dem Kapitän hineingefallen ist: liegt auf der Seite zwischen den Muscheln, auf der anderen Seite des Steins
+  const can = { x: mid.x - 0.55, y: floorY + 0.25, z: mid.z + 1.75, yaw: 2.2, roll: 0.55 };
   let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9, z0 = 1e9, z1 = -1e9; for (const s of S) { x0 = Math.min(x0, s.x - s.r); x1 = Math.max(x1, s.x + s.r); y0 = Math.min(y0, s.y - s.r); y1 = Math.max(y1, s.y + s.r); z0 = Math.min(z0, s.z - s.r); z1 = Math.max(z1, s.z + s.r); }
-  return { yM, S, top: S[0], mid, floorY, tooth, box: [x0 - 2, x1 + 2, y0 - 2, y1 + 6, z0 - 2, z1 + 2], len: S[S.length - 1].s };
+  return { yM, S, top: S[0], mid, floorY, tooth, can, box: [x0 - 2, x1 + 2, y0 - 2, y1 + 6, z0 - 2, z1 + 2], len: S[S.length - 1].s };
 })();
 
 // ---------- Abfragen ----------
@@ -121,18 +123,25 @@ function caveMaterial() {
         } else if (tag < 2.5) {
           // kleine Knochen: grau-elfenbein, fleckig
           base = vec3(0.5, 0.48, 0.42) * (0.8 + 0.3 * n2.r); base *= 1.0 - 0.4 * smoothstep(0.7, 0.86, n3.b); spec = 0.06;
-        } else {
+        } else if (tag < 3.5) {
           // der Zahn: Elfenbein mit feinen Wachstumsringen, Spitze glatt, ein leichtes Eigenleuchten im Licht der Kammer
           float ring = 0.5 + 0.5 * sin(vO * 70.0 + n2.r * 2.0);
           base = mix(vec3(0.93, 0.89, 0.78), vec3(0.78, 0.70, 0.55), ring * 0.25 + (1.0 - vO) * 0.2); spec = 0.7; emit = 0.13 + 0.07 * sin(uTime * 1.4);
+        } else if (tag < 4.5) {
+          // Messing der Dose: warm, stellenweise grünlich angelaufen, mit feinem Schlick in den Fugen
+          float pat = smoothstep(0.55, 0.8, n2.g * 0.7 + n3.r * 0.5);
+          base = mix(vec3(0.42, 0.30, 0.13), vec3(0.17, 0.25, 0.19), pat * 0.6) * (0.75 + 0.3 * n3.g); spec = 0.35; emit = 0.0;
+        } else {
+          // das Lämpchen an der Dose: läuft noch, aber schwach und unruhig
+          base = vec3(1.0, 0.8, 0.5); spec = 0.4; emit = 0.55 + 0.25 * sin(uTime * 2.3) * sin(uTime * 0.71 + 1.3) + 0.08 * sin(uTime * 17.0);
         }
-        float ao = clamp(vO, 0.0, 1.0); if (tag > 2.5) ao = 1.0;
+        float ao = clamp(vO, 0.0, 1.0); if (tag > 2.5 && tag < 3.5) ao = 1.0;
         vec3 cav = base * ao * (vec3(0.006, 0.016, 0.026) + lights(vW, N) * 1.2);
         vec3 dl = uLampPos - vW; float dd = length(dl); vec3 L = dl / max(dd, 0.001), H = normalize(L + V);
         float cone = smoothstep(0.84, 0.97, dot(-L, uLampDir));
         cav += vec3(0.6, 0.8, 0.9) * pow(max(dot(N, H), 0.0), 40.0) * spec * cone * uLampOn * 5.0 / (3.0 + dd * dd * 0.05);   // nasser Glanz im Lampenlicht
         vec3 col = mix(cav, shade(base * ao, N, vW), day);
-        col += (tag < 0.5 ? mix(vec3(0.15, 0.95, 0.85), vec3(0.45, 0.55, 1.0), step(0.5, fract(n3.g * 7.0))) : vec3(1.0, 0.9, 0.7)) * emit * (tag < 0.5 ? 0.9 : 1.0);
+        col += (tag < 0.5 ? mix(vec3(0.15, 0.95, 0.85), vec3(0.45, 0.55, 1.0), step(0.5, fract(n3.g * 7.0))) : tag > 4.5 ? vec3(1.0, 0.62, 0.28) * 2.2 : vec3(1.0, 0.9, 0.7)) * emit * (tag < 0.5 ? 0.9 : 1.0);
         vec3 v = vW - cameraPosition; float d = length(v), f = 1.0 - exp(-d * uFogK * (1.0 + (1.0 - day) * 0.6));
         gl_FragColor = vec4(mix(col, waterCol(v / d) * mix(0.03, 1.0, day), f), 1.0);
       }` });
@@ -194,13 +203,15 @@ function blob(G, cx, cy, cz, rx, ry, rz, tag, rotY, tilt, seed, ao = 1) {
     addV(G, cx + x * cyw + z * syw, cy + y, cz - x * syw + z * cyw, tag, ao * (0.75 + 0.25 * cv)); } }
   for (let j = 0; j < R; j++) for (let i = 0; i < C; i++) { const a = base + j * C + i, b = base + j * C + (i + 1) % C, c = a + C, d = b + C; G.i.push(a, c, b, b, c, d); }
 }
-function tubeG(G, pts, sides, tag) {   // pts: [x,y,z,r,ao?]
+function tubeG(G, pts, sides, tag, cap0) {   // pts: [x,y,z,r,ao?]; cap0: auch den Anfang schließen (leicht gewölbt)
   const base = G.c, tv = new T.Vector3(), u = new T.Vector3(), w = new T.Vector3(), up = new T.Vector3(0, 1, 0);
   for (let j = 0; j < pts.length; j++) { const a = pts[Math.max(0, j - 1)], c = pts[Math.min(pts.length - 1, j + 1)], p = pts[j]; tv.set(c[0] - a[0], c[1] - a[1], c[2] - a[2]).normalize(); u.crossVectors(tv, Math.abs(tv.y) > 0.9 ? new T.Vector3(1, 0, 0) : up).normalize(); w.crossVectors(u, tv);
     for (let i = 0; i < sides; i++) { const an = i / sides * Math.PI * 2, ca = Math.cos(an), sa = Math.sin(an); addV(G, p[0] + (u.x * ca + w.x * sa) * p[3], p[1] + (u.y * ca + w.y * sa) * p[3], p[2] + (u.z * ca + w.z * sa) * p[3], tag, p[4] === undefined ? 1 : p[4]); } }
   grid(G, pts.length, sides, true);
   const e = pts[pts.length - 1], q = pts[pts.length - 2], l = Math.hypot(e[0] - q[0], e[1] - q[1], e[2] - q[2]) || 1, c = addV(G, e[0] + (e[0] - q[0]) / l * e[3] * 0.6, e[1] + (e[1] - q[1]) / l * e[3] * 0.6, e[2] + (e[2] - q[2]) / l * e[3] * 0.6, tag, e[4] === undefined ? 1 : e[4]), b0 = c - sides;
   for (let i = 0; i < sides; i++) G.i.push(b0 + i, b0 + (i + 1) % sides, c);
+  if (cap0) { const a = pts[0], n = pts[1], l = Math.hypot(n[0] - a[0], n[1] - a[1], n[2] - a[2]) || 1, k = a[3] * 0.32 / l, c0 = addV(G, a[0] - (n[0] - a[0]) * k, a[1] - (n[1] - a[1]) * k, a[2] - (n[2] - a[2]) * k, tag, a[4] === undefined ? 1 : a[4]);
+    for (let i = 0; i < sides; i++) G.i.push(base + (i + 1) % sides, base + i, c0); }
 }
 function buildDen() {
   const G = newG(), R = rng(7341), rr = (a, b) => a + R() * (b - a), m = CAVE.mid, fy = CAVE.floorY, t = CAVE.tooth;
@@ -222,14 +233,36 @@ function buildTooth() {
   // Pottwalzahn: kegelig, leicht gebogen, etwa 35 cm lang (ein großer)
   const G = newG(), t = CAVE.tooth, pts = [], L = 0.36;
   for (let k = 0; k <= 10; k++) { const f = k / 10, r = 0.068 * Math.pow(1 - f, 0.55) * (1 - 0.15 * Math.sin(f * 9)) + 0.004; pts.push([-L / 2 + f * L, Math.sin(f * 2.4) * 0.045 + r * 0.6, Math.sin(f * 1.6) * 0.018, r, f]); }
-  tubeG(G, pts, 12, 3);
+  tubeG(G, pts, 12, 3, true);
   const g = finish(G); g.rotateZ(-0.12); g.rotateY(0.9); g.translate(t.x, t.y, t.z); g.computeBoundingSphere(); return g;
 }
 
+/** Drehkörper ins Höhlengitter: prof = [[y, r], …] entlang der eigenen Achse, xf bringt lokale Punkte in die Welt */
+function latheG(G, prof, sides, tag, xf, ao = 1) {
+  for (const [y, r] of prof) for (let i = 0; i < sides; i++) { const a = i / sides * Math.PI * 2, q = xf(Math.cos(a) * r, y, Math.sin(a) * r); addV(G, q[0], q[1], q[2], tag, ao); }
+  grid(G, prof.length, sides, true);
+}
+/** die zweite Messingdose: dieselbe Form wie draußen, auf der Seite liegend, mit Stange und Lämpchen */
+function buildCan() {
+  const G = newG(), c = CAVE.can, ax = [Math.cos(c.yaw), 0, Math.sin(c.yaw)], up0 = [0, 1, 0], sd = [-ax[2], 0, ax[0]], cr = Math.cos(c.roll), sr = Math.sin(c.roll);
+  const U = [up0[0] * cr + sd[0] * sr, up0[1] * cr + sd[1] * sr, up0[2] * cr + sd[2] * sr], W = [ax[1] * U[2] - ax[2] * U[1], ax[2] * U[0] - ax[0] * U[2], ax[0] * U[1] - ax[1] * U[0]], L = 0.48;   // L: Mitte der Dose entlang der Achse
+  const xf = (lx, ly, lz) => [c.x + ax[0] * (ly - L) + U[0] * lx + W[0] * lz, c.y + ax[1] * (ly - L) + U[1] * lx + W[1] * lz - 0.02, c.z + ax[2] * (ly - L) + U[2] * lx + W[2] * lz];
+  latheG(G, [[0, 0.0], [0, 0.25], [0.04, 0.27], [0.12, 0.27], [0.14, 0.255], [0.78, 0.255], [0.8, 0.27], [0.9, 0.27], [0.92, 0.25], [0.94, 0.12], [0.95, 0.0]], 20, 4, xf, 0.9);
+  for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2, q = xf(Math.cos(a) * 0.2, 0.955, Math.sin(a) * 0.2); blob(G, q[0], q[1], q[2], 0.026, 0.026, 0.026, 4, 0, 0, i * 1.3, 0.9); }   // Nieten am Deckel
+  const pole = [[0.36, -0.2, 0.1, 0.022], [0.37, 0.6, 0.1, 0.02], [0.385, 1.3, 0.1, 0.016]].map(([x, y, z, r]) => xf(x, y, z).concat([r, 0.9])); tubeG(G, pole, 6, 4);
+  const b = xf(0.385, 1.42, 0.1); blob(G, b[0], b[1], b[2], 0.06, 0.06, 0.06, 5, 0, 0, 2.1, 1);
+  const lamp = { x: b[0], y: b[1], z: b[2] };
+  const g = finish(G); return { g, lamp };
+}
+
 export function createCave(scene) {
-  const mat = caveMaterial(), tube = new T.Mesh(buildTube(), mat), den = new T.Mesh(buildDen(), mat), tooth = new T.Mesh(buildTooth(), mat);
-  for (const m of [tube, den, tooth]) scene.add(m);
-  const C = { tube, den, tooth };
+  const mat = caveMaterial(), tube = new T.Mesh(buildTube(), mat), den = new T.Mesh(buildDen(), mat), tooth = new T.Mesh(buildTooth(), mat), cb = buildCan(), can = new T.Mesh(cb.g, mat);
+  for (const m of [tube, den, tooth, can]) scene.add(m);
+  const C = { tube, den, tooth, can };
+  /** die Dose in der Kammer zeigen oder nicht; ihr Lämpchen leuchtet schwach in die Kammer (glow für world.setExtra) */
+  C.setCan = (v) => { can.visible = v; };
+  C.canGlow = { x: cb.lamp.x, y: cb.lamp.y, z: cb.lamp.z, col: [1.0, 0.6, 0.28], power: 0.3, size: 0.6 };
+  CAVE.canLamp = cb.lamp;
   /** Zahn zeigen oder nicht (nach dem Aufheben fehlt er) */
   C.setTooth = (v) => { tooth.visible = v; };
   return C;

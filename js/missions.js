@@ -6,7 +6,7 @@ import { buildCanister, propMaterial } from './props.js';
 import { WRECK, WHALE, GROTTO, HOLE } from './terrain.js';
 
 /** Kassetten: 0 liegt von Anfang an im Deck; die anderen findet man. page = Logbuchseite, die mit ihr kommt */
-export const TAPES = [{ id: 0 }, { id: 1 }, { id: 2 }, { id: 3 }];
+export const TAPES = [{ id: 0 }, { id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }];
 /** Missionen in ihrer Reihenfolge. page = Seite, an der sie beginnt; tape = was man findet; x/z = Ort der Dose;
  *  off = wo die Dose im Ping-Fächer liegt (-1 linker Rand, 0 Mitte, 1 rechter Rand), fest pro Mission, damit der Fächer nicht springt */
 export const MISSIONS = [
@@ -16,8 +16,9 @@ export const MISSIONS = [
   { id: 'm3', page: 2, tape: 3, x: GROTTO.x - 9, z: GROTTO.z - 2, yaw: 1.2, off: 0.5, cam: true, photo: { x: GROTTO.x + 6, z: GROTTO.z + 4, h: 5, r: 55, name: 'n_grotto' } },
   // keine Dose: die schlafenden Pottwale liegen jedes Mal woanders (main.js wählt den Ort beim Start); finden muss man sie mit dem Horchgerät, beendet wird sie mit einem Foto der Gruppe
   { id: 'm4', page: 3, tape: null, pod: true, x: GROTTO.x + 30, z: GROTTO.z + 30, yaw: 0, photo: { pod: true, r: 60, name: 'n_whales' } },
-  // das Loch: die Dose liegt am Rand. Danach: Loch am Sonartisch markieren, Anzug an der Glocke holen, zurück, hinabsteigen, den Zahn holen
-  { id: 'm5', page: 4, tape: null, cave: true, x: HOLE.x + 8.2, z: HOLE.z - 5.4, yaw: 2.6, off: -0.45 },
+  // das Loch: die Dose am Rand bringt eine Seite (zu eng fürs Boot, der Anzug liegt in der Glocke, eine Dose ist hineingefallen). Danach: Loch am Sonartisch markieren,
+  // Anzug an der Glocke holen, zurück, hinabsteigen; unten liegen der Zahn und die hineingefallene Dose (Kassette und zweite Seite). pages: so viele Seiten bringt die Mission
+  { id: 'm5', page: 4, tape: 4, tapeLate: true, pages: 2, cave: true, x: HOLE.x + 8.2, z: HOLE.z - 5.4, yaw: 2.6, off: -0.45 },
 ];
 /** so viele weitere Missionen deutet der Missionen-Reiter nur an */
 export const HINTED = 3;

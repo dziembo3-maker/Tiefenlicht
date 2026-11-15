@@ -83,7 +83,7 @@ export function siteAt(cx, cz) {
   }
   siteCache.set(k, s); return s;
 }
-const STATIC = [{ x: GROTTO.x + 5, y: -38, z: GROTTO.z + 3, kind: 'grove' }, { x: WRECK.x, y: -52, z: WRECK.z, kind: 'wreck' },
+const STATIC = [{ x: GROTTO.x + 5, y: -38, z: GROTTO.z + 3, kind: 'grove', short: 'grotto' }, { x: WRECK.x, y: -52, z: WRECK.z, kind: 'wreck' },
   { x: PLAIN.x + 40, y: -88, z: PLAIN.z + 30, kind: 'plain', disc: 70 }, { x: WHALE.x, y: -90, z: WHALE.z, kind: 'whale', disc: 34 }, { x: BELL.x, y: -66, z: BELL.z, kind: 'bell', disc: 24 }];
 /** alles, was ein Ping im Umkreis finden kann */
 export function poisNear(x, z, range) {

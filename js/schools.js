@@ -80,26 +80,32 @@ function buildFish(sp) {
 }
 
 // Wo schwimmt Fisch i gerade? Formation um die Schwarmmitte, dann weicht er dem Boot (oder Taucher) aus.
-const VS = /* glsl */ `attribute vec4 aK; attribute vec4 iF, iG; uniform float uTime, uForm, uBeat, uRad, uFade; uniform vec3 uC, uDir, uAv;
+const VS = /* glsl */ `attribute vec4 aK; attribute vec4 iF, iG; uniform float uTime, uForm, uBeat, uRad, uFade, uSwirl, uPh; uniform vec3 uC, uDir, uAv;
   varying vec3 vW, vN, vL; varying vec4 vK; varying float vGl;
   void main(){ vec3 p = position, nr = normal; float t = aK.x, part = aK.y, vv = aK.z, tt = uTime, r0 = iF.w;
-    vec3 pos, hd;
-    if (uForm < 0.5) {   // Wirbel: Ring um eine senkrechte Achse, gewellt, die Fische ziehen im Kreis
+    vec3 pos, hd, rgt = normalize(cross(vec3(0.0, 1.0, 0.0), uDir)), upd = cross(uDir, rgt);
+    float w1 = tt * 0.4 + r0 * 7.0, w2 = tt * 0.33 + r0 * 5.0, w3 = tt * 0.27 + r0 * 3.0;
+    if (uForm < 0.5) {   // Kometen: meist ein langes, welliges Band, das in Fahrtrichtung zieht; selten (uSwirl) ein Wirbel um eine senkrechte Achse
+      float z = (iF.z / 6.2832 - 0.5) * 17.0, wl = z * 0.3 + tt * 0.55, wu = z * 0.22 + tt * 0.4 + 1.0;
+      vec3 o = vec3((iF.x - 5.9) * 1.1 + sin(wl) * 1.3 + sin(w1) * 0.35, iF.y * 0.8 + sin(wu) * 0.7 + sin(w2) * 0.2, z + sin(w3) * 0.6);
+      vec3 pT = rgt * o.x + upd * o.y + uDir * o.z, hT = normalize(uDir + rgt * (cos(wl) * 0.39 + cos(w1) * 0.12) + upd * cos(wu) * 0.15);
       float a = iF.z + tt * (0.34 + 0.1 * iG.w) * (iF.x < 5.8 ? 1.12 : 1.0), r = iF.x + sin(tt * 0.7 + r0 * 6.0) * 0.5, h = iF.y + sin(tt * 0.5 + r0 * 9.0) * 0.35 + sin(a * 2.0 + tt * 0.3) * 0.9;
-      pos = vec3(cos(a) * r, h, sin(a) * r); hd = normalize(vec3(-sin(a), 0.12 * cos(a * 2.0 + tt * 0.3), cos(a)));
-    } else if (uForm < 1.5) {   // Kugel: Schale, die sich um eine schräge Achse dreht und langsam atmet
-      float R = (3.3 + 0.45 * sin(tt * 0.6) + 0.25 * sin(tt * 1.3 + r0 * 4.0)) * iF.z, ph = iF.y + tt * 0.5 * (iF.z > 0.9 ? 1.0 : 1.18), el = iF.x;
-      vec3 q = vec3(cos(el) * cos(ph), sin(el), cos(el) * sin(ph)) * R; vec3 dq = vec3(-sin(ph), 0.0, cos(ph));
-      float c = 0.94, s = 0.34; pos = vec3(q.x, q.y * c - q.z * s, q.y * s + q.z * c); hd = normalize(vec3(dq.x, dq.y * c - dq.z * s, dq.y * s + dq.z * c));
+      vec3 pW = vec3(cos(a) * r, h, sin(a) * r), hW = normalize(vec3(-sin(a), 0.12 * cos(a * 2.0 + tt * 0.3), cos(a)));
+      pos = mix(pT, pW, uSwirl); hd = mix(hT, hW, uSwirl); hd = length(hd) < 0.08 ? hT : normalize(hd);
+    } else if (uForm < 1.5) {   // Saphir-Plättchen: dichte, atmende Kugel, die vorwärts treibt, alle schauen in Schwimmrichtung; selten dreht sie sich als Wirbel
+      float R = (3.3 + 0.45 * sin(tt * 0.6) + 0.25 * sin(tt * 1.3 + r0 * 4.0)) * iF.z, el = iF.x;
+      vec3 q0 = vec3(cos(el) * cos(iF.y), sin(el), cos(el) * sin(iF.y)) * R;
+      vec3 pT = rgt * q0.x + upd * q0.y + uDir * q0.z + rgt * sin(w1) * 0.3 + upd * sin(w2) * 0.2 + uDir * sin(w3) * 0.3, hT = normalize(uDir * 1.6 + rgt * cos(w1) * 0.3 + upd * cos(w2) * 0.12);
+      float ph = iF.y + tt * 0.5 * (iF.z > 0.9 ? 1.0 : 1.18); vec3 q = vec3(cos(el) * cos(ph), sin(el), cos(el) * sin(ph)) * R, dq = vec3(-sin(ph), 0.0, cos(ph));
+      float c = 0.94, s = 0.34; vec3 pW = vec3(q.x, q.y * c - q.z * s, q.y * s + q.z * c), hW = normalize(vec3(dq.x, dq.y * c - dq.z * s, dq.y * s + dq.z * c));
+      pos = mix(pT, pW, uSwirl); hd = mix(hT, hW, uSwirl); hd = length(hd) < 0.08 ? hT : normalize(hd);
     } else {   // Trupp: lockere, langgezogene Gruppe, die in Fahrtrichtung zieht; jeder pendelt ein wenig für sich
-      vec3 right = normalize(cross(vec3(0.0, 1.0, 0.0), uDir)), upv = cross(uDir, right);
-      float w1 = tt * 0.4 + r0 * 7.0, w2 = tt * 0.33 + r0 * 5.0, w3 = tt * 0.27 + r0 * 3.0;
       vec3 o = iF.xyz + vec3(sin(w1) * 1.1, sin(w2) * 0.5, sin(w3) * 1.4);
-      pos = right * o.x + upv * o.y + uDir * o.z; hd = normalize(uDir * 1.6 + right * cos(w1) * 0.44 + upv * cos(w2) * 0.16);
+      pos = rgt * o.x + upd * o.y + uDir * o.z; hd = normalize(uDir * 1.6 + rgt * cos(w1) * 0.44 + upd * cos(w2) * 0.16);
     }
     vec3 wp = uC + pos; vec3 d = wp - uAv; float L = max(length(d), 0.01), k = max(0.0, 1.0 - L / 8.0);
     wp += d / L * k * k * 7.0; hd = normalize(hd + d / L * k * 2.2);   // dem Boot Platz machen: nah dran stärker
-    float sz = iG.x, ph = tt * uBeat * 6.2832 * (1.0 + 2.0 * k) + iG.y, amp = 0.3 + 0.5 * k;
+    float sz = iG.x, ph = uPh + iG.y, amp = 0.3 + 0.5 * k;
     float wave = sin(ph - (0.5 - p.z) * 6.2832 * 0.9) * amp;
     p.x += wave * pow(clamp(t, 0.0, 1.0), 2.0) * 0.16;
     if (part > 1.5 && part < 2.5) { float fl = sin(tt * 2.6 + iG.y + vv * 1.5) * 0.25 * vv; p.y += fl * 0.1; }
@@ -155,9 +161,9 @@ export function createSchools(scene) {
       iG.set([rr(ty.size[0], ty.size[1]), R() * 6.28, R(), w], i * 4);
     }
     g.setAttribute('iF', new T.InstancedBufferAttribute(iF, 4)); g.setAttribute('iG', new T.InstancedBufferAttribute(iG, 4)); g.instanceCount = ty.n;
-    const u = { uC: { value: new T.Vector3() }, uDir: { value: new T.Vector3(0, 0, 1) }, uAv: { value: new T.Vector3(0, 1e4, 0) }, uForm: { value: ty.form }, uBeat: { value: ty.beat }, uRad: { value: ty.rad }, uFade: { value: 0 } };
+    const u = { uC: { value: new T.Vector3() }, uDir: { value: new T.Vector3(0, 0, 1) }, uAv: { value: new T.Vector3(0, 1e4, 0) }, uForm: { value: ty.form }, uBeat: { value: ty.beat }, uRad: { value: ty.rad }, uFade: { value: 0 }, uSwirl: { value: 0 }, uPh: { value: 0 } };
     const m = new T.Mesh(g, new T.ShaderMaterial({ uniforms: uni(u), side: T.DoubleSide, vertexShader: VS, fragmentShader: FS(ty.sp) })); m.frustumCulled = false; m.visible = false; scene.add(m);
-    return { ti, ty, m, u, on: false, x: 0, y: 0, z: 0, yaw: 0, turn: 0, fade: 0, out: false };
+    return { ti, ty, m, u, on: false, x: 0, y: 0, z: 0, yaw: 0, turn: 0, fade: 0, out: false, ph: 0, sw: 0, swT: 0, swNext: 0, swCool: 0 };
   });
   S.types = types;
   /** Höhe, in der ein Schwarm hier schwimmen will */
@@ -173,11 +179,13 @@ export function createSchools(scene) {
       let blocked = false; for (let i = 1; i < 10 && !blocked; i++) { const q = i / 10; if (floorH(x + (ref.x - x) * q, z + (ref.z - z) * q) > y + (ref.y - y) * q - ty.rad * 0.4) blocked = true; }
       if (blocked && k < 32) continue;   // kein Hang zwischen Schwarm und Spieler
       const side = (R() < 0.5 ? 1 : -1) * rr(near ? 3 : 2, near ? 9 : 10), ux = (ref.x - x) / d, uz = (ref.z - z) / d, px = ref.x - uz * side, pz = ref.z + ux * side;
-      Object.assign(s, { on: true, out: false, x, y, z, yaw: Math.atan2(px - x, pz - z), turn: 0, fade: 0, life: 0, run: d + 10 }); s.m.visible = true; return true;
+      Object.assign(s, { on: true, out: false, x, y, z, yaw: Math.atan2(px - x, pz - z), turn: 0, fade: 0, life: 0, run: d + 10, sw: 0, swT: 0, swNext: R() < 0.45 ? rr(35, 150) : 1e9, swCool: 20 }); s.m.visible = true; return true;
     }
     return false;
   };
   S.clear = () => { for (const s of types) { s.on = false; s.m.visible = false; } };
+  /** Entwicklermenü: alle Kometen- und Saphirschwärme kreisen jetzt eine Weile */
+  S.swirl = () => { for (const s of types) if (s.on && s.ty.form < 2) { s.swT = rr(10, 17); s.swCool = 70; s.swNext = 1e9; } };
   S.active = () => types.filter((s) => s.on).length;
   S.update = (dt, ref, avoid) => {
     S.timer -= dt;
@@ -185,7 +193,12 @@ export function createSchools(scene) {
     for (const s of types) {
       if (!s.on) continue; const ty = s.ty; s.life += dt;
       // Anflug: zügig und geradeaus zum Spieler hin, in seiner Nähe dann gemächlich; danach sanftes Schlängeln
-      const dR = Math.hypot(s.x - ref.x, s.z - ref.z), boost = s.run > 0 ? 1 + 2.2 * smooth(14, 34, dR) : 1;
+      const dR = Math.hypot(s.x - ref.x, s.z - ref.z), boost = (s.run > 0 ? 1 + 2.2 * smooth(14, 34, dR) : 1) * (1 - 0.65 * s.sw);   // im Wirbel kommt der Schwarm kaum voran
+      // Wirbel: selten von selbst, oder wenn das Boot mitten hineinfährt; weich ein- und ausgeblendet
+      const dA = Math.hypot(s.x - avoid.x, s.y - avoid.y, s.z - avoid.z), near = 1 - smooth(ty.rad + 3, ty.rad + 12, dA);
+      if (ty.form < 2) { s.swNext -= dt; s.swCool -= dt; let go = s.swNext <= 0; if (!go && near > 0.6 && s.swCool <= 0) { go = R() < 0.5; s.swCool = 30; } if (go && s.swT <= 0 && s.run <= 0) { s.swT = rr(10, 17); s.swNext = 1e9; s.swCool = 70; } }
+      if (s.swT > 0) s.swT -= dt; s.sw += ((s.swT > 0 ? 1 : 0) - s.sw) * Math.min(1, dt * 0.45); s.u.uSwirl.value = s.sw * s.sw * (3 - 2 * s.sw);
+      s.ph = (s.ph + dt * ty.beat * 6.2832 * (1 + 0.9 * near + 0.4 * s.sw)) % (PI * 2000); s.u.uPh.value = s.ph;   // Flossenschlag: schneller, wenn das Boot nah ist; die Phase läuft stetig weiter, ohne zu springen
       if (s.run > 0) s.run -= ty.speed * boost * dt; else { s.turn += (rr(-1, 1) * 0.25 - s.turn) * Math.min(1, dt * 0.3); s.yaw = wrapPi(s.yaw + s.turn * dt * 0.25); }
       if (Math.hypot(s.x, s.z) > BOUNDS.r * 0.9) s.yaw += wrapPi(Math.atan2(-s.x, -s.z) - s.yaw) * Math.min(1, dt * 0.5);
       const ahx = s.x + Math.sin(s.yaw) * 12, ahz = s.z + Math.cos(s.yaw) * 12; if (floorH(ahx, ahz) > s.y - ty.rad * 0.7 - 1) s.yaw += dt * 0.6;   // vorn steigt der Grund: abdrehen

@@ -21,6 +21,12 @@ export function addVitrine(cabin) {
   // der Zahn: kegelig, leicht gebogen, liegt schräg auf dem Samt
   const tp = []; for (let k = 0; k <= 8; k++) { const f = k / 8, a = 0.5; tp.push(at([(-0.06 + f * 0.12) * Math.cos(a) - Math.sin(f * 1.6) * 0.008 * Math.sin(a), 0.047 + Math.sin(f * 2.4) * 0.014 - f * 0.012, -(-0.06 + f * 0.12) * Math.sin(a) + Math.sin(f * 1.6) * 0.008])); }
   tube(g, tp, tp.map((_, k) => 0.0185 * Math.pow(1 - k / 8, 0.55) + 0.002), 0, 9, IVORY);
+  // Wurzel: der Zahn ist unten zu, mit einer flach gewölbten, etwas dunkleren Fläche (gleicher Ring wie der erste des Rohrs)
+  { const a = tp[0], b = tp[1], r = 0.0205, l = Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]), tv = [(b[0] - a[0]) / l, (b[1] - a[1]) / l, (b[2] - a[2]) / l], rf = Math.abs(tv[2]) > 0.9 ? [0, 1, 0] : [0, 0, 1];
+    const cr = (p, q) => [p[1] * q[2] - p[2] * q[1], p[2] * q[0] - p[0] * q[2], p[0] * q[1] - p[1] * q[0]], nz = (p) => { const k = Math.hypot(p[0], p[1], p[2]) || 1; return [p[0] / k, p[1] / k, p[2] / k]; }, u = nz(cr(tv, rf)), w = cr(tv, u), ROOT = [0.8, 0.73, 0.58];
+    const c0 = g.v(a[0] - tv[0] * r * 0.3, a[1] - tv[1] * r * 0.3, a[2] - tv[2] * r * 0.3, -tv[0], -tv[1], -tv[2], ROOT), ring = [];
+    for (let i = 0; i < 9; i++) { const an = i / 9 * Math.PI * 2, ox = u[0] * Math.cos(an) + w[0] * Math.sin(an), oy = u[1] * Math.cos(an) + w[1] * Math.sin(an), oz = u[2] * Math.cos(an) + w[2] * Math.sin(an), n = nz([ox * 0.6 - tv[0], oy * 0.6 - tv[1], oz * 0.6 - tv[2]]); ring.push(g.v(a[0] + ox * r, a[1] + oy * r, a[2] + oz * r, n[0], n[1], n[2], ROOT)); }
+    for (let i = 0; i < 9; i++) g.tri(c0, ring[i], ring[(i + 1) % 9]); }
   const solid = new T.Mesh(cabinGeo(g), mat); solid.frustumCulled = false; inner.add(solid);
   // Glas: fünf Scheiben im Glanz-Material der Kuppel (zweiter Durchgang, additiv)
   const cg = new Geo(), P8 = (sx, y, sz) => at([sx * CW, y, sz * CD]);

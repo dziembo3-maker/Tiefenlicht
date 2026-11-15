@@ -1,10 +1,11 @@
 // sonartable.js – der große Sonarschirm am Tisch in der Kabine: 500 m Reichweite, der Strahl zeichnet nach und nach
 // die Umrisse von Schluchten und Becken; Fundstellen erscheinen nur als unbestimmte Flecken. Antippen setzt einen Kurs.
 import { wrapPi } from './util.js';
+const smoothA = (a, b, x) => { const k = Math.min(1, Math.max(0, (x - a) / (b - a))); return k * k * (3 - 2 * k); };
 import { floorH } from './terrain.js';
 import { poisNear } from './world.js';
 
-export function createTable(S, nav, cv, sector = () => null, extra = () => []) {
+export function createTable(S, nav, cv, sector = () => null, extra = () => [], label = () => null) {   // label(p): Kurzname eines Flecks, sobald er im Logbuch steht (sonst null)
   const N = cv.width, c = N / 2, R = c - 16, TR = 500, k = R / TR, cx = cv.getContext('2d');
   const ph = document.createElement('canvas'); ph.width = ph.height = N; const px = ph.getContext('2d');
   const TB = { a: 0, blobs: [], pois: [], poiT: 0, fadeT: 0, open: false };
@@ -30,8 +31,9 @@ export function createTable(S, nav, cv, sector = () => null, extra = () => []) {
       const rel = ((wrapPi(S.h - Math.atan2(p.x - S.x, p.z - S.z)) % 6.2832) + 6.2832) % 6.2832, dl = ((rel - b0) % 6.2832 + 6.2832) % 6.2832; if (dl >= a1 - a0) continue;
       const q = scr(p.x, p.z), hsh = Math.abs(Math.sin(p.x * 12.9898 + p.z * 78.233) * 43758.5453) % 1, rb = 10 + hsh * 10, g = px.createRadialGradient(q[0], q[1], 0, q[0], q[1], rb);
       g.addColorStop(0, 'rgba(225,255,235,0.95)'); g.addColorStop(0.45, 'rgba(120,255,170,0.5)'); g.addColorStop(1, 'rgba(60,255,130,0)'); px.fillStyle = g; px.beginPath(); px.ellipse(q[0], q[1], rb, rb * (0.6 + hsh * 0.4), hsh * 3, 0, 6.2832); px.fill();
-      const old = TB.blobs.find((b) => b.x === p.x && b.z === p.z); if (old) { old.sx = q[0]; old.sy = q[1]; } else TB.blobs.push({ x: p.x, z: p.z, sx: q[0], sy: q[1] });
+      const old = TB.blobs.find((b) => b.x === p.x && b.z === p.z); if (old) { old.sx = q[0]; old.sy = q[1]; old.seenT = 0; } else TB.blobs.push({ x: p.x, z: p.z, sx: q[0], sy: q[1], p, seenT: 0 });
     }
+    for (const b of TB.blobs) b.seenT += dt;
     TB.a = a1 % 6.2832;
   };
   /** zeichnet den Schirm auf eine Zeichenfläche (groß am Tisch, klein als Bildschirm im Raum) */
@@ -50,6 +52,12 @@ export function createTable(S, nav, cv, sector = () => null, extra = () => []) {
       ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(c, c); ctx.arc(c, c, R, ph - sv.half, ph + sv.half); ctx.closePath(); ctx.fill();
       ctx.strokeStyle = `rgba(255,214,130,${0.8 * al})`; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(c, c, R - 3, ph - sv.half, ph + sv.half); ctx.stroke(); } }
     if (nav.course) { const q = scr(nav.course.x, nav.course.z), d = Math.hypot(q[0] - c, q[1] - c); if (d < R - 6) { ctx.strokeStyle = 'rgba(255,205,120,0.95)'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(q[0], q[1], 17, 0, 6.2832); ctx.stroke(); ctx.setLineDash([5, 7]); ctx.strokeStyle = 'rgba(255,205,120,0.45)'; ctx.beginPath(); ctx.moveTo(c, c); ctx.lineTo(q[0], q[1]); ctx.stroke(); ctx.setLineDash([]); } }
+    if (size === N) {   // Namen bekannter Orte, klein neben ihrem Fleck (nur am großen Tisch, nicht auf dem kleinen Schirm im Raum)
+      ctx.font = '15px ui-monospace, Menlo, Consolas, monospace'; ctx.textBaseline = 'middle'; ctx.shadowColor = 'rgba(0,8,3,0.95)'; ctx.shadowBlur = 6;
+      for (const b of TB.blobs) { const nm = label(b.p); if (!nm) continue; const q = scr(b.x, b.z), d = Math.hypot(q[0] - c, q[1] - c); if (d > R - 8) continue;
+        const w = ctx.measureText(nm).width, right = q[0] + 18 + w < c + Math.sqrt(Math.max(0, R * R - (q[1] - c) ** 2)) - 6, al = 0.82 * (1 - smoothA(10, 40, b.seenT));
+        if (al <= 0.02) continue; ctx.fillStyle = `rgba(175,255,205,${al})`; ctx.textAlign = right ? 'left' : 'right'; ctx.fillText(nm, q[0] + (right ? 18 : -18), q[1]); }
+      ctx.shadowBlur = 0; ctx.textBaseline = 'alphabetic'; }
     ctx.restore();
     ctx.fillStyle = 'rgba(110,255,160,0.45)'; ctx.font = '15px ui-monospace, Menlo, monospace'; ctx.textAlign = 'left'; for (let r = 100; r <= TR; r += 100) ctx.fillText(r + '', c + 5, c - r * k + 16);
     ctx.fillStyle = 'rgba(210,255,225,0.95)'; ctx.beginPath(); ctx.moveTo(c, c - 9); ctx.lineTo(c + 6, c + 7); ctx.lineTo(c - 6, c + 7); ctx.closePath(); ctx.fill();

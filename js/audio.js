@@ -126,20 +126,23 @@ export function createAudio() {
     const lp = H.open ? 7000 : inside ? 1500 : Math.max(900, 5000 - h.d * 25);
     for (let i = 0; i <= pat.length; i++) { const tt = t + 0.05 + x, k = 0.85 + Math.random() * 0.3; click1(tt, h.g * 0.5 * k, h.pan, lp); H.pend.push([tt, h.far * k]); if (i < pat.length) x += pat[i] * (0.9 + Math.random() * 0.2); }
   }
-  A.setInside = (v) => { inside = v; if (!ctx) return; outLP.frequency.setTargetAtTime(v ? 1500 : 5200, ctx.currentTime, 0.25); pingOut.gain.setTargetAtTime(v ? 0.45 : 0.8, sctx.currentTime, 0.2); if (mus) { mus.lp.frequency.setTargetAtTime(v ? 3600 : 700, ctx.currentTime, 0.3); mus.out.gain.setTargetAtTime(v ? 1 : 0.45, ctx.currentTime, 0.3); } };
+  A.setInside = (v) => { inside = v; if (!ctx) return; outLP.frequency.setTargetAtTime(v ? 1500 : 5200, ctx.currentTime, 0.25); pingOut.gain.setTargetAtTime(v ? 0.45 : 0.8, sctx.currentTime, 0.2); };   // die Kassette klingt drinnen und draußen gleich
   // ---------- Kassettendeck: ruhige, langsam schwebende Musik, live erzeugt; Band leiert leicht, rauscht ----------
   const CH = [[45, [57, 60, 64, 67, 71]], [41, [53, 57, 60, 64, 67]], [48, [55, 60, 64, 67, 71]], [40, [52, 55, 59, 62, 66]], [45, [57, 60, 64, 69, 72]], [41, [57, 60, 64, 65, 69]], [43, [55, 59, 62, 66, 69]], [40, [55, 59, 62, 64, 67]]];
-  // Kassetten: jede hat eigene Harmonien, eigenes Tempo und einen eigenen Klang. 0 = Bordkassette, 1 = Galeone (tief, d-Moll, langsam), 2 = Walfall (hoch, schwebend, viel Raum), 3 = Kristallgrotte (hell, gläsern, perlend)
+  // Kassetten: jede hat eigene Harmonien, eigenes Tempo und einen eigenen Klang. 0 = Bordkassette, 1 = Galeone (tief, d-Moll, langsam), 2 = Walfall (hoch, schwebend, viel Raum), 3 = Kristallgrotte (hell, gläsern, perlend),
+  // 4 = Krakenhöhle (warm, Es-Dur mit lydischem Schimmer, weiche Holztöne, dazu gestimmte Wassertropfen wie in einem großen Aquarium)
   const TR = [
     { ch: CH, L: 8, pad: 950, padV: 0.0065, bass: 0.06, n: 10, gap: 0.75, skip: 0.3, type: 'triangle', oct: 0, rel: 1.6, vol: 0.022, send: 1 },
     { ch: [[38, [50, 53, 57, 60, 64]], [34, [46, 50, 53, 57, 60]], [31, [43, 46, 50, 53, 57]], [33, [45, 49, 52, 55, 57]], [38, [50, 53, 57, 62, 65]], [36, [48, 52, 55, 59, 62]], [34, [50, 53, 58, 62, 65]], [33, [45, 49, 52, 57, 61]]], L: 11, pad: 620, padV: 0.0085, bass: 0.075, n: 5, gap: 1.9, skip: 0.2, type: 'sine', oct: 0, rel: 3.2, vol: 0.032, send: 1 },
     { ch: [[41, [57, 60, 64, 67, 71]], [43, [59, 62, 67, 69, 74]], [36, [55, 60, 64, 67, 74]], [38, [57, 62, 65, 69, 72]], [41, [60, 64, 69, 71, 76]], [36, [59, 60, 64, 67, 72]]], L: 12, pad: 1500, padV: 0.0045, bass: 0.035, n: 6, gap: 1.7, skip: 0.35, type: 'sine', oct: 12, rel: 4.5, vol: 0.02, send: 2.2 },
     { ch: [[45, [64, 67, 69, 71, 76]], [43, [62, 67, 71, 74, 79]], [40, [64, 67, 71, 72, 76]], [41, [60, 64, 69, 72, 76]], [38, [62, 65, 69, 72, 77]], [43, [62, 67, 71, 74, 76]]], L: 9, pad: 1150, padV: 0.0048, bass: 0.04, n: 9, gap: 0.82, skip: 0.32, type: 'sine', oct: 12, rel: 2.6, vol: 0.022, send: 1.7 },
+    { ch: [[39, [55, 58, 62, 65, 70]], [36, [55, 58, 63, 67, 70]], [44, [55, 60, 63, 67, 72]], [41, [57, 60, 63, 67, 72]], [39, [55, 58, 62, 67, 70]], [46, [53, 58, 62, 65, 70]]], L: 10, pad: 900, padV: 0.0058, bass: 0.05, n: 6, gap: 1.45, skip: 0.38, type: 'triangle', oct: 0, rel: 2.2, vol: 0.02, send: 1.5,
+      drip: { n: 14, gap: 0.62, skip: 0.55, oct: 24, vol: 0.017 } },
   ];
   let trk = 0;
   const hz = (m) => 440 * Math.pow(2, (m - 69) / 12);
   function musicSetup() {
-    const out = gain(inside ? 1 : 0.45), lp = filt('lowpass', inside ? 3600 : 700, 0.5), ws = ctx.createWaveShaper(), cv = new Float32Array(256); for (let i = 0; i < 256; i++) { const x = i / 128 - 1; cv[i] = Math.tanh(x * 1.6) / Math.tanh(1.6); } ws.curve = cv;
+    const out = gain(1), lp = filt('lowpass', 3600, 0.5), ws = ctx.createWaveShaper(), cv = new Float32Array(256); for (let i = 0; i < 256; i++) { const x = i / 128 - 1; cv[i] = Math.tanh(x * 1.6) / Math.tanh(1.6); } ws.curve = cv;
     const bus = gain(0), dl = ctx.createDelay(1.5), fb = gain(0.38), dlf = filt('lowpass', 1800, 0.5), send = gain(0.35); dl.delayTime.value = 0.56;
     chain(bus, ws, lp, out); out.connect(BUS.kassette); const an = ctx.createAnalyser(); an.fftSize = 512; an.smoothingTimeConstant = 0.6; bus.connect(an); chain(send, dl, dlf, fb, dl); dlf.connect(bus);
     const wow = ctx.createOscillator(), wg = gain(7); wow.frequency.value = 0.55; wow.connect(wg); wow.start();
@@ -153,10 +156,18 @@ export function createAudio() {
     g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(vol, t0 + att); g.gain.setValueAtTime(vol, t0 + dur); g.gain.linearRampToValueAtTime(0, t0 + dur + rel);
     chain(o, g, dest); o.start(t0); o.stop(t0 + dur + rel + 0.05);
   }
+  /** ein gestimmter Wassertropfen: kurzer Sinus, der beim Aufprall nach oben gleitet, mit viel Echo */
+  function drip(f, t0, v) {
+    const o = ctx.createOscillator(), g = gain(0), lp = filt('lowpass', 3400, 0.6), sg = gain(1.8); o.type = 'sine'; mus.wg.connect(o.detune);
+    o.frequency.setValueAtTime(f * 0.8, t0); o.frequency.exponentialRampToValueAtTime(f, t0 + 0.035);
+    g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(v, t0 + 0.004); g.gain.exponentialRampToValueAtTime(0.0003, t0 + 0.5);
+    chain(o, g, lp, mus.in); lp.connect(sg); sg.connect(mus.send); o.start(t0); o.stop(t0 + 0.55);
+  }
   function chord(t0) {
     const tr = TR[trk] || TR[0], [root, ns] = tr.ch[mus.step % tr.ch.length], L = tr.L, pad = filt('lowpass', tr.pad, 0.6); pad.connect(mus.in);
     for (const m of ns.slice(0, 4)) for (const d of [-8, 7]) note('sawtooth', hz(m), t0, 2.6, L - 1.2, 3.2, tr.padV, pad, d);
     note('sine', hz(root), t0, 0.8, L - 1, 2.5, tr.bass, mus.in); note('triangle', hz(root + 12), t0, 1.5, L - 1.5, 2.5, 0.012, mus.in);
+    if (tr.drip) { const D = tr.drip; for (let k = 0; k < D.n; k++) { if (Math.random() < D.skip) continue; drip(hz(ns[Math.floor(Math.random() * ns.length)] + D.oct), t0 + 0.7 + k * D.gap + (k % 2) * 0.07 + (Math.random() - 0.5) * 0.06, D.vol * (0.55 + 0.45 * Math.random())); } }
     for (let k = 0; k < tr.n; k++) { if (Math.random() < tr.skip) continue; const m = ns[(k * 2 + mus.step) % ns.length] + tr.oct + (k % 4 === 3 ? 12 : 0), t = t0 + 0.4 + k * tr.gap + (Math.random() - 0.5) * 0.04, f = filt('lowpass', 2200, 0.7), sg = gain(tr.send); f.connect(mus.in); f.connect(sg); sg.connect(mus.send); note(tr.type, hz(m), t, tr.type === 'sine' ? 0.03 : 0.008, 0.05, tr.rel, tr.vol, f); }
     mus.step++; return L;
   }
@@ -177,6 +188,9 @@ export function createAudio() {
   A.click = (v) => { if (ctx) click(v); };
   /** Kameraverschluss: zwei mechanische Klacks kurz hintereinander, dazu ein leises Surren */
   A.shutter = () => { if (!ctx) return; click(1.4); setTimeout(() => click(0.9), 70); const o = ctx.createOscillator(), g = gain(0), t = ctx.currentTime; o.type = 'triangle'; o.frequency.setValueAtTime(900, t + 0.09); o.frequency.linearRampToValueAtTime(1300, t + 0.35); g.gain.setValueAtTime(0, t + 0.09); g.gain.linearRampToValueAtTime(0.006, t + 0.12); g.gain.linearRampToValueAtTime(0, t + 0.35); chain(o, g, BUS.kabine); o.start(t + 0.09); o.stop(t + 0.4); };
+  /** Umblättern: ein kurzes, trockenes Papierrascheln */
+  A.page = () => { if (!ctx) return; const s = ctx.createBufferSource(); s.buffer = noiseBuf; const g = gain(0), t = ctx.currentTime, f = filt('bandpass', 1800, 0.9), h = filt('highpass', 900, 0.7); f.frequency.setValueAtTime(1500, t); f.frequency.exponentialRampToValueAtTime(3800, t + 0.22);
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.03, t + 0.05); g.gain.linearRampToValueAtTime(0.012, t + 0.14); g.gain.exponentialRampToValueAtTime(0.0005, t + 0.3); chain(s, f, h, g, BUS.kabine); s.start(t, Math.random() * 2, 0.35); };
   A.pour = () => { if (!ctx) return; const s = ctx.createBufferSource(); s.buffer = noiseBuf; const g = gain(0), t = ctx.currentTime, f = filt('bandpass', 900, 1.2); f.frequency.setValueAtTime(700, t); f.frequency.linearRampToValueAtTime(1500, t + 2.2); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.05, t + 0.2); g.gain.setValueAtTime(0.05, t + 2.0); g.gain.linearRampToValueAtTime(0, t + 2.4); chain(s, f, g, BUS.kabine); s.start(t, Math.random(), 2.6); };
   /** Kessel: 0 = kalt, steigt beim Erhitzen; ab 0.85 brodelt und pfeift er leise */
   A.kettle = (b) => {

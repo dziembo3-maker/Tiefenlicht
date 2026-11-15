@@ -21,4 +21,4 @@ Neue Version einspielen
 
 Am PC
 - Klick ins Bild fängt die Maus (umsehen), Esc gibt sie wieder frei.
-- WASD fahren/gehen, Leertaste/Shift auf und ab, R Ping, C Kabine, F benutzen, L Logbuch.
+- WASD fahren/gehen, Leertaste/Shift auf und ab, R Ping, C Kabine, F benutzen, L Logbuch (darin A/D blättern), 1 Vollbild.

@@ -42,7 +42,7 @@
   .optRow { display: flex; justify-content: space-between; margin-bottom: 8px; }
   #log { position: fixed; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 14px; background: rgba(10, 6, 2, 0.72); pointer-events: auto; z-index: 3; }
   #log.open { display: flex; }
-  #logText { width: min(86vw, 520px); max-height: 70vh; overflow-y: auto; padding: 22px 24px; border-radius: 6px; background: linear-gradient(#e7dcc2, #d9caa6); color: #3a2a18; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6), inset 0 0 40px rgba(120, 90, 40, 0.35); font-size: 15px; line-height: 1.5; }
+  #logText { width: min(86vw, 520px); height: min(72vh, 640px); box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden; touch-action: none; padding: 22px 24px 10px; border-radius: 6px; background: linear-gradient(#e7dcc2, #d9caa6); color: #3a2a18; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6), inset 0 0 40px rgba(120, 90, 40, 0.35); font-size: 15px; line-height: 1.5; }
   .logHead { font-size: 22px; letter-spacing: 0.12em; text-align: center; margin-bottom: 14px; color: #5a3b1c; } .logEntry { margin-bottom: 16px; } .logTitle { font-style: italic; color: #6b4a26; font-size: 13px; margin-bottom: 3px; }
   .pill.mini { padding: 6px 11px; font-size: 12px; display: inline-block; } .pill.on { background: rgba(232, 184, 106, 0.35); border-color: rgba(255, 215, 150, 0.6); }
   .optBtns { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
@@ -57,6 +57,9 @@
   #dev { position: fixed; right: calc(10px + env(safe-area-inset-right)); top: calc(160px + env(safe-area-inset-top)); bottom: calc(10px + env(safe-area-inset-bottom)); width: 250px; overflow-y: auto; padding: 12px 14px; border-radius: 14px; background: rgba(4, 16, 24, 0.9); border: 1.5px solid rgba(140, 220, 255, 0.3); display: none; pointer-events: auto; font-size: 12px; letter-spacing: 0.04em; z-index: 3; }
   #dev.open { display: block; } #dev h3 { margin: 10px 0 6px; font: 600 11px ui-monospace, monospace; letter-spacing: 0.14em; color: rgba(150, 230, 255, 0.8); } #dev h3:first-child { margin-top: 0; }
   #dev .row { display: flex; align-items: center; gap: 8px; margin: 4px 0; } #dev .row span:first-child { flex: 1; } #dev input[type=range] { width: 90px; accent-color: #7fd6ff; } #dev .pill.mini { margin: 3px 4px 3px 0; }
+  #dev .dsec { margin: 2px -4px; padding: 7px 4px; border-top: 1px solid rgba(140, 220, 255, 0.16); font: 600 12px ui-monospace, monospace; letter-spacing: 0.16em; color: rgba(170, 235, 255, 0.92); cursor: pointer; } #dev .dsec:first-child { border-top: 0; } #dev .dsec:hover { color: #e6f8ff; }
+  #dev .dsec .dar { display: inline-block; width: 16px; transition: transform 0.15s; } #dev .dsec.open .dar { transform: rotate(90deg); } #dev .dbody { padding: 0 0 8px 6px; } #dev .dsec:not(.open) + .dbody { display: none; }
+  #dev .dbody h3 { font-size: 10px; color: rgba(150, 230, 255, 0.6); margin: 8px 0 4px; } #dev .dbody h3:first-child { margin-top: 2px; }
   #menu { position: fixed; inset: 0; z-index: 6; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.35s; }
   #menu.open { opacity: 1; pointer-events: auto; } #menu.low { align-items: flex-end; }
   .card { width: min(88vw, 340px); max-height: calc(100% - 36px); overflow-y: auto; padding: 26px 24px 22px; border-radius: 22px; box-sizing: border-box; text-align: center;
@@ -84,9 +87,11 @@
   #helpText h4 { margin: 14px 0 3px; font-weight: normal; font-style: italic; font-size: 14px; letter-spacing: 0.06em; color: rgba(255, 222, 170, 0.92); } #helpText h4:first-child { margin-top: 0; }
   body.menu #ui.on { opacity: 0; transition: opacity 0.3s; } body.menu #ui * { pointer-events: none !important; }
   #gear svg { width: 12px; height: 12px; fill: rgba(225, 245, 248, 0.85); vertical-align: -1px; }
+  #fsTop { position: fixed; left: calc(100px + env(safe-area-inset-left)); top: calc(70px + env(safe-area-inset-top)); padding: 8px 12px; font-size: 15px; display: none; } body.pc.fs #fsTop { display: block; } body.table #fsTop, body.dive #fsTop { display: none !important; }
+  #fsTop svg { width: 13px; height: 13px; fill: none; stroke: rgba(225, 245, 248, 0.88); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; vertical-align: -1px; }
   #banner { position: fixed; left: 0; right: 0; top: 33%; text-align: center; color: #fff; text-shadow: 0 2px 18px rgba(0, 20, 35, 0.9), 0 0 3px rgba(0, 20, 35, 0.6); opacity: 0; transition: opacity 1.4s; pointer-events: none; }
-  #banner .b1 { display: block; font-size: 13px; letter-spacing: 0.34em; text-transform: uppercase; margin-left: 0.34em; color: rgba(255, 255, 255, 0.82); } #banner .b2 { display: block; margin-top: 9px; font-size: 26px; letter-spacing: 0.14em; font-style: italic; }
-  #logTabs { display: flex; gap: 10px; } #log.page #logTabs { display: none; } #logBtns { display: flex; gap: 12px; } #logGo { display: none; background: rgba(232, 184, 106, 0.32); border-color: rgba(255, 218, 160, 0.7); color: #fff4e2; } #log.page #logGo.show { display: block; }
+  #banner .b1 { display: block; font-size: 13px; letter-spacing: 0.34em; text-transform: uppercase; margin-left: 0.34em; color: rgba(255, 255, 255, 0.82); } #banner .b2 { display: block; margin-top: 9px; font-size: 26px; letter-spacing: 0.14em; font-style: italic; } #banner.long .b2 { font-size: 19px; letter-spacing: 0.06em; line-height: 1.45; max-width: min(90vw, 620px); margin: 10px auto 0; }
+  #logTabs { display: flex; gap: 10px; } #log.page #logTabs { display: none; } #logBtns { display: flex; gap: 12px; } #logGo { display: none; background: rgba(232, 184, 106, 0.32); border-color: rgba(255, 218, 160, 0.7); color: #fff4e2; } #logGo.show { display: block; }
   .logStart { margin: 14px auto 2px; width: max-content; background: rgba(150, 95, 30, 0.85); border-color: rgba(90, 55, 15, 0.9); color: #fff4e2; }
 .logStart.run { background: rgba(60, 45, 25, 0.35); border-color: rgba(60, 45, 25, 0.5); color: rgba(60, 40, 20, 0.75); }
 .logPhoto, #photoGrid img { cursor: zoom-in; }
@@ -95,6 +100,16 @@
 #photoBig.open { display: flex; }
 #photoBig img { max-width: 94vw; max-height: 90vh; box-shadow: 0 10px 50px rgba(0, 0, 0, 0.8); transform: rotate(-0.6deg); }
 #logGo.run { background: rgba(8, 40, 60, 0.4); border-color: rgba(190, 235, 240, 0.28); color: rgba(220, 242, 246, 0.75); }
+  #logPage { flex: 1; min-height: 0; overflow: hidden; position: relative; }
+  #logPage.turnN { animation: turnN 0.32s ease-out; } #logPage.turnP { animation: turnP 0.32s ease-out; }
+  @keyframes turnN { 0% { opacity: 0; transform: translateX(18px); } 100% { opacity: 1; transform: none; } } @keyframes turnP { 0% { opacity: 0; transform: translateX(-18px); } 100% { opacity: 1; transform: none; } }
+  #logNav { flex: none; display: flex; align-items: center; justify-content: space-between; padding-top: 8px; margin-top: 4px; border-top: 1px solid rgba(90, 59, 28, 0.22); font-size: 13px; letter-spacing: 0.12em; color: #6b4a26; }
+  #logNav > span:not(#logNum) { cursor: pointer; padding: 4px 10px; border-radius: 12px; display: flex; align-items: center; gap: 2px; } #logNav > span:not(#logNum):hover { background: rgba(120, 80, 30, 0.1); }
+  #logNav .arr { font-size: 28px; line-height: 22px; } #logNav .off { opacity: 0.22; pointer-events: none; } #logNum { font-style: italic; }
+  #logNav kbd { color: #6b4a26; border-color: rgba(107, 74, 38, 0.45); margin: 0 6px; }
+  .capTitle { font-size: 15px; margin: 2px 0 10px; } #ui:has(#log.open) :is(#act, #hint, #sonHint, #banner, #note) { visibility: hidden; }
+  .logPar { margin-bottom: 0.65em; } .logPar.cont { text-indent: 0; }
+  .bookPhoto { display: block; margin: 6px auto 14px; max-width: 86%; object-fit: contain; box-shadow: 0 4px 12px rgba(60, 40, 20, 0.35); cursor: zoom-in; } .bookPhoto.r1 { transform: rotate(-1.5deg); } .bookPhoto.r2 { transform: rotate(1.3deg); }
   .logP { white-space: pre-line; } .logSign { margin-top: 12px; text-align: right; font-style: italic; color: #6b4a26; } .logEntry.sep { padding-bottom: 14px; border-bottom: 1px solid rgba(90, 59, 28, 0.25); }
   #misList { text-align: left; } .mis { padding: 10px 12px; margin-bottom: 8px; border-radius: 12px; border: 1.5px solid rgba(190, 235, 240, 0.2); background: rgba(8, 40, 60, 0.32); }
   .mis .mn { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 14px; letter-spacing: 0.06em; color: #eef9fa; } .mis .ms2 { font: 10px ui-monospace, Menlo, Consolas, monospace; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(200, 232, 238, 0.6); white-space: nowrap; }
@@ -131,7 +146,7 @@
   #camFlash { position: absolute; inset: 0; background: #fff; opacity: 0; transition: opacity 0.5s; }
   #camThumb { position: absolute; left: calc(14px + env(safe-area-inset-left)); bottom: calc(14px + env(safe-area-inset-bottom)); width: 132px; opacity: 0; transform: rotate(-4deg) translateY(20px); transition: opacity 0.5s, transform 0.5s; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5); }
   #camThumb.show { opacity: 1; transform: rotate(-4deg) translateY(0); }
-  .logPhoto { display: block; width: min(78%, 300px); margin: 10px auto 4px; box-shadow: 0 4px 12px rgba(60, 40, 20, 0.35); transform: rotate(-1.6deg); }
+  .logPhoto { display: block; width: min(78%, 300px); aspect-ratio: 456 / 403; margin: 10px auto 4px; box-shadow: 0 4px 12px rgba(60, 40, 20, 0.35); transform: rotate(-1.6deg); }
   .logEntry:nth-child(even) .logPhoto { transform: rotate(1.4deg); }
   #photoGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 16px; padding: 4px; } #photoGrid img { width: 100%; box-shadow: 0 3px 10px rgba(60, 40, 20, 0.35); } #photoGrid img:nth-child(odd) { transform: rotate(-1.5deg); } #photoGrid img:nth-child(even) { transform: rotate(1.2deg); }
   #horch { position: fixed; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 12px; background: rgba(8, 6, 3, 0.82); pointer-events: auto; z-index: 3; }
@@ -172,9 +187,10 @@
   <div id="camUI"><div id="camFrame"><i></i><i></i><i></i><i></i><div id="camDot"></div></div><div id="camInfo"></div><img id="camThumb" alt="">
     <div id="camShut"><kbd>Space</kbd></div><div id="camClose" class="pill"><span data-t="close"></span><kbd>Esc</kbd></div><div id="camFlash"></div></div>
   <div id="horch"><canvas id="horchCv" width="720" height="720"></canvas><div id="horchSide"><input id="horchSl" type="range" min="-180" max="180" step="1" value="0"><div id="horchInfo"></div><div id="horchClose" class="pill"><span data-t="back"></span><kbd>Esc</kbd></div></div></div>
+  <div id="fsTop" class="pill"><svg viewBox="0 0 14 14"><path id="fsIco" d="M1.5 5V1.5H5M9 1.5h3.5V5M12.5 9v3.5H9M5 12.5H1.5V9"/></svg><kbd>1</kbd></div>
   <div id="gear" class="pill"><svg viewBox="0 0 12 12"><rect x="2" y="1.5" width="2.6" height="9" rx="0.8"/><rect x="7.4" y="1.5" width="2.6" height="9" rx="0.8"/></svg><kbd>Esc</kbd></div>
   <div id="dev"></div>
-  <div id="log"><div id="logTabs"><div class="pill mini" data-tab="own" data-t="log_own"></div><div class="pill mini" data-tab="cap" data-t="log_cap"></div><div class="pill mini" data-tab="pho" data-t="log_pho"></div></div><div id="logText"></div><div id="logBtns"><div id="logGo" class="pill"></div><div id="logClose" class="pill"><span data-t="close"></span><kbd>L</kbd></div></div></div>
+  <div id="log"><div id="logTabs"><div class="pill mini" data-tab="own" data-t="log_own"></div><div class="pill mini" data-tab="cap" data-t="log_cap"></div><div class="pill mini" data-tab="pho" data-t="log_pho"></div></div><div id="logText"><div id="logPage"></div><div id="logNav"><span id="logPrev"><span class="arr">‹</span><kbd>A</kbd></span><span id="logNum"></span><span id="logNext"><kbd>D</kbd><span class="arr">›</span></span></div></div><div id="logBtns"><div id="logGo" class="pill"></div><div id="logClose" class="pill"><span data-t="close"></span><kbd>L</kbd></div></div></div>
   <div id="tapes"><div class="tCard"><div id="tList"></div><div class="tNow"><canvas id="tReel" width="128" height="128"></canvas><div class="tInfo"><div id="tName"></div><canvas id="tWave" width="300" height="52"></canvas>
     <div id="tBtns"><span data-a="play"><svg viewBox="0 0 18 18"><path d="M4 2.5l11 6.5-11 6.5z"/></svg></span><span data-a="pause"><svg viewBox="0 0 18 18"><path d="M5 3v12M13 3v12"/></svg></span><span data-a="stop"><svg viewBox="0 0 18 18"><rect x="3.5" y="3.5" width="11" height="11" rx="1"/></svg></span></div></div></div></div>
     <div id="tClose" class="pill"><span data-t="close"></span><kbd>F</kbd></div></div>

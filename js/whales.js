@@ -47,6 +47,7 @@ function buildWhale() {
     const A = g(j, i + 1), B = g(j, i - 1), C = g(j + 1, i), D = g(j - 1, i), ux = A[0] - B[0], uy = A[1] - B[1], uz = A[2] - B[2], vx = C[0] - D[0], vy = C[1] - D[1], vz = C[2] - D[2];
     const nn = norm(uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx), q = (b0 + j * (NA + 1) + i) * 3; N[q] = -nn[0]; N[q + 1] = -nn[1]; N[q + 2] = -nn[2];
   }
+  for (let i = 0; i <= NA; i++) { const q = (b0 + i) * 3; N[q] = 0; N[q + 1] = 0; N[q + 2] = 1; }   // Kopfspitze: alle Punkte des ersten Rings fallen zusammen, dort zeigt die Normale nach vorn (sonst null, und die Nase wird schwarz)
   // Deckel vorn (stumpfe Stirn) und hinten
   for (const [j, t, s] of [[0, 0, 1], [NT, 1, -1]]) {
     const [, , yc] = prof(t), c = v([0, yc, zOf(t) + s * 0.004], [0, 0, s], t, 0, 0.25, 0);
