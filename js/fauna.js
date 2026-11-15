@@ -149,22 +149,22 @@ const FS = (si) => /* glsl */ `precision highp float; ${COMMON} varying vec3 vW,
 export function createFauna(scene) {
   const R = rng(4242), rr = (a, b) => a + R() * (b - a);
   const kinds = SPECIES.map((sp, si) => {
-    const g = buildSpecies(sp, si), M = si === 3 ? 4 : si === 2 ? 18 : 8;
+    const g = buildSpecies(sp, si), M = si === 3 ? 4 : si === 2 ? 24 : 12;
     const iP = new Float32Array(M * 4), iR = new Float32Array(M * 4), iA = new Float32Array(M * 4);
     g.setAttribute('iP', new T.InstancedBufferAttribute(iP, 4)); g.setAttribute('iR', new T.InstancedBufferAttribute(iR, 4)); g.setAttribute('iA', new T.InstancedBufferAttribute(iA, 4)); g.instanceCount = 0;
     const m = new T.Mesh(g, new T.ShaderMaterial({ uniforms: uni(), side: T.DoubleSide, vertexShader: VS, fragmentShader: FS(si) })); m.frustumCulled = false; scene.add(m);
     return { sp, si, g, iP, iR, iA, M, list: [] };
   });
   // Arten: Größe, Tempo, Tiefe, Anzahl um das Boot
-  const CFG = [{ size: [1.1, 1.6], speed: 0.75, n: 6, nearFloor: [1.5, 5], beat: 1.2 }, { size: [1.7, 2.5], speed: 1.0, n: 6, nearFloor: [3, 14], beat: 0.9 }, { size: [1.0, 1.4], speed: 2.0, n: 16, nearFloor: [6, 24], beat: 2.2, school: 4 }, { size: [5.5, 7.2], speed: 2.0, n: 1, nearFloor: [8, 30], beat: 0.6 }];
-  const F = { kinds, sharkT: rr(20, 45) };
+  const CFG = [{ size: [1.1, 1.6], speed: 0.75, n: 8, nearFloor: [2, 10], beat: 1.2 }, { size: [1.7, 2.5], speed: 1.0, n: 8, nearFloor: [3, 14], beat: 0.9 }, { size: [1.0, 1.4], speed: 2.0, n: 20, nearFloor: [6, 24], beat: 2.2, school: 4 }, { size: [5.5, 7.2], speed: 2.0, n: 0, nearFloor: [8, 30], beat: 0.6 }];   // der Hai lebt nicht dauerhaft im Ring, er zieht ab und zu vorbei (siehe unten)
+  const F = { kinds, sharkT: rr(20, 45), sharkGap: 60, encT: 12, encGap: 25 };   // sharkGap / encGap: im Mittel so viele Sekunden zwischen Hai-Vorbeizügen und Begegnungen
   function valid(x, y, z) { const f = floorH(x, z); return y > f + 1.2 && y < -8; }
   function spawn(k, sub, ring, leader) {
     const c = CFG[k.si];
     for (let tries = 0; tries < 20; tries++) {
       let x, z, y;
       if (leader) { x = leader.x + rr(-4, 4); z = leader.z + rr(-4, 4); y = leader.y + rr(-2, 2); }
-      else { const a = R() * 2 * PI, d = rr(ring[0], ring[1]); x = sub.x + Math.cos(a) * d; z = sub.z + Math.sin(a) * d; const f = floorH(x, z); y = Math.min(-10, f + rr(c.nearFloor[0], c.nearFloor[1])); }
+      else { const mv = Math.hypot(sub.vx || 0, sub.vz || 0) > 0.8 && R() < 0.6, a = mv ? PI / 2 - (sub.h || 0) + rr(-0.8, 0.8) : R() * 2 * PI, d = mv ? rr(56, 90) : rr(ring[0], ring[1]); x = sub.x + Math.cos(a) * d; z = sub.z + Math.sin(a) * d; const f = floorH(x, z); y = Math.min(-10, f + rr(c.nearFloor[0], c.nearFloor[1])); }
       if (!valid(x, y, z)) continue;
       return { x, y, z, yaw: R() * 2 * PI, pitch: 0, roll: 0, sp: c.speed * rr(0.8, 1.15), size: rr(c.size[0], c.size[1]), ph: R() * 6, tx: x, ty: y, tz: z, retarget: 0, beat: 0, leader, off: leader ? [rr(-3, 3), rr(-1.5, 1.5), rr(-3, 3)] : null, glow: R(), life: 1e9 };
     }
@@ -180,12 +180,10 @@ export function createFauna(scene) {
     k.list.push({ x, y, z, yaw: sub.h + PI / 2, pitch: 0, roll: 0, sp: c.speed, size: (c.size[0] + c.size[1]) / 2, ph: 0, tx: x + Math.cos(sub.h) * 40, ty: y, tz: z - Math.sin(sub.h) * 40, retarget: 20, beat: 0, glow: R(), life: 1e9, leader: null });
   };
   F.update = (dt, sub, time) => {
-    // seltener Hai: zieht in einiger Entfernung quer vorbei
+    // Hai-Vorbeizüge und Begegnungen, beide mit eigenem Takt
     F.sharkT -= dt; const sh = kinds[3];
-    if (false && F.sharkT <= 0 && sh.list.length === 0) {
-      F.sharkT = rr(60, 120); const a = R() * 2 * PI, d = rr(50, 70), x = sub.x + Math.cos(a) * d, z = sub.z + Math.sin(a) * d, fl = floorH(x, z), y = Math.max(fl + 8, Math.min(-14, sub.y + rr(-6, 10)));
-      if (valid(x, y, z)) { const pass = rr(10, 22) * (R() < 0.5 ? 1 : -1), px = sub.x + Math.cos(a + PI / 2) * pass, pz = sub.z + Math.sin(a + PI / 2) * pass, yaw = Math.atan2(px - x, pz - z), s = { x, y, z, yaw, pitch: 0, roll: 0, sp: rr(2.0, 2.8), size: rr(5.5, 7.2), ph: 0, tx: x + Math.sin(yaw) * 200, ty: y, tz: z + Math.cos(yaw) * 200, retarget: 1e9, beat: 0, glow: 0, life: 70 }; sh.list.push(s); }
-    }
+    if (F.sharkT <= 0 && sh.list.length === 0) F.sharkPass(sub); else if (F.sharkT <= 0) F.sharkT = 5;
+    F.encT -= dt; if (F.encT <= 0) { F.encT = F.encGap * rr(0.6, 1.4); F.encounter(sub); }
     for (const k of kinds) {
       const c = CFG[k.si];
       if (F.frozen) { for (const f of k.list) f.ph += dt * c.beat * 2 * PI * 0.6; } else {
@@ -219,6 +217,41 @@ export function createFauna(scene) {
       k.g.instanceCount = n; k.g.attributes.iP.needsUpdate = k.g.attributes.iR.needsUpdate = k.g.attributes.iA.needsUpdate = true;
     }
   };
+  /** Hai: zieht in einiger Entfernung quer vorbei; fährt das Boot, dann eher vorn, damit man ihn auch sieht */
+  F.sharkPass = (sub) => {
+    F.sharkT = F.sharkGap * rr(0.6, 1.4); const sh = kinds[3];
+    for (let k = 0; k < 12; k++) {
+      const mv = Math.hypot(sub.vx || 0, sub.vz || 0) > 0.8, a = mv ? PI / 2 - (sub.h || 0) + rr(-0.9, 0.9) : R() * 2 * PI, d = rr(48, 62), x = sub.x + Math.cos(a) * d, z = sub.z + Math.sin(a) * d, fl = floorH(x, z), y = Math.max(fl + 8, Math.min(-14, sub.y + rr(-6, 8)));
+      if (!valid(x, y, z)) continue;
+      const pass = rr(10, 22) * (R() < 0.5 ? 1 : -1), px = sub.x + Math.cos(a + PI / 2) * pass, pz = sub.z + Math.sin(a + PI / 2) * pass, yaw = Math.atan2(px - x, pz - z);
+      if (sh.list.length >= sh.M) sh.list.shift();
+      sh.list.push({ x, y, z, yaw, pitch: 0, roll: 0, sp: rr(2.0, 2.8), size: rr(5.5, 7.2), ph: 0, tx: x + Math.sin(yaw) * 200, ty: y, tz: z + Math.cos(yaw) * 200, retarget: 1e9, beat: 0, glow: 0, life: 75, leader: null }); return true;
+    }
+    return false;
+  };
+  /** Begegnung: ein Tier (bei den Gleitern eine kleine Gruppe) taucht schräg voraus am Rand der Sicht auf und kreuzt den Weg des Boots.
+   *  Es kommt kein Tier dazu: dafür verschwindet eines, das gerade weit weg und unsichtbar ist. */
+  F.encounter = (sub, si) => {
+    if (si === undefined) si = Math.floor(R() * 3); const k = kinds[si], c = CFG[si]; if (!c.n) return false;
+    const mv = Math.hypot(sub.vx || 0, sub.vz || 0) > 0.8, grp = si === 2 ? 4 : 1;
+    for (let tries = 0; tries < 12; tries++) {
+      const a = mv ? PI / 2 - (sub.h || 0) + rr(-0.6, 0.6) : R() * 2 * PI, d = rr(44, 58), x = sub.x + Math.cos(a) * d, z = sub.z + Math.sin(a) * d, fl = floorH(x, z);
+      const y = Math.min(-10, Math.max(fl + c.nearFloor[0] + 1, Math.min(fl + c.nearFloor[1], sub.y + rr(-4, 3)))); if (!valid(x, y, z)) continue;
+      const yaw = Math.atan2(sub.x - x, sub.z - z) + (R() < 0.5 ? 1 : -1) * rr(1.1, 1.6);
+      while (k.list.length && k.list.length + grp > Math.min(k.M, c.n)) {   // Platz machen: die am weitesten entfernten Tiere dieser Art gehen
+        { let fi = -1, fd = -1; for (let i = 0; i < k.list.length; i++) { const f = k.list[i], dd = Math.hypot(f.x - sub.x, f.z - sub.z); if (dd > fd) { fd = dd; fi = i; } } if (fi >= 0) { const f = k.list[fi]; for (const o of k.list) if (o.leader === f) o.leader = null; k.list.splice(fi, 1); } }
+      }
+      let lead = null;
+      for (let g = 0; g < grp; g++) {
+        const f = { x: x + (g ? rr(-3, 3) : 0), y: y + (g ? rr(-1.5, 1.5) : 0), z: z + (g ? rr(-3, 3) : 0), yaw, pitch: 0, roll: 0, sp: c.speed * rr(0.85, 1.1), size: rr(c.size[0], c.size[1]), ph: R() * 6, tx: x + Math.sin(yaw) * 90, ty: y, tz: z + Math.cos(yaw) * 90, retarget: 45, beat: 0, glow: R(), life: 1e9, leader: lead, off: lead ? [rr(-3, 3), rr(-1.5, 1.5), rr(-3, 3)] : null };
+        if (!lead) lead = f; k.list.push(f);
+      }
+      return true;
+    }
+    return false;
+  };
+  /** wie viele Tiere gerade im Umkreis r sind */
+  F.countNear = (x, z, r) => { let c = 0; for (const k of kinds) for (const f of k.list) if (Math.hypot(f.x - x, f.z - z) < r) c++; return c; };
   /** für Testbilder: ein Tier jeder Art vor die Kamera stellen */
   F.showcase = (x, y, z, yaw) => {
     for (const k of kinds) k.list.length = 0; const s = [[0, -6, 0], [1, 0, 0], [2, 6, -1], [3, 0, 10]];
