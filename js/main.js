@@ -16,6 +16,7 @@ import { createTable } from './sonartable.js';
 import { MISSIONS, HINTED, REACH, createCanisters } from './missions.js';
 import { createWhales, choosePod } from './whales.js';
 import { createDiver } from './diver.js';
+import { createSchools } from './schools.js';
 
 const Q = new URLSearchParams(location.search), $ = (id) => document.getElementById(id);
 const canvas = $('c');
@@ -25,7 +26,7 @@ const scene = new T.Scene(), camera = new T.PerspectiveCamera(58, 1, 0.3, 700);
 U.uNoise.value = noiseTexture(256);
 createBackdrop(scene);
 let boatKind = 0; try { boatKind = +(localStorage.getItem('tiefenlicht.boat') || 0) || 0; } catch (e) { /* ohne Speicher */ }
-const life = createLife(scene), fauna = createFauna(scene), world = createWorld(scene, life), post = createPost(renderer), audio = createAudio();
+const life = createLife(scene), fauna = createFauna(scene), schools = createSchools(scene), world = createWorld(scene, life), post = createPost(renderer), audio = createAudio();
 let boat = createSub(scene, boatKind);
 createShaft(scene, PLAIN.x + 6, PLAIN.z + 4, -8, PLAIN.floor - 1, 46); const snow = createSnow(scene), cans = createCanisters(scene, world), whales = createWhales(scene), diver = createDiver(scene);
 const cabin = createCabin(), cabinScene = new T.Scene(), camIn = new T.PerspectiveCamera(72, 1, 0.04, 40); cabinScene.add(cabin.group);
@@ -404,6 +405,7 @@ const POD_FIXED = [{ x: WHALE.x, z: WHALE.z, kind: 'skeleton' }, { x: cxAt(235),
 function startMission() { const m = nextMis(); if (!m || MS.active) return; MS.active = m.id; if (m.pod) { MS.stage = 'photo'; MS.pod = choosePod(S.x, S.z, 400, POD_FIXED); } $('log').classList.remove('open'); banner(t('mis_started'), t('mis_' + m.id)); audio.click(0.7); syncMis(); save(); lockMouse(); }
 function takeCan() {
   const m = MISSIONS[misIdx(MS.active)]; if (!m || MS.stage) return; nearCan = false;
+  for (let i = marks.length - 1; i >= 0; i--) if (marks[i].gold) marks.splice(i, 1); for (let i = echoes.length - 1; i >= 0; i--) if (echoes[i].gold || echoes[i].sector) echoes.splice(i, 1); sectors.length = 0;   // die goldene Raute verschwindet mit dem Aufheben
   addLog({ kind: 'find', id: m.id, dist: Math.round(Math.hypot(m.x, m.z) / 10) * 10, dir: DIR8(m.x, m.z) });
   if (m.photo) {   // die Mission geht weiter: erst ein gutes Foto beendet sie
     MS.stage = 'photo'; if (m.cam) MS.cam = true; syncMis(); playTape(m.tape, true); setTimeout(() => note(m.cam ? t('cam_got') : t('m3_photo')), 4300); if (m.cam) setTimeout(() => note(t('m3_photo')), 9000); save(); return;
@@ -550,7 +552,8 @@ function addLog(e) { e.min = Math.round(playTime / 60); e.depth = Math.round(-S.
 const entryTitle = (e) => (e.kind === 'shark' ? '—' : e.kind === 'photo' ? t('n_photo') : e.kind === 'diary' ? t('n_diary_' + e.id) : t('n_' + e.kind) + (e.n ? ' (' + (e.n + 1) + '.)' : ''));
 const entryText = (e) => { if (e.kind === 'shark') return t('shark'); if (e.kind === 'photo') return (e.cap || []).join('  ·  '); if (e.kind === 'diary') return t('diary_' + e.id); if (e.kind === 'find') return t('find_' + e.id) + ' ' + t('where', { d: e.dist, dir: t('dirs')[e.dir] }); const tx = t(e.kind); return tx[e.n % tx.length] + ' ' + t('where', { d: e.dist, dir: t('dirs')[e.dir] }); };
 function discover() {
-  for (const p of poisNear(S.x, S.z, 80)) { const k = Math.round(p.x) + ',' + Math.round(p.z); if (seen.has(k) || Math.hypot(p.x - S.x, p.z - S.z) > (p.disc || (p.kind === 'wreck' ? 46 : 32))) continue; seen.add(k); addLog({ kind: p.kind, n: LOG.filter((e) => e.kind === p.kind).length, dist: Math.round(Math.hypot(p.x, p.z) / 10) * 10, dir: DIR8(p.x, p.z) }); }
+  for (const p of poisNear(S.x, S.z, 80)) { const k = Math.round(p.x) + ',' + Math.round(p.z); if (seen.has(k)) continue;   // Fundort zählt erst in einem flachen Oval: waagerecht wie bisher, senkrecht nur ±12 m um die Mitte des Objekts
+    const rh = p.disc || (p.kind === 'wreck' ? 46 : 32), yc = Math.max(p.y, floorH(p.x, p.z)) + (p.kind === 'wreck' ? 6 : 4), q = (Math.hypot(p.x - S.x, p.z - S.z) / rh) ** 2 + ((S.y - yc) / 12) ** 2; if (q > 1) continue; seen.add(k); addLog({ kind: p.kind, n: LOG.filter((e) => e.kind === p.kind).length, dist: Math.round(Math.hypot(p.x, p.z) / 10) * 10, dir: DIR8(p.x, p.z) }); }
 }
 // Logbuch: zwei Reiter. „Eigenes“ füllt sich von selbst; „Kapitän“ sammelt die gefundenen Seiten. Die lose Seite auf dem Schreibtisch öffnet sich einzeln, dort startet man die Mission.
 let logTab = 'own';
@@ -662,13 +665,14 @@ function frame(now) {
   if (run || showOut) { world.update(S.x, S.z, started ? 1 : 0); if (CAMV.on && !showOut) camStep(); else if (V.mode === 'in' && !showOut) cabinStep(dt); else if (V.mode === 'dive' && !showOut) diveStep(dt); else cameraStep(dt); }
   if (window.__cam) { camera.position.set(...window.__cam[0]); camera.lookAt(...window.__cam[1]); }
   helmEl.style.visibility = showOut ? 'hidden' : '';
-  if (run) { life.update(dt, V.mode === 'dive' ? diver : S, pxScale, world.glows); fauna.update(dt, S, U.uTime.value); cans.update(); whales.update(dt, U.uTime.value, pxScale); }
+  if (run) { life.update(dt, V.mode === 'dive' ? diver : S, pxScale, world.glows); fauna.update(dt, S, U.uTime.value); schools.update(dt, S, V.mode === 'dive' ? { x: diver.x, y: diver.y - 0.8, z: diver.z } : S); cans.update(); whales.update(dt, U.uTime.value, pxScale); }
   if (bannerT > 0 && run) { bannerT -= dt; if (bannerT <= 0) bannerEl.style.opacity = 0; }
   if (sonHintT > 0 && run) { sonHintT -= dt; if (sonHintT <= 0) $('sonHint').style.opacity = 0; }
   if (tapesOpen) drawTapes(dt);
   if (horchOpen && run) { const K = I.keys; horchDeg = (horchDeg + ((K.KeyD || K.ArrowRight ? 1 : 0) - (K.KeyA || K.ArrowLeft ? 1 : 0)) * 45 * dt + 360) % 360; drawHorch(); }
   if (horchOpen && Math.abs(wrapPi((+hSl.value - horchDeg) * Math.PI / 180)) > 0.01) hSl.value = String(Math.round(((horchDeg + 180) % 360) - 180));   // Regler folgt, wenn mit A / D gedreht wird
   audio.setListener(S.x, S.z, S.h); audio.hydro(horchOpen && run, S.h - horchDeg * Math.PI / 180); cabin.setHorch(horchDeg, audio.hydroLevel());
+  if (frames % 30 === 0 && devOpen()) devLive();
   if (thumbT > 0) { thumbT -= dt; if (thumbT <= 0) $('camThumb').classList.remove('show'); }
   if (CAMV.on && frames % 6 === 0) { $('camFrame').classList.toggle('ok', camTargetOk()); const ci = t('depth') + ' ' + String(Math.round(-S.y)).padStart(3, '0') + ' m'; if ($('camInfo').textContent !== ci) $('camInfo').textContent = ci; }
   if (frames % 4 === 0) { const cp = camera.position, d = Math.hypot(cp.x - PLAIN.x, cp.z - PLAIN.z) / PLAIN.r; snow.set((1 - smooth(0.9, 1.7, d)) * (1 - smooth(-72, -48, cp.y)), pxScale); }   // Schnee nur unten über der Ebene
@@ -740,7 +744,7 @@ $('mGo').addEventListener('pointerup', (e) => { e.preventDefault(); goBtn(); });
 for (const [id, p] of [['mBoat', 'boat'], ['mSet', 'set'], ['mHelp', 'help'], ['mMis', 'mis']]) $(id).addEventListener('pointerdown', (e) => { e.preventDefault(); showPanel(p); });
 for (const b of document.querySelectorAll('.mBack')) b.addEventListener('pointerdown', (e) => { e.preventDefault(); showPanel('main'); });
 $('menu').classList.add('ready');
-window.__sub = { diver, hullGap, suitOut, suitIn, helmetExhale, get nearHatch() { return nearHatch; }, audio, M, MS, cans, whales, syncPod, syncMis, sectors, echoes, CAMV, PHOTOS, openCam, closeCam, shoot, camTargetOk, photoTarget, openHorch, closeHorch, get horchDeg() { return horchDeg; }, set horchDeg(v) { horchDeg = v; }, startMission, takeCan, openPage, openLog, playTape, MISSIONS, openMenu, closeMenu, showPanel, setBoat, post, get boat() { return boat; }, save, load, texts, setLang, renderer, fauna, S, C, I, U, V, nav, setMode, setSt, table, cabin, tea, LOG, ACT, get target() { return target; }, start, ping, world, life, poisNear, floorH, get frames() { return frames; }, tp(x, y, z, h) { world.update(x, z, Infinity); S.x = x; S.y = y; S.z = z; S.h = h; S.vx = S.vy = S.vz = 0; C.yaw = h; C.oy = C.op = 0; C.pos.set(x - Math.sin(h) * 11, y + 3, z - Math.cos(h) * 11); C.look.set(x, y + 1, z); }, marks, info: () => ({ tris: renderer.info.render.triangles, calls: renderer.info.render.calls, PR, MSAA, chunks: world.chunks.size, near: world.near.length, glows: world.glows.length }) };
+window.__sub = { schools, diver, hullGap, suitOut, suitIn, helmetExhale, get nearHatch() { return nearHatch; }, audio, M, MS, cans, whales, syncPod, syncMis, sectors, echoes, CAMV, PHOTOS, openCam, closeCam, shoot, camTargetOk, photoTarget, openHorch, closeHorch, get horchDeg() { return horchDeg; }, set horchDeg(v) { horchDeg = v; }, startMission, takeCan, openPage, openLog, playTape, MISSIONS, openMenu, closeMenu, showPanel, setBoat, post, get boat() { return boat; }, save, load, texts, setLang, renderer, fauna, S, C, I, U, V, nav, setMode, setSt, table, cabin, tea, LOG, ACT, get target() { return target; }, start, ping, world, life, poisNear, floorH, get frames() { return frames; }, tp(x, y, z, h) { world.update(x, z, Infinity); S.x = x; S.y = y; S.z = z; S.h = h; S.vx = S.vy = S.vz = 0; C.yaw = h; C.oy = C.op = 0; C.pos.set(x - Math.sin(h) * 11, y + 3, z - Math.cos(h) * 11); C.look.set(x, y + 1, z); }, marks, info: () => ({ tris: renderer.info.render.triangles, calls: renderer.info.render.calls, PR, MSAA, chunks: world.chunks.size, near: world.near.length, glows: world.glows.length }) };
 // ---------- Entwicklermenü (unter ⚙, Passwort) ----------
 const DEV_PW = 'Entwicklung', devEl = $('dev'), pw = $('devPw');
 let devOn = false; try { devOn = localStorage.getItem('tiefenlicht.dev') === '1'; } catch (e) { /* egal */ }
@@ -769,6 +773,17 @@ function buildDev() {
     btn('Start', () => devTp(cxAt(-86), -86 + 0.001)); btn('Wrack', () => goTo({ x: -300, z: 236, kind: 'wreck' })); btn('Kristallgrotte', () => goTo({ x: 111, z: 63, kind: 'grove' }));
     btn('Schnee-Ebene', () => goTo({ x: PLAIN.x + 30, z: PLAIN.z + 26, kind: 'grove' })); btn('Walskelett', () => goTo({ x: WHALE.x, z: WHALE.z, kind: 'wreck' })); btn('Taucherglocke', () => goTo({ x: BELL.x, z: BELL.z, kind: 'bell' }));
     btn('Kristallhain', () => goTo(nearest('grove'))); btn('Korallengarten', () => goTo(nearest('garden'))); btn('Warmer Spalt', () => goTo(nearest('vent'))); }
+  h3('BEGEGNUNGEN & SCHWÄRME'); {
+    const sl = (label, min, max, step, get, set) => { const r = row(), l = document.createElement('span'), v = document.createElement('span'), s = document.createElement('input'); s.type = 'range'; s.min = min; s.max = max; s.step = step; s.value = get(); l.textContent = label; v.textContent = '≈' + get() + ' s';
+      s.addEventListener('input', () => { set(+s.value); v.textContent = '≈' + s.value + ' s'; devSave(); }); r.appendChild(l); r.appendChild(s); r.appendChild(v); };
+    sl('Begegnung alle', 8, 120, 1, () => fauna.encGap, (x) => { fauna.encGap = x; fauna.encT = Math.min(fauna.encT, x); });
+    sl('Hai alle', 20, 300, 5, () => fauna.sharkGap, (x) => { fauna.sharkGap = x; fauna.sharkT = Math.min(fauna.sharkT, x); });
+    sl('Schwarm alle', 15, 300, 5, () => schools.gap, (x) => { schools.gap = x; schools.timer = Math.min(schools.timer, x); });
+    const r = row(); r.style.flexWrap = 'wrap';
+    btn('Begegnung jetzt', () => fauna.encounter(S), r); btn('Hai jetzt vorbei', () => fauna.sharkPass(S), r);
+    ['Kometenschwarm', 'Saphir-Plättchen', 'Neon-Säbelfische'].forEach((n, ti) => btn(n + ' jetzt', () => { const t = schools.types[ti]; t.on = false; t.m.visible = false; schools.spawn(ti, S, true); }, r));
+    btn('Schwärme weg', () => schools.clear(), r);
+    const r2 = row(), l = document.createElement('span'); l.id = 'devLive'; l.style.fontSize = '11px'; r2.appendChild(l); devLive(); }
   h3('WALGESÄNGE'); { const wc = audio.whaleCfg;
     const sl = (label, min, max, step, get, set, fmt) => { const r = row(), l = document.createElement('span'), v = document.createElement('span'), s = document.createElement('input'); s.type = 'range'; s.min = min; s.max = max; s.step = step; s.value = get(); l.textContent = label; v.textContent = fmt(get());
       s.addEventListener('input', () => { set(+s.value); v.textContent = fmt(+s.value); saveWhale(); }); r.appendChild(l); r.appendChild(s); r.appendChild(v); };
@@ -802,8 +817,10 @@ function buildDev() {
 }
 /** baut ein Knopf das Menü neu auf, leuchtet der neue Knopf an derselben Stelle kurz auf, damit man den Druck trotzdem sieht */
 function devFlash(i) { const nb = devEl.querySelectorAll('.pill.mini')[i]; if (!nb) return; nb.classList.add('press'); setTimeout(() => nb.classList.remove('press'), 160); }
-function devSave() { try { localStorage.setItem('tiefenlicht.devcfg', JSON.stringify({ n: fauna.cfg.map((c) => c.n), attract: fauna.attract, mix: audio.mix, mixV: 1 })); } catch (e) { /* egal */ } }
-try { const d = JSON.parse(localStorage.getItem('tiefenlicht.devcfg') || 'null'); if (d) { d.n.forEach((n, si) => fauna.setCount(si, n)); fauna.attract = !!d.attract; if (d.mix && d.mixV === 1) for (const k in d.mix) if (k in audio.mix) audio.setMix(k, +d.mix[k]); } } catch (e) { /* egal */ }
+function devSave() { try { localStorage.setItem('tiefenlicht.devcfg', JSON.stringify({ n: fauna.cfg.map((c) => c.n), attract: fauna.attract, mix: audio.mix, mixV: 1, enc: fauna.encGap, shk: fauna.sharkGap, sch: schools.gap, nV: 2 })); } catch (e) { /* egal */ } }
+/** Live-Anzeige im Entwicklermenü: was gerade in der Nähe schwimmt */
+function devLive() { const l = $('devLive'); if (!l) return; const f = fauna.countNear(S.x, S.z, 60), sc = schools.countNear(S.x, S.z, 60), names = ['Komet', 'Saphir', 'Säbel'], on = schools.types.filter((t) => t.on).map((t) => names[t.ti] + ' ' + Math.round(Math.hypot(t.x - S.x, t.z - S.z)) + ' m'); l.textContent = `im Umkreis 60 m: ${f} Tiere, ${sc} Schwarmfische · Schwärme: ${on.length ? on.join(', ') : 'keiner'} · nächster Hai in ${Math.max(0, Math.round(fauna.sharkT))} s`; }
+try { const d = JSON.parse(localStorage.getItem('tiefenlicht.devcfg') || 'null'); if (d) { if (d.nV === 2) d.n.forEach((n, si) => fauna.setCount(si, n)); if (d.enc) fauna.encGap = d.enc; if (d.shk) fauna.sharkGap = d.shk; if (d.sch) schools.gap = d.sch; fauna.attract = !!d.attract; if (d.mix && d.mixV === 1) for (const k in d.mix) if (k in audio.mix) audio.setMix(k, +d.mix[k]); } } catch (e) { /* egal */ }
 
 // ---------- Speichern: automatisch alle paar Sekunden und beim Verlassen ----------
 const SAVE_KEY = 'tiefenlicht.save.v1'; let noSave = false;
