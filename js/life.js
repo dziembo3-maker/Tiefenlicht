@@ -139,7 +139,7 @@ export function createLife(scene) {
           p.z += cos(uTime * 0.43 + iR.y * 1.7 + y * 1.7) * sw * 0.8;
           p.y += sin(uTime * 1.1 + iR.y + y * 13.0) * 0.012 * h * aTip;
           p += iP.xyz;
-          vec3 d = subOff(p); float l = length(d); p.xz += d.xz / max(length(d.xz), 0.01) * (1.0 - smoothstep(1.6, 6.5, l)) * 3.2 * y;
+          vec3 d0 = subOff(iP.xyz); vec2 dir = length(d0.xz) > 0.05 ? normalize(d0.xz) : vec2(1.0, 0.0); float l = length(subOff(p)); p.xz += dir * (1.0 - smoothstep(1.6, 6.5, l)) * 3.2 * y;   // die ganze Pflanze biegt sich in eine Richtung (vom Fuß aus gesehen weg vom Boot)
           vW = p; vT = aTip; vH = y; gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0); }`,
       fragmentShader: /* glsl */ `precision highp float; ${COMMON} varying vec3 vW; varying float vT, vH;
         void main(){ vec3 base = mix(vec3(0.07, 0.17, 0.17), vec3(0.11, 0.30, 0.25), vT * vH);
@@ -177,7 +177,7 @@ export function createLife(scene) {
     vertexShader: /* glsl */ `attribute float aT; attribute vec4 iP; attribute vec2 iR; uniform float uTime; uniform vec3 uSubPos, uSubA, uSubB; varying vec3 vW; varying float vT; ${ROTY}
         vec3 subOff(vec3 p){ vec3 ab = uSubB - uSubA; float t = clamp(dot(p - uSubA, ab) / max(dot(ab, ab), 0.001), 0.0, 1.0); return p - (uSubA + ab * t); }   // Abstand zur Bootsachse (Bug bis Heck), nicht nur zur Mitte
       void main(){ vec3 p = rotY(position * iP.w, iR.x); float sw = aT * aT * iP.w * 0.25; p.x += sin(uTime * 0.8 + iR.y + iP.x * 0.2) * sw; p.z += cos(uTime * 0.65 + iR.y) * sw * 0.7; p += iP.xyz;
-        vec3 d = subOff(p); float l = length(d); p.xz += d.xz / max(length(d.xz), 0.01) * (1.0 - smoothstep(1.6, 5.0, l)) * aT * 1.3;
+        vec3 d0 = subOff(iP.xyz); vec2 dir = length(d0.xz) > 0.05 ? normalize(d0.xz) : vec2(1.0, 0.0); float l = length(subOff(p)); p.xz += dir * (1.0 - smoothstep(1.6, 5.0, l)) * aT * 1.3;
         vW = p; vT = aT; gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0); }`,
     fragmentShader: /* glsl */ `precision highp float; ${COMMON} varying vec3 vW; varying float vT;
       void main(){ vec3 base = mix(vec3(0.05, 0.13, 0.15), vec3(0.14, 0.34, 0.33), vT); gl_FragColor = vec4(fog(shade(base, vec3(0.0, 1.0, 0.0), vW) * 0.62, vW), 1.0); }` });
@@ -201,7 +201,7 @@ export function createLife(scene) {
           float f = 1.0 - exp(-distance(vW, cameraPosition) * uFogK * 0.8);
           gl_FragColor = vec4(mix(c, waterCol(normalize(vW - cameraPosition)), f), a * (1.0 - f * 0.6)); }` });
   const mFish = new T.ShaderMaterial({ uniforms: uni(), side: T.DoubleSide, transparent: true, depthWrite: false,
-      vertexShader: /* glsl */ `attribute vec4 iA, iB, iC; uniform float uTime; uniform vec3 uSubPos; varying vec2 vQ; varying float vF, vN; uniform float uFogK;
+      vertexShader: /* glsl */ `attribute vec4 iA, iB, iC; uniform float uTime; uniform vec3 uSubPos; varying vec2 vQ; varying float vF, vN, vY; uniform float uFogK;
         vec3 path(float th){ float c = cos(iC.z), s = sin(iC.z); vec2 e = vec2(cos(th) * iB.x + sin(th * 2.0 + 1.0) * iB.x * 0.35, sin(th) * iB.y);
           return iA.xyz + vec3(e.x * c + e.y * s, sin(th * 2.0 + iA.w * 0.2) * iB.z * 0.6, -e.x * s + e.y * c); }
         void main(){ float th = uTime * iB.w + iA.w; vec3 p = path(th), dir = normalize(path(th + 0.03 * sign(iB.w)) - p);
@@ -209,9 +209,10 @@ export function createLife(scene) {
           vec3 d = p - uSubPos; float l = length(d); p += d / max(l, 0.01) * (1.0 - smoothstep(2.0, 9.0, l)) * 5.0;
           vec3 v = normalize(cameraPosition - p), sd = normalize(cross(dir, v)); float dist = distance(p, cameraPosition), sz = iC.w * (1.0 + dist * 0.012);
           p += dir * position.x * sz + sd * position.y * sz * 0.3;
-          vQ = position.xy; vF = exp(-dist * uFogK * 0.7); vN = smoothstep(2.0, 9.0, dist); gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0); }`,
-      fragmentShader: `precision highp float; varying vec2 vQ; varying float vF, vN;
-        void main(){ float a = (1.0 - smoothstep(0.15, 0.5, abs(vQ.y) + max(vQ.x, 0.0) * 0.5)) * (1.0 - smoothstep(0.3, 0.5, abs(vQ.x))); gl_FragColor = vec4(vec3(0.80, 0.97, 1.0) * (0.6 + 0.9 * vF), a * (0.3 + 0.7 * vF) * vN); }` });
+          vQ = position.xy; vF = exp(-dist * uFogK * 0.7); vN = smoothstep(2.0, 9.0, dist); vY = p.y; gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0); }`,
+      fragmentShader: `precision highp float; varying vec2 vQ; varying float vF, vN, vY;
+        void main(){ float a = (1.0 - smoothstep(0.15, 0.5, abs(vQ.y) + max(vQ.x, 0.0) * 0.5)) * (1.0 - smoothstep(0.3, 0.5, abs(vQ.x)));
+          gl_FragColor = vec4(vec3(0.80, 0.97, 1.0) * (0.6 + 0.9 * vF), a * min(1.0, vF * 1.3) * vN * (0.2 + 0.8 * smoothstep(-170.0, -60.0, vY))); }` });   // im Nebel und in der Tiefe verblassen die kleinen Fische, statt aus großer Ferne zu leuchten
   const mBub = new T.ShaderMaterial({ uniforms: uni({ uPx: PX }), transparent: true, depthWrite: false,
       vertexShader: `attribute vec4 aQ; uniform float uTime, uPx, uFogK; varying float vA;
         void main(){ float t = fract(aQ.x + uTime * aQ.y / aQ.z), h = t * aQ.z; vec3 p = position + vec3(sin(h * 0.55 + aQ.w) * (0.15 + h * 0.012), h, cos(h * 0.47 + aQ.w * 2.0) * (0.15 + h * 0.012));

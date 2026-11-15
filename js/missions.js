@@ -6,7 +6,7 @@ import { buildCanister, propMaterial } from './props.js';
 import { WRECK, WHALE, GROTTO, HOLE } from './terrain.js';
 
 /** Kassetten: 0 liegt von Anfang an im Deck; die anderen findet man. page = Logbuchseite, die mit ihr kommt */
-export const TAPES = [{ id: 0 }, { id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }];
+export const TAPES = [{ id: 0 }, { id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }];
 /** Missionen in ihrer Reihenfolge. page = Seite, an der sie beginnt; tape = was man findet; x/z = Ort der Dose;
  *  off = wo die Dose im Ping-Fächer liegt (-1 linker Rand, 0 Mitte, 1 rechter Rand), fest pro Mission, damit der Fächer nicht springt */
 export const MISSIONS = [
@@ -19,6 +19,9 @@ export const MISSIONS = [
   // das Loch: die Dose am Rand bringt eine Seite (zu eng fürs Boot, der Anzug liegt in der Glocke, eine Dose ist hineingefallen). Danach: Loch am Sonartisch markieren,
   // Anzug an der Glocke holen, zurück, hinabsteigen; unten liegen der Zahn und die hineingefallene Dose (Kassette und zweite Seite). pages: so viele Seiten bringt die Mission
   { id: 'm5', page: 4, tape: 4, tapeLate: true, pages: 2, cave: true, x: HOLE.x + 8.2, z: HOLE.z - 5.4, yaw: 2.6, off: -0.45 },
+  // keine Dose: Buckelwale ziehen über dem großen Abgrund (der Ort wird beim Start gewürfelt, 400 bis 700 m vom Boot). Finden mit dem Horchgerät, beobachten,
+  // dann tauchen sie ab, und man folgt ihnen bis zur Tiefengrenze. Seite und Kassette liegen im zweiten Umschlag aus der Höhlendose
+  { id: 'm6', page: 6, tape: 5, hump: true, x: 95, z: 600, yaw: 0 },
 ];
 /** so viele weitere Missionen deutet der Missionen-Reiter nur an */
 export const HINTED = 3;

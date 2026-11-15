@@ -18,7 +18,7 @@ vec3 waterCol(vec3 d) {
   c = mix(c, vec3(0.040, 0.39, 0.60), smoothstep(0.0, 0.8, d.y));
   float s = max(dot(d, uSunDir), 0.0);
   c += vec3(0.030, 0.30, 0.40) * s * s * 0.95 + vec3(0.14, 0.34, 0.34) * pow(s, 12.0) * 0.5;
-  return c * uDeep;
+  return c * uDeep + vec3(0.002, 0.011, 0.03) * (1.0 - smoothstep(0.12, 0.45, uDeep));   // ganz unten nie ganz schwarz, ein Hauch Tiefblau bleibt
 }
 float caustic(vec2 p) {
   float a = texture2D(uNoise, p * 0.031 + vec2(uTime * 0.011, uTime * 0.006)).r, b = texture2D(uNoise, p * 0.047 - vec2(uTime * 0.009, -uTime * 0.012)).g;

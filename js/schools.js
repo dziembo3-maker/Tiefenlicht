@@ -145,7 +145,7 @@ const FS = (si) => /* glsl */ `precision highp float; ${COMMON} varying vec3 vW,
       base = vec3(0.1, 0.4, 0.55); glow = vec3(0.35, 0.95, 1.0) * (1.6 - 1.3 * vv) * (0.85 + 0.15 * sin(uTime * 3.0 + vv * 8.0)) * pulse;
     }
     vec3 c = shade(base, N, vW) * 1.25 + base * 0.04 + waterCol(reflect(-V, N)) * pow(1.0 - max(dot(N, V), 0.0), 3.0) * 0.22;
-    c += glow * (0.75 + 0.5 * vGl);
+    c += glow * (0.75 + 0.5 * vGl) * smoothstep(0.1, 0.45, uDeep) * (1.0 - smoothstep(25.0, 60.0, length(cameraPosition - vW)));   // in der dunklen Tiefe und aus der Ferne verblasst das Leuchten
     gl_FragColor = vec4(fog(c, vW), 1.0); }`;
 
 export function createSchools(scene) {
@@ -189,7 +189,7 @@ export function createSchools(scene) {
   S.active = () => types.filter((s) => s.on).length;
   S.update = (dt, ref, avoid) => {
     S.timer -= dt;
-    if (S.timer <= 0) { S.timer = S.gap * rr(0.6, 1.4); if (S.active() < 2) { const free = types.filter((s) => !s.on); if (free.length && !S.spawn(free[Math.floor(R() * free.length)].ti, ref)) S.timer = 6; } }   // kein Platz (zu flach): bald noch einmal versuchen
+    if (S.timer <= 0) { S.timer = S.gap * rr(0.6, 1.4); if (S.active() < 2 && ref.y > -115) { const free = types.filter((s) => !s.on); if (free.length && !S.spawn(free[Math.floor(R() * free.length)].ti, ref)) S.timer = 6; } }   // kein Platz (zu flach): bald noch einmal versuchen
     for (const s of types) {
       if (!s.on) continue; const ty = s.ty; s.life += dt;
       // Anflug: zügig und geradeaus zum Spieler hin, in seiner Nähe dann gemächlich; danach sanftes Schlängeln

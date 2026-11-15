@@ -513,7 +513,7 @@ export function createCabin() {
     for (let i = 0; i < 3; i++) UC.uLC.value[i].copy(LC0[i]).multiplyScalar(st.lamp); UC.uLC.value[4].copy(LC0[4]).multiplyScalar(st.fire);
     wheel.quaternion.setFromUnitVectors(new T.Vector3(0, 0, -1), wn); wheel.rotateZ(st.wheel);
     lever.rotation.x = st.lever; kettle.visible = st.kettle !== false; crystal.visible = !!st.crystal; if (crystal.visible) { const tw = U.uTime.value; crySpark.material.opacity = 0.1 + 0.07 * Math.sin(tw * 1.3) + 0.06 * Math.max(0, Math.sin(tw * 4.7 + Math.sin(tw * 1.9) * 2)); }
-    compass.quaternion.copy(cQ); compass.rotateZ(cA0 - st.heading);   // Nadel zeigt nach Norden, egal wie das Boot liegt
+    compass.quaternion.copy(cQ); compass.rotateZ(cA0 + st.heading);   // Nadel zeigt nach Norden, egal wie das Boot liegt (die Kabine ist gespiegelt gebaut, daher +)
     coat.visible = st.suit === 0; suitHang.visible = helmP.visible = bootsP.visible = st.suit === 1;
     for (let k = 0; k < 6; k++) cass[k].visible = st.own[k] && st.tapeIn !== k; pglow.material.opacity = st.pageNew ? 0.1 + 0.07 * Math.sin(U.uTime.value * 2.2) : 0;
     if (st.tape) for (const r of reels) r.rotation.x += dt * 2.6; tapeLed.visible = st.tape;
