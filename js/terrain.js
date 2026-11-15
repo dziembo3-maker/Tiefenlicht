@@ -5,9 +5,11 @@ export const cxAt = (z) => Math.sin(z * 0.017) * 36 + Math.sin(z * 0.041 + 1.3) 
 export const halfW = (z) => 27 + 7 * Math.sin(z * 0.031 + 2.0);
 export const GROTTO = { x: 106, z: 60 };
 export const WRECK = { x: -300, z: 236 };
-export const BOUNDS = { r: 1500, top: -5, deep: -90 };
+export const BOUNDS = { r: 1500, top: -5, deep: -100 };
+/** die ganze Welt liegt so viel tiefer als ursprünglich gebaut (die Formeln unten rechnen im alten Maß, abgezogen wird am Ende) */
+export const SHIFT = 10;
 // Schnee-Ebene: weite, fast leere Sandfläche, tiefer als alles andere; eine lange Rampe führt aus der Startschlucht hinab
-export const PLAIN = { x: -310, z: -240, r: 92, floor: -92 };
+export const PLAIN = { x: -310, z: -240, r: 92, floor: -102 };
 export const WHALE = { x: -312, z: -238, yaw: 0.55 };
 export const BELL = { x: -128, z: -174, yaw: 2.2 };
 // das Loch im Boden einer Schlucht südöstlich der Glocke: eine flache Mulde, in der Mitte der Schacht (r = Öffnung, cut = so weit fehlt das Geländegitter)
@@ -34,7 +36,23 @@ function valDist(v, x, z) {
   }
   vd[0] = best; vd[1] = bt;
 }
-export const shelfH = (x, z) => -10 - 10 * fbm(x * 0.011 + 3.1, z * 0.011 - 1.7, 3);
+const shelf0 = (x, z) => -10 - 10 * fbm(x * 0.011 + 3.1, z * 0.011 - 1.7, 3);
+export const shelfH = (x, z) => shelf0(x, z) - SHIFT;
+// die große Tiefsee nördlich der Startschlucht: ein Graben aus aneinandergereihten Becken (x, z, Radius), der am Ende der Schlucht beginnt
+// und nach Norden in die Tiefsee am Kartenrand übergeht. Wände steil, mal mit Absätzen, mal glatter; unten ein weiter, unruhiger Grund in 300 bis 400 m
+const ABYSS = [[-10, 330, 60], [60, 440, 200], [95, 570, 380], [100, 720, 420], [95, 900, 340], [140, 1060, 250], [300, 1110, 165], [40, 1230, 250], [-60, 1420, 300]];
+const ABSEG = [[0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [5, 7], [7, 8]];   // welche Becken ineinander übergehen (5 verzweigt zum Nordost-Becken 6 und nach Norden 7)
+const ABX = [-500, 760, 60, 1800];   // grobe Box, außerhalb gibt es keine Tiefsee
+/** Abstand zum Rand der großen Tiefsee (negativ = drinnen), mit unruhigem Rand */
+export function abyssD(x, z) {
+  if (x < ABX[0] || x > ABX[1] || z < ABX[2] || z > ABX[3]) return 1e3;
+  let d = 1e9;
+  for (const [i, j] of ABSEG) {
+    const a = ABYSS[i], b = ABYSS[j], ax = b[0] - a[0], az = b[1] - a[1], t = clamp(((x - a[0]) * ax + (z - a[1]) * az) / (ax * ax + az * az), 0, 1);
+    d = Math.min(d, Math.hypot(x - a[0] - ax * t, z - a[1] - az * t) - (a[2] + (b[2] - a[2]) * t));
+  }
+  return d + (fbm(x * 0.006 + 21.3, z * 0.006 - 4.4, 3) - 0.5) * 110 + (noise(x * 0.03 + 7, z * 0.03 + 2) - 0.5) * 14;
+}
 // Abstand zu allem von Hand Gebauten (Startschlucht und Seitenarme)
 export function handDist(x, z) {
   let d = Math.abs(x - cxAt(clamp(z, -180, 330))); if (z < -180) d = Math.hypot(d, -180 - z); else if (z > 330) d = Math.hypot(d, z - 330);
@@ -42,7 +60,7 @@ export function handDist(x, z) {
   return Math.min(d, Math.max(0, Math.hypot(x - PLAIN.x, z - PLAIN.z) - PLAIN.r));
 }
 export function floorH(x, z) {
-  const shelf = shelfH(x, z), wob = fbm(x * 0.033 + 11, z * 0.033 + 5, 3) - 0.5;
+  const shelf = shelf0(x, z), wob = fbm(x * 0.033 + 11, z * 0.033 + 5, 3) - 0.5;
   // Startschlucht mit Abgrund am Ende
   const zc = clamp(z, -260, 460), open = smooth(-170, -116, zc) * (1 - smooth(330, 430, zc)), dM = Math.abs(x - cxAt(zc));
   const w = halfW(zc) * (0.22 + 0.78 * open) * (1 + wob * 0.6);
@@ -56,7 +74,7 @@ export function floorH(x, z) {
   }
   // Schnee-Ebene: Wände in Stufen, unten ein fast ebener, sanft gewellter Sandboden
   const pr = plainR(x, z);
-  if (pr < 1.6) { let k = 1 - smooth(0.78, 1.08, pr); k = k * 0.3 + 0.7 * terr(k, 3); const fl = PLAIN.floor + (fbm(x * 0.017 + 2.2, z * 0.017 - 7.1, 2) - 0.5) * 3.2 + Math.sin(x * 0.05 + z * 0.03) * 0.5; depth = Math.max(depth, (shelf - fl) * k); hand = Math.min(hand, Math.max(0, pr - 1) * PLAIN.r); }
+  if (pr < 1.6) { let k = 1 - smooth(0.78, 1.08, pr); k = k * 0.3 + 0.7 * terr(k, 3); const fl = PLAIN.floor + SHIFT + (fbm(x * 0.017 + 2.2, z * 0.017 - 7.1, 2) - 0.5) * 3.2 + Math.sin(x * 0.05 + z * 0.03) * 0.5; depth = Math.max(depth, (shelf - fl) * k); hand = Math.min(hand, Math.max(0, pr - 1) * PLAIN.r); }
   // das weite Netz aus Schluchten und tiefen Becken ringsum
   const m = smooth(70, 150, hand);
   if (m > 0) {
@@ -67,7 +85,15 @@ export function floorH(x, z) {
     const basin = smooth(0.61, 0.72, fbm(x * 0.0011 + 70.3, z * 0.0011 - 30.7, 2)); if (basin > 0) dn += 135 * terr(basin, 3);
     depth = Math.max(depth, dn * m);
   }
-  let h = shelf - depth + (fbm(x * 0.085, z * 0.085, 3) - 0.5) * 3.4 + (noise(x * 0.31, z * 0.31) - 0.5) * 0.7;
+  // große Tiefsee: Wandbreite und Absätze wechseln, damit es mal steil, mal kurz flacher abfällt
+  const ad = abyssD(x, z);
+  if (ad < 140) {
+    const wn = noise(x * 0.004 + 3.3, z * 0.004 - 8.1), W = 45 + 95 * wn, ledge = smooth(0.35, 0.75, noise(x * 0.007 - 2.2, z * 0.007 + 6.6));
+    let ka = smooth(10, -W, ad); ka = ka * (1 - 0.6 * ledge) + terr(ka, 4) * 0.6 * ledge;
+    const fl = -330 - 55 * fbm(x * 0.0035 + 9.9, z * 0.0035 + 1.2, 3) + (fbm(x * 0.02 - 4, z * 0.02 + 3, 2) - 0.5) * 18;
+    depth = Math.max(depth, (shelf - fl) * ka);
+  }
+  let h = shelf - depth + (fbm(x * 0.085, z * 0.085, 3) - 0.5) * 3.4 + (noise(x * 0.31, z * 0.31) - 0.5) * 0.7 - SHIFT;
   const hx = x - HOLE.x, hz = z - HOLE.z; if (hx * hx + hz * hz < 400) { const d = Math.sqrt(hx * hx + hz * hz); h -= 3.0 * (1 - smooth(3, 17, d)); }   // Mulde um das Loch
   return h;
 }

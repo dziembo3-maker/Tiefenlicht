@@ -25,7 +25,7 @@ function placer(R) {
   };
   P.blob = (it, x, y, z, rx, ry, rz, rot, seed, det, col) => it.rocks.push({ blob: [x, y, z, rx, ry, rz, rot, seed, det, col] });
   P.boulder = (it, x, z, s) => { const y = floorH(x, z); P.blob(it, x, y + s * 0.15, z, s * rr(0.8, 1.5), s * rr(0.6, 1.1), s * rr(0.8, 1.4), R() * 6.3, R() * 90, s > 2.6 ? 2 : 1, s > 1.6); };
-  P.kelp = (it, x, z, h) => { const y = floorH(x, z); if ((y < -78 && plainK(x, z) < 0.3) || steep(x, z) > 4.2) return; it.kelp.push(x, y - 0.3, z, h, R() * 6.3, R() * 6.3); };
+  P.kelp = (it, x, z, h) => { const y = floorH(x, z); if ((y < -88 && plainK(x, z) < 0.3) || steep(x, z) > 4.2) return; it.kelp.push(x, y - 0.3, z, h, R() * 6.3, R() * 6.3); };
   P.kelpPatch = (it, x, z, cnt, big) => { for (let i = 0; i < cnt; i++) { const a = R() * 6.3, d = Math.sqrt(R()) * 8; P.kelp(it, x + Math.cos(a) * d, z + Math.sin(a) * d, rr(3.5, 11.5) * big); } };
   // Kristallbüschel: schlanke Spitzen, außen kleiner und stärker geneigt
   P.tuft = (it, x, z, count, hMin, hMax, pal, power, spread = 1, yFix) => {
@@ -50,10 +50,10 @@ function placer(R) {
   P.ground = (it, x0, z0, size, nPeb, nGrass) => {
     for (let i = 0; i < nPeb; i++) {
       let x = x0 + R() * size, z = z0 + R() * size; if (R() < 0.5 && it.rocks.length) { const r = it.rocks[Math.floor(R() * it.rocks.length) % it.rocks.length], c = r.blob ? r.blob : r.pts[0]; const a = R() * 6.3, d = rr(1, 7); x = c[0] + Math.cos(a) * d; z = c[2] + Math.sin(a) * d; }
-      if (steep(x, z) > 3.2 || Math.hypot(x - HOLE.x, z - HOLE.z) < 9.5) continue; const y = floorH(x, z); if (y < -120) continue; const s = Math.pow(R(), 2.2) * 0.75 + 0.1;
+      if (steep(x, z) > 3.2 || Math.hypot(x - HOLE.x, z - HOLE.z) < 9.5) continue; const y = floorH(x, z); if (y < -130) continue; const s = Math.pow(R(), 2.2) * 0.75 + 0.1;
       it.peb.push(x, y - s * 0.12, z, s, R() * 6.3, rr(0.7, 1.4), rr(0.5, 1.1));
     }
-    for (let i = 0; i < nGrass; i++) { const cx = x0 + R() * size, cz = z0 + R() * size; if (steep(cx, cz) > 2.4 || floorH(cx, cz) < -95 || Math.hypot(cx - HOLE.x, cz - HOLE.z) < 13) continue; const cnt = 4 + Math.floor(R() * 9); for (let k = 0; k < cnt; k++) { const a = R() * 6.3, d = Math.sqrt(R()) * 3.2, x = cx + Math.cos(a) * d, z = cz + Math.sin(a) * d; it.grass.push(x, floorH(x, z) - 0.05, z, rr(0.5, 1.4), R() * 6.3, R() * 6.3); } }
+    for (let i = 0; i < nGrass; i++) { const cx = x0 + R() * size, cz = z0 + R() * size; if (steep(cx, cz) > 2.4 || floorH(cx, cz) < -105 || Math.hypot(cx - HOLE.x, cz - HOLE.z) < 13) continue; const cnt = 4 + Math.floor(R() * 9); for (let k = 0; k < cnt; k++) { const a = R() * 6.3, d = Math.sqrt(R()) * 3.2, x = cx + Math.cos(a) * d, z = cz + Math.sin(a) * d; it.grass.push(x, floorH(x, z) - 0.05, z, rr(0.5, 1.4), R() * 6.3, R() * 6.3); } }
   };
   P.dots = (it, x, y, z, n, rad, pal) => { for (let i = 0; i < n; i++) { const a = R() * 6.3, d = Math.sqrt(R()) * rad, c = pick(pal); it.dots.push(x + Math.cos(a) * d, y + rr(0.3, 1) * rad * 0.5 * R() + 0.4, z + Math.sin(a) * d, c[0], c[1], c[2], R() * 6.3); } };
   P.jelly = (it, x, y, z, s) => it.jelly.push(x, y, z, s, R() * 6.3, rr(1.5, 5), rr(0.03, 0.07) * (R() < 0.5 ? -1 : 1), rr(0.9, 1.3));
@@ -61,7 +61,7 @@ function placer(R) {
     const sp = rr(0.045, 0.085) * (R() < 0.5 ? -1 : 1), ph = R() * 6.3, amp = rr(1.5, 4), len = rr(0.9, 1.9);
     cnt = Math.round(cnt * 1.6); for (let i = 0; i < cnt; i++) { const lag = (Math.pow(R(), 1.6) * (R() < 0.5 ? -1 : 1)) * len, tight = 1 - Math.abs(lag) / len * 0.5; it.fish.push(x, y, z, ph + lag, a, b, amp, sp, (R() - 0.5) * 3.4 * tight, (R() - 0.5) * 2.6 * tight, tilt, rr(0.17, 0.29)); }
   };
-  P.bubbles = (it, x, z, cnt) => { const y = floorH(x, z); if (y < -86) return; const sp = rr(1.1, 1.9), hgt = Math.min(-y - 3, rr(28, 46)); for (let i = 0; i < cnt; i++) it.bub.push(x, y, z, R(), sp, hgt, R() * 6.3); };
+  P.bubbles = (it, x, z, cnt) => { const y = floorH(x, z); if (y < -96) return; const sp = rr(1.1, 1.9), hgt = Math.min(-y - 3, rr(28, 46)); for (let i = 0; i < cnt; i++) it.bub.push(x, y, z, R(), sp, hgt, R() * 6.3); };
   // warmer Spalt: dunkle Felsnadeln um einen orange glühenden Kern
   P.vent = (it, x, z, scale = 1) => {
     const n = 6 + Math.floor(R() * 2), a0 = R() * 6.3;
@@ -79,12 +79,12 @@ export function siteAt(cx, cz) {
   const R = rng(h2(cx * 7 + 3, cz * 13 + 1)); let s = null;
   if (R() > 0.18) for (let i = 0; i < 10 && !s; i++) {
     const x = (cx + 0.08 + R() * 0.84) * SITE, z = (cz + 0.08 + R() * 0.84) * SITE; if (handDist(x, z) < 170) continue;
-    const h = floorH(x, z); if (shelfH(x, z) - h > 26 && h > -82 && steep(x, z) < 5) { const q = R(); s = { x, y: h, z, kind: q < 0.38 ? 'grove' : q < 0.72 ? 'garden' : 'vent', seed: h2(cx, cz) }; }
+    const h = floorH(x, z); if (shelfH(x, z) - h > 26 && h > -92 && steep(x, z) < 5) { const q = R(); s = { x, y: h, z, kind: q < 0.38 ? 'grove' : q < 0.72 ? 'garden' : 'vent', seed: h2(cx, cz) }; }
   }
   siteCache.set(k, s); return s;
 }
-const STATIC = [{ x: GROTTO.x + 5, y: -38, z: GROTTO.z + 3, kind: 'grove', short: 'grotto' }, { x: WRECK.x, y: -52, z: WRECK.z, kind: 'wreck' },
-  { x: PLAIN.x + 40, y: -88, z: PLAIN.z + 30, kind: 'plain', disc: 70 }, { x: WHALE.x, y: -90, z: WHALE.z, kind: 'whale', disc: 34 }, { x: BELL.x, y: -66, z: BELL.z, kind: 'bell', disc: 24 }];
+const STATIC = [{ x: GROTTO.x + 5, y: -48, z: GROTTO.z + 3, kind: 'grove', short: 'grotto' }, { x: WRECK.x, y: -62, z: WRECK.z, kind: 'wreck' },
+  { x: PLAIN.x + 40, y: -98, z: PLAIN.z + 30, kind: 'plain', disc: 70 }, { x: WHALE.x, y: -100, z: WHALE.z, kind: 'whale', disc: 34 }, { x: BELL.x, y: -76, z: BELL.z, kind: 'bell', disc: 24 }];
 /** alles, was ein Ping im Umkreis finden kann */
 export function poisNear(x, z, range) {
   const out = []; for (const s of STATIC) if (Math.hypot(s.x - x, s.z - z) < range) out.push(s);
@@ -99,7 +99,7 @@ function handmade() {
   const at = (x, z) => { const k = key(cell(x), cell(z)); if (!B.has(k)) B.set(k, newItems()); return B.get(k); };
   // Felsbogen quer über die Schlucht, mit Zapfen
   const AZ = -18, ac = cxAt(AZ), aw = halfW(AZ) + 9, arch = [];
-  for (let j = 0; j <= 16; j++) { const t = j / 16, s = Math.sin(Math.PI * t); arch.push([ac + (t * 2 - 1) * aw + Math.sin(t * 7) * 2, -44 + 20 * Math.pow(s, 0.8) + Math.sin(t * 11) * 1.2, AZ + Math.sin(t * 4.2) * 5 - 2, 7.6 - 4.1 * Math.pow(s, 0.7)]); }
+  for (let j = 0; j <= 16; j++) { const t = j / 16, s = Math.sin(Math.PI * t); arch.push([ac + (t * 2 - 1) * aw + Math.sin(t * 7) * 2, -54 + 20 * Math.pow(s, 0.8) + Math.sin(t * 11) * 1.2, AZ + Math.sin(t * 4.2) * 5 - 2, 7.6 - 4.1 * Math.pow(s, 0.7)]); }
   at(ac, AZ).rocks.push({ pts: arch, sides: 11, seed: 3.3, rough: 0.5 });
   for (const t of [0.3, 0.42, 0.61]) { const p = arch[Math.round(t * 16)]; for (let k = 0; k < 2; k++) { const h = rr(2.5, 6.5), px = p[0] + rr(-2, 2), pz = p[2] + rr(-1.5, 1.5); at(ac, AZ).rocks.push({ pts: [[px, p[1] - p[3] * 0.4, pz, rr(0.7, 1.1)], [px + rr(-0.3, 0.3), p[1] - p[3] * 0.7 - h * 0.5, pz, 0.5], [px, p[1] - p[3] * 0.7 - h, pz, 0.08]], sides: 6, seed: R() * 50, rough: 0.3 }); } }
   { const z = -52, c = cxAt(z), y = floorH(c - 16, z); at(c, z).rocks.push({ pts: [[c - 22, y - 4, z - 5, 6.5], [c - 16, y + 3, z - 3, 6.2], [c - 10, y + 10, z - 1, 5.2], [c - 4, y + 16, z + 1, 3.8], [c + 1, y + 21, z + 3, 2.2], [c + 4, y + 24, z + 4, 0.3]], sides: 9, seed: 8.8, rough: 0.55 }); }
@@ -107,9 +107,9 @@ function handmade() {
     [88, -0.6, 38, 5.2], [93, 0.62, 44, 5.6], [99, 0.2, 26, 3.6], [104, -0.25, 30, 4], [-82, 0.4, 20, 3.4], [-88, -0.5, 14, 2.6], [-100, 0.1, 17, 3], [-62, 0.75, 24, 3.6], [-36, -0.8, 19, 3.2], [118, -0.55, 46, 6], [124, 0.45, 40, 5.5]];
   SP.forEach((s, i) => { const x = cxAt(s[0]) + s[1] * halfW(s[0]); P.spire(at(x, s[0]), x, s[0], s[2], s[3], rr(0.02, 0.2), i * 1.37 + 0.5); });
   for (const [x, z, h, r] of [[GROTTO.x - 16, GROTTO.z - 14, 15, 3], [GROTTO.x - 20, GROTTO.z + 8, 12, 2.6], [GROTTO.x + 3, GROTTO.z - 18, 11, 2.4], [62, 30, 10, 2.2], [70, 50, 13, 2.6]]) P.spire(at(x, z), x, z, h, r, 0.12, x * 0.31);
-  for (let i = 0; i < 90; i++) { const z = rr(-150, 120), x = cxAt(z) + rr(-1.15, 1.15) * halfW(z); if (floorH(x, z) < -100) continue; P.boulder(at(x, z), x, z, Math.pow(R(), 2) * 4.2 + 1.1); }
+  for (let i = 0; i < 90; i++) { const z = rr(-150, 120), x = cxAt(z) + rr(-1.15, 1.15) * halfW(z); if (floorH(x, z) < -110) continue; P.boulder(at(x, z), x, z, Math.pow(R(), 2) * 4.2 + 1.1); }
   // Tang
-  for (let c = 0; c < 95; c++) { const z = rr(-160, 110), x = cxAt(z) + rr(-1.25, 1.25) * halfW(z); P.kelpPatch(at(x, z), x, z, 6 + Math.floor(R() * 14), floorH(x, z) < -40 ? 1.35 : 1); }
+  for (let c = 0; c < 95; c++) { const z = rr(-160, 110), x = cxAt(z) + rr(-1.25, 1.25) * halfW(z); P.kelpPatch(at(x, z), x, z, 6 + Math.floor(R() * 14), floorH(x, z) < -50 ? 1.35 : 1); }
   for (let i = 0; i < 10; i++) { const x = cxAt(-74) + rr(-16, 16), z = -74 + rr(-12, 14); P.kelp(at(x, z), x, z, rr(7, 14)); }
   for (let i = 0; i < 9; i++) { const a = R() * 6.3, x = GROTTO.x - 24 + Math.cos(a) * 7, z = GROTTO.z - 6 + Math.sin(a) * 7; P.kelp(at(x, z), x, z, rr(4, 9)); }
   // Kristallgrotte: viele schlanke Spitzen in Blau und Violett, dazwischen Korallen und Lichtpunkte
@@ -127,13 +127,13 @@ function handmade() {
   for (const t of [0.25, 0.5, 0.72]) { const x = 34 + 72 * t + rr(-4, 4), z = 25 + 35 * t + rr(-4, 4); P.tuft(at(x, z), x, z, 6, 0.5, 2.2, DUSK, 1.0); P.coral(at(x, z), x, z, 4, 0.5, 1.1, [PAL.lilac, PAL.turq], 3); }
   // Quallen, Fische, Blasen wie gehabt
   const J = (x, y, z, s) => P.jelly(at(x, z), x, y, z, s);
-  J(cxAt(-58) - 9, -37, -58, 1.5); J(cxAt(-50) + 4, -43, -44, 0.75); J(cxAt(-34) + 12, -31, -30, 1.0);
-  for (let i = 0; i < 15; i++) { const z = rr(-130, 110), x = cxAt(z) + rr(-0.5, 0.5) * halfW(z); J(x, Math.max(floorH(x, z) + 8, rr(-52, -22)), z, rr(0.55, 1.5)); }
-  for (let i = 0; i < 4; i++) J(GROTTO.x + rr(-14, 4), rr(-38, -28), GROTTO.z + rr(-10, 8), rr(0.5, 0.9));
+  J(cxAt(-58) - 9, -47, -58, 1.5); J(cxAt(-50) + 4, -53, -44, 0.75); J(cxAt(-34) + 12, -41, -30, 1.0);
+  for (let i = 0; i < 15; i++) { const z = rr(-130, 110), x = cxAt(z) + rr(-0.5, 0.5) * halfW(z); J(x, Math.max(floorH(x, z) + 8, rr(-62, -32)), z, rr(0.55, 1.5)); }
+  for (let i = 0; i < 4; i++) J(GROTTO.x + rr(-14, 4), rr(-48, -38), GROTTO.z + rr(-10, 8), rr(0.5, 0.9));
   const F = (x, y, z, a, b, n, t) => P.school(at(x, z), x, y, z, a, b, n, t);
-  F(cxAt(-52) - 2, -38, -50, 8, 26, 120, 0.4); F(cxAt(-20) + 6, -44, -22, 7, 22, 90, -0.3);
-  for (let i = 0; i < 13; i++) { const z = rr(-125, 105); F(cxAt(z) + rr(-6, 6), rr(-54, -22), z, rr(4, 9), rr(16, 34), 60 + Math.floor(R() * 70), rr(-0.5, 0.5)); }
-  F(GROTTO.x - 20, -36, GROTTO.z - 8, 6, 12, 70, 0.6); F(cxAt(120), -58, 122, 12, 30, 140, 0);
+  F(cxAt(-52) - 2, -48, -50, 8, 26, 120, 0.4); F(cxAt(-20) + 6, -54, -22, 7, 22, 90, -0.3);
+  for (let i = 0; i < 13; i++) { const z = rr(-125, 105); F(cxAt(z) + rr(-6, 6), rr(-64, -32), z, rr(4, 9), rr(16, 34), 60 + Math.floor(R() * 70), rr(-0.5, 0.5)); }
+  F(GROTTO.x - 20, -46, GROTTO.z - 8, 6, 12, 70, 0.6); F(cxAt(120), -68, 122, 12, 30, 140, 0);
   const Bu = (x, z, n) => P.bubbles(at(x, z), x, z, n);
   Bu(cxAt(-60) + 5, -62, 44); Bu(cxAt(-40) - 9, -38, 40); Bu(cxAt(-8) + 2, -6, 44);
   for (let i = 0; i < 17; i++) { const z = rr(-140, 100); Bu(cxAt(z) + rr(-0.6, 0.6) * halfW(z), z, 30 + Math.floor(R() * 20)); }
@@ -149,13 +149,13 @@ function handmade() {
     P.vent(g, wx - 36, wz + 24, 1.15);
     for (let i = 0; i < 8; i++) { const a = R() * 6.3, d = rr(26, 44), x = wx + Math.cos(a) * d, z = wz + Math.sin(a) * d; P.kelpPatch(g, x, z, 7 + Math.floor(R() * 8), 1.3); }
     for (let i = 0; i < 5; i++) { const a = R() * 6.3, d = rr(16, 38); P.boulder(g, wx + Math.cos(a) * d, wz + Math.sin(a) * d, rr(1.5, 4)); }
-    P.school(g, wx + 4, -44, wz + 2, 9, 20, 130, F2.rot); P.school(g, wx - 8, -36, wz - 6, 7, 16, 90, 0.9); P.school(g, wx + 10, -50, wz + 12, 5, 12, 70, -0.4);
-    P.jelly(g, wx + 14, -34, wz - 12, 1.2); P.jelly(g, wx - 16, -40, wz + 4, 0.8); P.jelly(g, wx + 2, -30, wz + 20, 0.6);
+    P.school(g, wx + 4, -54, wz + 2, 9, 20, 130, F2.rot); P.school(g, wx - 8, -46, wz - 6, 7, 16, 90, 0.9); P.school(g, wx + 10, -60, wz + 12, 5, 12, 70, -0.4);
+    P.jelly(g, wx + 14, -44, wz - 12, 1.2); P.jelly(g, wx - 16, -50, wz + 4, 0.8); P.jelly(g, wx + 2, -40, wz + 20, 0.6);
     P.bubbles(g, wx + 6, wz - 4, 40); P.bubbles(g, wx - 12, wz + 8, 34);
   }
   // Schnee-Ebene: kaum Farbe, nur dunkler Tang am Rand, ein paar Steine, und in der Mitte das Walskelett
   { const px = PLAIN.x, pz = PLAIN.z;
-    for (let i = 0; i < 26; i++) { const a = R() * 6.3, d = rr(0.45, 1.0) * PLAIN.r, x = px + Math.cos(a) * d, z = pz + Math.sin(a) * d; if (floorH(x, z) > -80) continue; P.kelpPatch(at(x, z), x, z, 3 + Math.floor(R() * 7), 0.9); }
+    for (let i = 0; i < 26; i++) { const a = R() * 6.3, d = rr(0.45, 1.0) * PLAIN.r, x = px + Math.cos(a) * d, z = pz + Math.sin(a) * d; if (floorH(x, z) > -90) continue; P.kelpPatch(at(x, z), x, z, 3 + Math.floor(R() * 7), 0.9); }
     for (let i = 0; i < 6; i++) { const a = R() * 6.3, d = rr(10, 40), x = WHALE.x + Math.cos(a) * d, z = WHALE.z + Math.sin(a) * d; P.kelpPatch(at(x, z), x, z, 2 + Math.floor(R() * 3), 0.7); }
     for (let i = 0; i < 18; i++) { const a = R() * 6.3, d = rr(0.15, 0.95) * PLAIN.r, x = px + Math.cos(a) * d, z = pz + Math.sin(a) * d; if (Math.hypot(x - WHALE.x, z - WHALE.z) < 16) continue; P.boulder(at(x, z), x, z, Math.pow(R(), 2.5) * 3 + 0.6); }
     const g = at(WHALE.x, WHALE.z), W2 = buildWhale(WHALE.x, WHALE.z, WHALE.yaw); g.props.push(W2.geo); for (const s of W2.spheres) g.spheres.push(s);
@@ -163,7 +163,7 @@ function handmade() {
     W2.spots.forEach((p, i) => { if (i % 5 === 0 || i >= W2.spots.length - 3) P.coral(g, p[0], p[2], i >= W2.spots.length - 3 ? 3 : 1, 0.16, 0.34, [PAL.cyan, PAL.lilac, PAL.turq], 0.5, p[1] - 0.05); if (i % 2 === 0) P.dots(g, p[0], p[1] + 0.2, p[2], 3, 1.0, [PAL.cyan, PAL.blue]); });
     g.glows.push({ x: WHALE.x, y: floorH(WHALE.x, WHALE.z) + 8, z: WHALE.z, col: [0.42, 0.66, 0.82], power: 3.6, size: 14 });
     P.dots(g, WHALE.x, floorH(WHALE.x, WHALE.z) + 2, WHALE.z, 30, 12, [PAL.cyan, PAL.blue]);
-    P.jelly(g, WHALE.x + 10, -74, WHALE.z - 6, 1.1); P.jelly(g, WHALE.x - 14, -70, WHALE.z + 9, 0.7);
+    P.jelly(g, WHALE.x + 10, -84, WHALE.z - 6, 1.1); P.jelly(g, WHALE.x - 14, -80, WHALE.z + 9, 0.7);
   }
   // Taucherglocke auf halbem Weg die Rampe hinab
   { const g = at(BELL.x, BELL.z), Bl = buildBell(BELL.x, BELL.z, BELL.yaw); g.props.push(Bl.geo); for (const s of Bl.spheres) g.spheres.push(s);
@@ -183,18 +183,18 @@ function procedural(ix, iz, it) {
   const R = rng(h2(ix, iz)), P = placer(R), rr = P.rr, x0 = ix * CS, z0 = iz * CS;
   const free = (x, z) => mainDist(x, z) > 48 && Math.hypot(x - GROTTO.x, z - GROTTO.z) > 36 && Math.hypot(x - WRECK.x, z - WRECK.z) > 52 && Math.hypot(x - HOLE.x, z - HOLE.z) > 24;
   const pt = () => { const x = x0 + R() * CS, z = z0 + R() * CS, h = floorH(x, z); return { x, z, h, c: shelfH(x, z) - h, ok: free(x, z) && plainK(x, z) < 0.15 && Math.hypot(x - BELL.x, z - BELL.z) > 16 }; };
-  for (let i = 0; i < 3; i++) { const p = pt(); if (p.ok && p.c > 18 && p.h > -105) P.spire(it, p.x, p.z, rr(9, 27), rr(2.2, 4.8), rr(0.02, 0.2), R() * 40); }
-  for (let i = 0; i < 7; i++) { const p = pt(); if (p.ok && p.h > -110) P.boulder(it, p.x, p.z, Math.pow(R(), 2) * 4.2 + 1.1); }
-  for (let i = 0; i < 10; i++) { const p = pt(); if (p.ok && (p.c > 8 || R() < 0.45)) P.kelpPatch(it, p.x, p.z, 8 + Math.floor(R() * 16), p.h < -40 ? 1.35 : 1); }
-  for (let i = 0; i < 3; i++) { const p = pt(); if (p.ok && p.c > 8 && p.h > -88) P.coral(it, p.x, p.z, 3 + Math.floor(R() * 4), 0.7, 2.0, R() < 0.25 ? [PAL.peach, PAL.lilac, PAL.turq] : REEF, 3.5); }
-  for (let i = 0; i < 3; i++) { const p = pt(); if (!p.ok || p.c < 9 || p.h < -88 || R() > 0.62) continue; const q = R(), pal = q < 0.4 ? COOL : q < 0.8 ? DUSK : [PAL.turq, PAL.cyan]; P.tuft(it, p.x, p.z, 5 + Math.floor(R() * 5), 0.4, rr(1.3, 3), pal, 1.0); if (R() < 0.55) P.coral(it, p.x + rr(-2, 2), p.z + rr(-2, 2), 3 + Math.floor(R() * 5), 0.7, 2.0, REEF, 4); if (R() < 0.5) P.dots(it, p.x, p.h + 1.2, p.z, 14, 4, pal); }
-  for (let i = 0; i < 2; i++) { const p = pt(); if (p.ok && p.c > 5 && p.h > -88 && R() < 0.5) P.coral(it, p.x, p.z, 4 + Math.floor(R() * 6), 0.8, 2.4, R() < 0.3 ? [PAL.peach, PAL.orange, PAL.lilac] : REEF, 5); }
+  for (let i = 0; i < 3; i++) { const p = pt(); if (p.ok && p.c > 18 && p.h > -115) P.spire(it, p.x, p.z, rr(9, 27), rr(2.2, 4.8), rr(0.02, 0.2), R() * 40); }
+  for (let i = 0; i < 7; i++) { const p = pt(); if (p.ok && p.h > -120) P.boulder(it, p.x, p.z, Math.pow(R(), 2) * 4.2 + 1.1); }
+  for (let i = 0; i < 10; i++) { const p = pt(); if (p.ok && (p.c > 8 || R() < 0.45)) P.kelpPatch(it, p.x, p.z, 8 + Math.floor(R() * 16), p.h < -50 ? 1.35 : 1); }
+  for (let i = 0; i < 3; i++) { const p = pt(); if (p.ok && p.c > 8 && p.h > -98) P.coral(it, p.x, p.z, 3 + Math.floor(R() * 4), 0.7, 2.0, R() < 0.25 ? [PAL.peach, PAL.lilac, PAL.turq] : REEF, 3.5); }
+  for (let i = 0; i < 3; i++) { const p = pt(); if (!p.ok || p.c < 9 || p.h < -98 || R() > 0.62) continue; const q = R(), pal = q < 0.4 ? COOL : q < 0.8 ? DUSK : [PAL.turq, PAL.cyan]; P.tuft(it, p.x, p.z, 5 + Math.floor(R() * 5), 0.4, rr(1.3, 3), pal, 1.0); if (R() < 0.55) P.coral(it, p.x + rr(-2, 2), p.z + rr(-2, 2), 3 + Math.floor(R() * 5), 0.7, 2.0, REEF, 4); if (R() < 0.5) P.dots(it, p.x, p.h + 1.2, p.z, 14, 4, pal); }
+  for (let i = 0; i < 2; i++) { const p = pt(); if (p.ok && p.c > 5 && p.h > -98 && R() < 0.5) P.coral(it, p.x, p.z, 4 + Math.floor(R() * 6), 0.8, 2.4, R() < 0.3 ? [PAL.peach, PAL.orange, PAL.lilac] : REEF, 5); }
   { const p = pt(); if (p.ok && p.c > 20 && R() < 0.65) P.bubbles(it, p.x, p.z, 30 + Math.floor(R() * 18)); }
-  for (let i = 0; i < 2; i++) { const p = pt(); if (p.ok && p.c > 16 && p.h > -150) P.jelly(it, p.x, Math.max(-88, Math.min(-14, Math.max(p.h, -80) + rr(8, 26))), p.z, rr(0.55, 1.5)); }
+  for (let i = 0; i < 2; i++) { const p = pt(); if (p.ok && p.c > 16 && p.h > -160) P.jelly(it, p.x, Math.max(-98, Math.min(-14, Math.max(p.h, -90) + rr(8, 26))), p.z, rr(0.55, 1.5)); }
   for (let i = 0; i < 2; i++) {
     const p = pt(); if (!p.ok || !(p.c > 16 || R() < 0.25)) continue;
     const gx = floorH(p.x + 4, p.z) - floorH(p.x - 4, p.z), gz = floorH(p.x, p.z + 4) - floorH(p.x, p.z - 4);
-    P.school(it, p.x, Math.max(-86, Math.min(-13, Math.max(p.h, -90) + rr(9, 22))), p.z, rr(4, 7), rr(10, 19), 50 + Math.floor(R() * 70), Math.atan2(gx, gz) + Math.PI / 2);
+    P.school(it, p.x, Math.max(-96, Math.min(-13, Math.max(p.h, -100) + rr(9, 22))), p.z, rr(4, 7), rr(10, 19), 50 + Math.floor(R() * 70), Math.atan2(gx, gz) + Math.PI / 2);
   }
   // Fundstelle, falls eine in dieser Kachel liegt
   const s = siteAt(Math.floor(x0 / SITE), Math.floor(z0 / SITE));

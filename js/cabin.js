@@ -3,7 +3,7 @@
 // Wird nach der Welt in einem zweiten Durchgang gezeichnet. Bewegliche Teile (Steuerrad, Tiefenruder, Spulen, Tassen) sind eigene Meshes.
 import { T, Geo, rng, glowTexture, noise } from './util.js';
 import { U, quadPoints } from './gfx.js';
-import { quad, tube, disc, box, lathe, ring } from './build.js';
+import { quad, tri, tube, disc, box, lathe, ring } from './build.js';
 
 const HX = -0.62, HZ = 0.95;   // Horchgerät: links neben dem Steuer, vom Sitz aus erreichbar
 const BRASS_ = [0.78, 0.56, 0.24], PI = Math.PI, RC = 1.45, CY = 0.75, ZA = -2.1, ZF = 1.5, FW = Math.sqrt(RC * RC - CY * CY), F0 = Math.acos(CY / RC);
@@ -168,7 +168,7 @@ export function createCabin() {
   for (const [x0, x1, y0, y1, z] of [[-0.85, 0.85, 0, 0.78, 1.17]]) for (let k = 0; k < 6; k++) { const a = x0 + (x1 - x0) * k / 6, b = a + (x1 - x0) / 6 - 0.008; plank(g, [a, y0, z], [b, y0, z], [b, y1, z], [a, y1, z], tint(0.7 + 0.2 * R()), k % 4, R, 0.8); }
   quad(g, [-0.85, 0.78, 1.16], [0.85, 0.78, 1.16], [0.85, 0.98, 1.47], [-0.85, 0.98, 1.47], WD3, 0, WOOD); box(g, [0, 0.39, 1.33], [1.7, 0.78, 0.3], 0, WD3, 0, 0, WOOD); box(g, [0, 0.775, 1.16], [1.74, 0.05, 0.05], 0, BRASS, 0, 0, MET);
   const pn = [0, 0.84, -0.54];
-  for (const [x, r, em] of [[-0.5, 0.085, 0.38], [-0.3, 0.06, 0.3], [0.5, 0.075, 0.35], [0.68, 0.055, 0.28]]) { const c = [x, 0.9, 1.34]; disc(g, [c[0], c[1] + 0.012, c[2] - 0.008], pn, r, [0.95, 0.88, 0.62], em, 16); ring(g, [c[0], c[1] + 0.016, c[2] - 0.01], pn, r, 0.016, 16, 5, BRASS, 0, MET); quad(g, [c[0] - 0.004, c[1] + 0.02, c[2] - 0.012], [c[0] + 0.004, c[1] + 0.02, c[2] - 0.012], [c[0] + r * 0.5, c[1] + 0.02 + r * 0.45, c[2] - 0.012 + r * 0.7], [c[0] + r * 0.5 - 0.008, c[1] + 0.02 + r * 0.45, c[2] - 0.012 + r * 0.7], IRON); for (let b = 0; b < 4; b++) { const an = b * PI / 2 + 0.78; dome(g, [c[0] + Math.cos(an) * (r + 0.03), c[1] + 0.012 + Math.sin(an) * (r + 0.03) * 0.54, c[2] - 0.008 + Math.sin(an) * (r + 0.03) * 0.84], pn, 0.007, BRASS); } }
+  for (const [x, r, em, cps] of [[-0.5, 0.085, 0.38, 1], [-0.3, 0.06, 0.3], [0.5, 0.075, 0.35], [0.68, 0.055, 0.28]]) { const c = [x, 0.9, 1.34]; disc(g, [c[0], c[1] + 0.012, c[2] - 0.008], pn, r, [0.95, 0.88, 0.62], em, 16); ring(g, [c[0], c[1] + 0.016, c[2] - 0.01], pn, r, 0.016, 16, 5, BRASS, 0, MET); if (!cps) quad(g, [c[0] - 0.004, c[1] + 0.02, c[2] - 0.012], [c[0] + 0.004, c[1] + 0.02, c[2] - 0.012], [c[0] + r * 0.5, c[1] + 0.02 + r * 0.45, c[2] - 0.012 + r * 0.7], [c[0] + r * 0.5 - 0.008, c[1] + 0.02 + r * 0.45, c[2] - 0.012 + r * 0.7], IRON); for (let b = 0; b < 4; b++) { const an = b * PI / 2 + 0.78; dome(g, [c[0] + Math.cos(an) * (r + 0.03), c[1] + 0.012 + Math.sin(an) * (r + 0.03) * 0.54, c[2] - 0.008 + Math.sin(an) * (r + 0.03) * 0.84], pn, 0.007, BRASS); } }
   for (const [x, lean, col] of [[-0.72, 0.12, [0.7, 0.12, 0.08]], [-0.62, -0.1, [0.1, 0.1, 0.1]], [0.8, 0.16, [0.75, 0.6, 0.2]]]) { tube(g, [[x, 0.82, 1.24], [x, 1.02, 1.24 - lean]], 0.014, 0.014, 6, BRASS, 0, MET); soft(g, [x, 1.03, 1.24 - lean], [0.055, 0.055, 0.055], 2, col, x, 0); }
   for (let k = 0; k < 5; k++) box(g, [-0.1 + k * 0.07, 0.86, 1.28], [0.03, 0.03, 0.02], 0, k === 1 ? [0.2, 0.9, 0.4] : BRASS, k === 1 ? 1.2 : 0, 0.55, k === 1 ? 0 : MET);
   lathe(g, [0.66, 0.78, 1.02], 'y', [[0, 0.075], [0.012, 0.075], [0.016, 0.06]], 12, BRASS, 0, MET); tube(g, [[0.66, 0.77, 1.02], [0.66, 0.7, 1.12]], 0.012, 0.012, 4, BRASS, 0, MET);      // Tassenhalter am Pult
@@ -346,6 +346,10 @@ export function createCabin() {
   const wheel = part((q) => { ring(q, [0, 0, 0], [0, 0, 1], 0.15, 0.02, 24, 6, WT1, 0, WOOD); for (let k = 0; k < 6; k++) { const a = k * PI / 3, ca = Math.cos(a), sa = Math.sin(a); tube(q, [[ca * 0.03, sa * 0.03, 0], [ca * 0.15, sa * 0.15, 0], [ca * 0.21, sa * 0.21, 0]], 0.011, 0.016, 6, k ? WT1 : [0.7, 0.55, 0.3], 0, WOOD); soft(q, [ca * 0.215, sa * 0.215, 0], [0.03, 0.03, 0.03], 2, WT2, k, 0, WOOD); } lathe(q, [0, 0, 0], 'z', [[-0.03, 0.035], [0.02, 0.04], [0.03, 0.02], [0.035, 0]], 10, BRASS, 0, MET); }, [0, 0.88, 1.08]);
   wheel.quaternion.setFromUnitVectors(new T.Vector3(0, 0, -1), wn);
   const helm = new T.Mesh(withAO((() => { const q = new CGeo(); tube(q, [[0, 0.8, 1.2], [0, 0.88, 1.08]], 0.028, 0.028, 8, BRASS, 0, MET); return q.build(); })()), mat); inner.add(helm);
+  // Kompass in der großen Anzeige links: Nadel rot nach Norden, weiß nach Süden; dreht sich um die Achse der Anzeigenfläche
+  const cN = new T.Vector3(0, 0.84, -0.54).normalize(), compass = part((q) => { const L = 0.068, W = 0.011, z = 0;
+    tri(q, [-W, 0, z], [W, 0, z], [0, L, z], [0.78, 0.1, 0.07], 0.35); tri(q, [W, 0, z], [-W, 0, z], [0, -L, z], [0.92, 0.9, 0.84], 0.25); dome(q, [0, 0, 0.002], [0, 0, 1], 0.009, BRASS); }, [-0.5, 0.9 + 0.012 + cN.y * 0.01, 1.34 - 0.008 + cN.z * 0.01]);
+  const cQ = new T.Quaternion().setFromUnitVectors(new T.Vector3(0, 0, 1), cN), cF = new T.Vector3(0, 0, 1).applyQuaternion(cQ.clone().invert()), cA0 = Math.atan2(-cF.x, cF.y);   // cA0: so zeigt die Nadel zum Bug
   const lever = part((q) => { tube(q, [[0, 0, 0], [0, 0.2, 0]], 0.012, 0.01, 6, BRASS, 0, MET); soft(q, [0, 0.215, 0], [0.04, 0.05, 0.04], 2.4, [0.08, 0.07, 0.06], 3, 0); }, [0.32, 0.84, 1.2]);
   { const q = new CGeo(); for (const s of [-1, 1]) box(q, [0.32 + s * 0.03, 0.84, 1.2], [0.012, 0.06, 0.14], 0, BRASS, 0, 0, MET); lathe(q, [0.32, 0.84, 1.2], 'x', [[-0.03, 0.02], [0.03, 0.02]], 8, IRON, 0, MET); box(q, [0.32, 0.835, 1.2], [0.05, 0.012, 0.16], 0, [0.1, 0.1, 0.1]); const m = new T.Mesh(withAO(q.build()), mat); m.frustumCulled = false; inner.add(m); }
   const reels = [-0.035, 0.075].map((z) => part((q) => { disc(q, [0, 0, 0], [-1, 0, 0], 0.024, [0.75, 0.7, 0.6], 0, 12); for (let k = 0; k < 3; k++) { const a = k * 2.094; box(q, [-0.002, Math.cos(a) * 0.016, Math.sin(a) * 0.016], [0.004, 0.006, 0.022], -0, [0.1, 0.1, 0.1], 0, a); } }, [1.06 - 0.06, 1.22, z]));
@@ -360,6 +364,14 @@ export function createCabin() {
   const hWheel = part((q) => { ring(q, [0, 0, 0], [1, 0, 0], 0.075, 0.011, 20, 6, BRASS, 0, MET); for (let k = 0; k < 4; k++) { const a = k * PI / 2; tube(q, [[0, 0, 0], [0, Math.sin(a) * 0.075, Math.cos(a) * 0.075]], 0.007, 0.007, 5, BRASS, 0, MET); } lathe(q, [0, 0, 0], 'x', [[0, 0.018], [0.02, 0.016], [0.022, 0]], 10, BRASS, 0, MET); tube(q, [[0, 0.075, 0], [0.05, 0.075, 0]], 0.009, 0.009, 6, [0.12, 0.08, 0.06]); }, [HX + 0.205, 0.95, HZ]);
   const cupGeo = (q) => { lathe(q, [0, 0, 0], 'y', [[0, 0.036], [0.005, 0.04], [0.07, 0.045], [0.08, 0.044], [0.08, 0.038], [0.012, 0.034], [0.012, 0]], 12, [0.82, 0.8, 0.74]); disc(q, [0, 0.07, 0], [0, 1, 0], 0.038, [0.38, 0.19, 0.08], 0, 12); ring(q, [0.052, 0.04, 0], [0, 0, 1], 0.018, 0.006, 10, 4, [0.82, 0.8, 0.74]); };
   const cupDesk = part(cupGeo, [0.74, 0.769, 0.32]), cupPult = part(cupGeo, [0.66, 0.795, 1.02]); cupDesk.visible = cupPult.visible = false;
+  // Kristall aus der Grotte (nach der dritten Mission): ein kleines Büschel sechseckiger Spitzen auf dem Schreibtisch, leise leuchtend, dazu ein schwaches Funkeln
+  const crystal = part((q) => { const V3 = (x, y, z) => new T.Vector3(x, y, z);
+    const prism = (b, d, r, L, col) => { d = d.clone().normalize(); const u = new T.Vector3().crossVectors(d, Math.abs(d.y) > 0.9 ? V3(1, 0, 0) : V3(0, 1, 0)).normalize(), w = new T.Vector3().crossVectors(d, u), i0 = q.count;
+      for (const [h, rr] of [[0, r * 0.9], [L * 0.74, r], [L, 0]]) for (let k = 0; k < 6; k++) { const a = k / 6 * PI * 2, o = u.clone().multiplyScalar(Math.cos(a)).addScaledVector(w, Math.sin(a)), p = b.clone().addScaledVector(d, h).addScaledVector(o, rr), n = o.clone().multiplyScalar(0.8).addScaledVector(d, h === L ? 0.9 : 0.15).normalize(); q.v(p.x, p.y, p.z, n.x, n.y, n.z, col, 1, 0.32); }
+      for (let j = 0; j < 2; j++) for (let k = 0; k < 6; k++) { const a = i0 + j * 6 + k, b2 = i0 + j * 6 + (k + 1) % 6; q.tri(a, b2, a + 6); q.tri(b2, b2 + 6, a + 6); } };
+    prism(V3(0, 0, 0), V3(0.05, 1, 0.02), 0.011, 0.075, [0.62, 0.46, 0.98]); prism(V3(0.012, 0, 0.008), V3(0.55, 0.8, 0.25), 0.008, 0.05, [0.5, 0.42, 0.95]); prism(V3(-0.01, 0, -0.006), V3(-0.5, 0.75, -0.35), 0.007, 0.045, [0.7, 0.55, 1.0]);
+    prism(V3(0.004, 0, -0.012), V3(0.2, 0.9, -0.6), 0.006, 0.035, [0.56, 0.5, 1.0]); }, [0.7, 0.772, -0.58]);
+  const crySpark = new T.Sprite(new T.SpriteMaterial({ map: glowTexture(), color: new T.Color(0.75, 0.6, 1.0), transparent: true, opacity: 0, blending: T.AdditiveBlending, depthWrite: false })); crySpark.position.set(0, 0.06, 0); crySpark.scale.set(0.09, 0.09, 1); crystal.add(crySpark);
   const kettle = part((q) => { lathe(q, [0, 0, 0], 'y', [[0, 0.085], [0.02, 0.115], [0.1, 0.118], [0.14, 0.085], [0.155, 0.04], [0.16, 0.035], [0.17, 0.02], [0.175, 0]], 14, COPPER, 0, MET); tube(q, [[0.1, 0.06, 0], [0.18, 0.12, 0], [0.22, 0.17, 0]], 0.024, 0.01, 8, COPPER, 0, MET); const hp = []; for (let k = 0; k <= 10; k++) { const a = k / 10 * PI; hp.push([0, 0.15 + Math.sin(a) * 0.12, -0.08 + k * 0.016]); } tube(q, hp, 0.01, 0.01, 6, IRON, 0, MET); soft(q, [0, 0.27, 0], [0.04, 0.03, 0.12], 3, [0.12, 0.08, 0.06], 1, 0); }, [-0.82, 0.76, 0.22]);
 
   // ---------- Taucheranzug: hängt hinten rechts in der Ecke hinter dem Sonartisch auf einem Bügel (statt des Mantels links),
@@ -491,7 +503,7 @@ export function createCabin() {
   const C = { group, head, scopeCtx: scv.getContext('2d'), scopeTex: stex, uni: UC, TG, inner };
   /** Horchgerät nachführen: Peilung in Grad (im Uhrzeigersinn ab Bug, 90 = Steuerbord), Signal 0..1 */
   C.setHorch = (deg, lvl) => { const b = deg * PI / 180; hNeedle.rotation.y = b; hWheel.rotation.x = b * 3; hlamp.material.opacity = 0.08 + Math.min(1, lvl * 2.5) * 0.9; };
-  const st = { fire: 1, fireT: 1, lamp: 1, lampT: 1, boil: 0, cup: 'none', cupHeat: 0, tape: false, wheel: 0, lever: 0, own: [true, false, false, false, false, false], tapeIn: 0, pageNew: false, suit: 0 };   // suit: 0 = kein Anzug (Mantel am Haken), 1 = hängt in der Kabine, 2 = man trägt ihn draußen
+  const st = { fire: 1, fireT: 1, lamp: 1, lampT: 1, boil: 0, cup: 'none', cupHeat: 0, tape: false, wheel: 0, lever: 0, heading: 0, kettle: true, crystal: false, own: [true, false, false, false, false, false], tapeIn: 0, pageNew: false, suit: 0 };   // suit: 0 = kein Anzug (Mantel am Haken), 1 = hängt in der Kabine, 2 = man trägt ihn draußen
   C.state = st;
   C.toWorld = (k, out) => out.set(TG[k][0], TG[k][1], TG[k][2]).applyMatrix4(inner.matrixWorld);
   C.highlight = (k) => { if (!k) { hint.material.opacity = Math.max(0, hint.material.opacity - 0.08); return; } hint.position.set(...TG[k]); const s = k === 'seat' || k === 'table' ? 0.32 : k === 'hatch' ? 0.5 : k === 'suit' ? 0.4 : k.startsWith('cas') ? 0.09 : 0.16; hint.scale.set(s, s, 1); hint.material.opacity = 0.16 + 0.07 * Math.sin(U.uTime.value * 3); };
@@ -500,7 +512,8 @@ export function createCabin() {
     st.fire += (st.fireT - st.fire) * Math.min(1, dt * 0.8); st.lamp += (st.lampT - st.lamp) * Math.min(1, dt * 6); UC.uFire.value = st.fire; UC.uLamp.value = st.lamp;
     for (let i = 0; i < 3; i++) UC.uLC.value[i].copy(LC0[i]).multiplyScalar(st.lamp); UC.uLC.value[4].copy(LC0[4]).multiplyScalar(st.fire);
     wheel.quaternion.setFromUnitVectors(new T.Vector3(0, 0, -1), wn); wheel.rotateZ(st.wheel);
-    lever.rotation.x = st.lever;
+    lever.rotation.x = st.lever; kettle.visible = st.kettle !== false; crystal.visible = !!st.crystal; if (crystal.visible) { const tw = U.uTime.value; crySpark.material.opacity = 0.1 + 0.07 * Math.sin(tw * 1.3) + 0.06 * Math.max(0, Math.sin(tw * 4.7 + Math.sin(tw * 1.9) * 2)); }
+    compass.quaternion.copy(cQ); compass.rotateZ(cA0 - st.heading);   // Nadel zeigt nach Norden, egal wie das Boot liegt
     coat.visible = st.suit === 0; suitHang.visible = helmP.visible = bootsP.visible = st.suit === 1;
     for (let k = 0; k < 6; k++) cass[k].visible = st.own[k] && st.tapeIn !== k; pglow.material.opacity = st.pageNew ? 0.1 + 0.07 * Math.sin(U.uTime.value * 2.2) : 0;
     if (st.tape) for (const r of reels) r.rotation.x += dt * 2.6; tapeLed.visible = st.tape;

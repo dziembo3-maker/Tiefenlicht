@@ -30,8 +30,8 @@ export const CAVE = (() => {
   const floorY = mid.y - mid.fl;
   // Zahn: auf einem flachen Stein in der Kammer, etwas zur Seite
   const tooth = { x: mid.x + 1.2, y: floorY + 0.62, z: mid.z + 0.6 };
-  // die Messingdose, die dem Kapitän hineingefallen ist: liegt auf der Seite zwischen den Muscheln, auf der anderen Seite des Steins
-  const can = { x: mid.x - 0.55, y: floorY + 0.25, z: mid.z + 1.75, yaw: 2.2, roll: 0.55 };
+  // die Messingdose, die dem Kapitän hineingefallen ist: liegt auf der Seite zwischen den Muscheln, gleich am Stein
+  const can = { x: mid.x + 1.45, y: floorY + 0.25, z: mid.z + 1.68, yaw: 0.35, roll: 0.55 };   // gleich neben dem Stein mit dem Zahn: beides wird mit einem Griff geborgen
   let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9, z0 = 1e9, z1 = -1e9; for (const s of S) { x0 = Math.min(x0, s.x - s.r); x1 = Math.max(x1, s.x + s.r); y0 = Math.min(y0, s.y - s.r); y1 = Math.max(y1, s.y + s.r); z0 = Math.min(z0, s.z - s.r); z1 = Math.max(z1, s.z + s.r); }
   return { yM, S, top: S[0], mid, floorY, tooth, can, box: [x0 - 2, x1 + 2, y0 - 2, y1 + 6, z0 - 2, z1 + 2], len: S[S.length - 1].s };
 })();

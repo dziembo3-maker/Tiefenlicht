@@ -296,8 +296,15 @@ export function buildBell(x0, z0, yaw) {
 }
 
 // ---------- Messingdose des Kapitäns: verschraubter Zylinder mit Tragring, daneben ein Stab mit einer kleinen Lampe ----------
-export function buildCanister(x0, z0, yaw = 0) {
+export function buildCanister(x0, z0, yaw = 0, extra = null) {   // extra: 'kettle' = daneben liegt ein alter Kupferkessel (Fundstück der ersten Mission)
   const g = new B();
+  if (extra === 'kettle') {   // Kessel: bauchig, mit Tülle und Henkel, leicht schräg im Sand, wie hingestellt und vergessen
+    const s0 = g.c;
+    g.lathe(0, 0, 0, [[0, 0.0], [0, 0.19], [0.045, 0.25], [0.22, 0.26], [0.31, 0.19], [0.34, 0.09], [0.35, 0.08], [0.37, 0.045], [0.385, 0.0]], 16, 4);
+    g.tube([[0.2, 0.1, 0, 0.055], [0.36, 0.22, 0, 0.035], [0.45, 0.34, 0, 0.022]], 8, 4);
+    const hp = []; for (let k = 0; k <= 10; k++) { const a = k / 10 * Math.PI; hp.push([0, 0.32 + Math.sin(a) * 0.24, -0.17 + k * 0.034, 0.018]); } g.tube(hp, 6, 2);
+    g.place(s0, 0.78, -0.06, 0.32, 1.9, 0.22, 0.12);
+  }
   g.lathe(0, 0, 0, [[0, 0.0], [0, 0.25], [0.04, 0.27], [0.12, 0.27], [0.14, 0.255], [0.78, 0.255], [0.8, 0.27], [0.9, 0.27], [0.92, 0.25], [0.94, 0.12], [0.95, 0.0]], 18, 4);
   for (const y of [0.3, 0.62]) g.ring(0, y, 0, 0.258, 0.016, 5, 20, 4);
   for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; g.blob(Math.cos(a) * 0.2, 0.955, Math.sin(a) * 0.2, 0.028, 0.02, 0.028, 0, 2, 0.05, i); }

@@ -131,14 +131,15 @@ export function createLife(scene) {
 
   // ---------- Materialien ----------
   const mKelp = new T.ShaderMaterial({ uniforms: uni(), side: T.DoubleSide,
-      vertexShader: /* glsl */ `attribute float aTip; attribute vec4 iP; attribute vec2 iR; uniform float uTime; uniform vec3 uSubPos; varying vec3 vW; varying float vT, vH; ${ROTY}
+      vertexShader: /* glsl */ `attribute float aTip; attribute vec4 iP; attribute vec2 iR; uniform float uTime; uniform vec3 uSubPos, uSubA, uSubB; varying vec3 vW; varying float vT, vH; ${ROTY}
+        vec3 subOff(vec3 p){ vec3 ab = uSubB - uSubA; float t = clamp(dot(p - uSubA, ab) / max(dot(ab, ab), 0.001), 0.0, 1.0); return p - (uSubA + ab * t); }   // Abstand zur Bootsachse (Bug bis Heck), nicht nur zur Mitte
         void main(){ float h = iP.w, y = position.y; vec3 p = rotY(position, iR.x) * h;
           float sw = y * y * h * 0.085;
           p.x += sin(uTime * 0.55 + iR.y + y * 2.1) * sw + sin(uTime * 1.3 + iR.y * 3.0 + y * 17.0) * 0.022 * h * aTip;
           p.z += cos(uTime * 0.43 + iR.y * 1.7 + y * 1.7) * sw * 0.8;
           p.y += sin(uTime * 1.1 + iR.y + y * 13.0) * 0.012 * h * aTip;
           p += iP.xyz;
-          vec3 d = p - uSubPos; float l = length(d); p.xz += d.xz / max(l, 0.01) * (1.0 - smoothstep(1.0, 5.0, l)) * 2.2 * y;
+          vec3 d = subOff(p); float l = length(d); p.xz += d.xz / max(length(d.xz), 0.01) * (1.0 - smoothstep(1.6, 6.5, l)) * 3.2 * y;
           vW = p; vT = aTip; vH = y; gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0); }`,
       fragmentShader: /* glsl */ `precision highp float; ${COMMON} varying vec3 vW; varying float vT, vH;
         void main(){ vec3 base = mix(vec3(0.07, 0.17, 0.17), vec3(0.11, 0.30, 0.25), vT * vH);
@@ -173,9 +174,10 @@ export function createLife(scene) {
     fragmentShader: /* glsl */ `precision highp float; ${COMMON} varying vec3 vW, vN; varying float vK;
       void main(){ vec3 base = mix(vec3(0.16, 0.24, 0.36), vec3(0.42, 0.52, 0.62), vK); gl_FragColor = vec4(fog(shade(base, normalize(vN), vW), vW), 1.0); }` });
   const mGrass = new T.ShaderMaterial({ uniforms: uni(), side: T.DoubleSide,
-    vertexShader: /* glsl */ `attribute float aT; attribute vec4 iP; attribute vec2 iR; uniform float uTime; uniform vec3 uSubPos; varying vec3 vW; varying float vT; ${ROTY}
+    vertexShader: /* glsl */ `attribute float aT; attribute vec4 iP; attribute vec2 iR; uniform float uTime; uniform vec3 uSubPos, uSubA, uSubB; varying vec3 vW; varying float vT; ${ROTY}
+        vec3 subOff(vec3 p){ vec3 ab = uSubB - uSubA; float t = clamp(dot(p - uSubA, ab) / max(dot(ab, ab), 0.001), 0.0, 1.0); return p - (uSubA + ab * t); }   // Abstand zur Bootsachse (Bug bis Heck), nicht nur zur Mitte
       void main(){ vec3 p = rotY(position * iP.w, iR.x); float sw = aT * aT * iP.w * 0.25; p.x += sin(uTime * 0.8 + iR.y + iP.x * 0.2) * sw; p.z += cos(uTime * 0.65 + iR.y) * sw * 0.7; p += iP.xyz;
-        vec3 d = p - uSubPos; float l = length(d); p.xz += d.xz / max(l, 0.01) * (1.0 - smoothstep(1.0, 4.0, l)) * aT * 0.8;
+        vec3 d = subOff(p); float l = length(d); p.xz += d.xz / max(length(d.xz), 0.01) * (1.0 - smoothstep(1.6, 5.0, l)) * aT * 1.3;
         vW = p; vT = aT; gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0); }`,
     fragmentShader: /* glsl */ `precision highp float; ${COMMON} varying vec3 vW; varying float vT;
       void main(){ vec3 base = mix(vec3(0.05, 0.13, 0.15), vec3(0.14, 0.34, 0.33), vT); gl_FragColor = vec4(fog(shade(base, vec3(0.0, 1.0, 0.0), vW) * 0.62, vW), 1.0); }` });

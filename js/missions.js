@@ -10,7 +10,7 @@ export const TAPES = [{ id: 0 }, { id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }];
 /** Missionen in ihrer Reihenfolge. page = Seite, an der sie beginnt; tape = was man findet; x/z = Ort der Dose;
  *  off = wo die Dose im Ping-Fächer liegt (-1 linker Rand, 0 Mitte, 1 rechter Rand), fest pro Mission, damit der Fächer nicht springt */
 export const MISSIONS = [
-  { id: 'm1', page: 0, tape: 1, x: WRECK.x + 21, z: WRECK.z - 17, yaw: 0.6, off: 0.6 },
+  { id: 'm1', page: 0, tape: 1, x: WRECK.x + 21, z: WRECK.z - 17, yaw: 0.6, off: 0.6, extra: 'kettle' },   // neben der Dose liegt der Kessel
   { id: 'm2', page: 1, tape: 2, x: WHALE.x + 9.5, z: WHALE.z + 8.5, yaw: 2.1, off: -0.55 },
   // in der Dose liegt die Kamera; beendet ist die Mission erst mit einem Foto der großen Kristalle (photo: Ziel, h = Höhe über Grund, r = wie nah man sein muss)
   { id: 'm3', page: 2, tape: 3, x: GROTTO.x - 9, z: GROTTO.z - 2, yaw: 1.2, off: 0.5, cam: true, photo: { x: GROTTO.x + 6, z: GROTTO.z + 4, h: 5, r: 55, name: 'n_grotto' } },
@@ -27,7 +27,7 @@ export const REACH = 12;
 
 export function createCanisters(scene, world) {
   const gt = glowTexture(), list = MISSIONS.map((m) => {
-    const c = buildCanister(m.x, m.z, m.yaw), mesh = new T.Mesh(c.geo, propMaterial()); mesh.visible = false; scene.add(mesh);
+    const c = buildCanister(m.x, m.z, m.yaw, m.extra), mesh = new T.Mesh(c.geo, propMaterial()); mesh.visible = false; scene.add(mesh);
     const mk = (s, op) => { const sp = new T.Sprite(new T.SpriteMaterial({ map: gt, color: new T.Color(1.0, 0.72, 0.36), transparent: true, opacity: op, blending: T.AdditiveBlending, depthWrite: false, fog: false })); sp.position.copy(c.lamp); sp.scale.set(s, s, 1); sp.renderOrder = 9; sp.visible = false; scene.add(sp); return sp; };
     return { m, mesh, core: mk(0.55, 0.95), halo: mk(5.5, 0.3), lamp: c.lamp, glow: { x: c.lamp.x, y: c.lamp.y, z: c.lamp.z, col: [1.0, 0.62, 0.3], power: 1.6, size: 1.2 } };
   });

@@ -4,7 +4,7 @@ import { T } from './util.js';
 export const SUN = new T.Vector3(0.22, 0.74, 0.56).normalize();      // Richtung, aus der das Licht von oben einfällt
 export const U = {
   uTime: { value: 0 }, uNoise: { value: null }, uSunDir: { value: SUN }, uDeep: { value: 1 }, uFogK: { value: 0.021 },
-  uSubPos: { value: new T.Vector3() }, uWarmPos: { value: new T.Vector3() }, uLampPos: { value: new T.Vector3() }, uLampDir: { value: new T.Vector3(0, 0, 1) }, uLampOn: { value: 1 },
+  uSubPos: { value: new T.Vector3() }, uSubA: { value: new T.Vector3() }, uSubB: { value: new T.Vector3() }, uWarmPos: { value: new T.Vector3() }, uLampPos: { value: new T.Vector3() }, uLampDir: { value: new T.Vector3(0, 0, 1) }, uLampOn: { value: 1 },
   uGlow: { value: [new T.Vector4(), new T.Vector4(), new T.Vector4(), new T.Vector4()] }, uGlowCol: { value: [new T.Vector3(), new T.Vector3(), new T.Vector3(), new T.Vector3()] },
   uPing: { value: new T.Vector4(0, 0, 0, -1) }, uPingFade: { value: 0 },
 };
