@@ -6,7 +6,7 @@ import { buildCanister, propMaterial } from './props.js';
 import { WRECK, WHALE, GROTTO, HOLE } from './terrain.js';
 
 /** Kassetten: 0 liegt von Anfang an im Deck; die anderen findet man. page = Logbuchseite, die mit ihr kommt */
-export const TAPES = [{ id: 0 }, { id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }];
+export const TAPES = [{ id: 0 }, { id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }, { id: 6 }];
 /** Missionen in ihrer Reihenfolge. page = Seite, an der sie beginnt; tape = was man findet; x/z = Ort der Dose;
  *  off = wo die Dose im Ping-Fächer liegt (-1 linker Rand, 0 Mitte, 1 rechter Rand), fest pro Mission, damit der Fächer nicht springt */
 export const MISSIONS = [
@@ -22,6 +22,9 @@ export const MISSIONS = [
   // keine Dose: Buckelwale ziehen über dem großen Abgrund (der Ort wird beim Start gewürfelt, 400 bis 700 m vom Boot). Finden mit dem Horchgerät, beobachten,
   // dann tauchen sie ab, und man folgt ihnen bis zur Tiefengrenze. Seite und Kassette liegen im zweiten Umschlag aus der Höhlendose
   { id: 'm6', page: 6, tape: 5, hump: true, x: 95, z: 600, yaw: 0 },
+  // Aufrüstung: erst den Scheinwerfer am Wrack zu Fuß holen (Stufe lamp, zurück ins Boot: lampback), dann zur Dose bei den Ballasttanks am Ostrand des Abgrunds (Stufe tanks).
+  // Die Dose bringt Seite und Kassette; danach ist die Tiefengrenze aufgehoben
+  { id: 'm7', page: 7, tape: 6, tanks: true, x: -284.5, z: 561.5, yaw: 0.9, off: 0.3 },
 ];
 /** so viele weitere Missionen deutet der Missionen-Reiter nur an */
 export const HINTED = 3;

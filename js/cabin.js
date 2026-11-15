@@ -355,7 +355,7 @@ export function createCabin() {
   const reels = [-0.035, 0.075].map((z) => part((q) => { disc(q, [0, 0, 0], [-1, 0, 0], 0.024, [0.75, 0.7, 0.6], 0, 12); for (let k = 0; k < 3; k++) { const a = k * 2.094; box(q, [-0.002, Math.cos(a) * 0.016, Math.sin(a) * 0.016], [0.004, 0.006, 0.022], -0, [0.1, 0.1, 0.1], 0, a); } }, [1.06 - 0.06, 1.22, z]));
   const tapeLed = part((q) => disc(q, [0, 0, 0], [-1, 0, 0], 0.009, [1.0, 0.3, 0.15], 1.6, 8), [1.06 - 0.055, 1.14, 0.2]); tapeLed.visible = false;
   // Kassetten im Regal (nur die, die man besitzt und die nicht gerade im Deck liegen) und die lose Logbuchseite des Kapitäns
-  const CASZ = (k) => -0.105 + k * 0.042, CASC = [[0.5, 0.17, 0.12], [0.16, 0.36, 0.36], [0.62, 0.68, 0.74], [0.5, 0.4, 0.16], [0.3, 0.2, 0.42], [0.2, 0.3, 0.16]];
+  const CASZ = (k) => -0.11 + k * 0.036, CASC = [[0.5, 0.17, 0.12], [0.16, 0.36, 0.36], [0.62, 0.68, 0.74], [0.5, 0.4, 0.16], [0.3, 0.2, 0.42], [0.2, 0.3, 0.16], [0.14, 0.16, 0.24]];
   const cass = CASC.map((c, k) => { const p = part((q) => { box(q, [0, 0, 0], [0.068, 0.104, 0.027], 0, c); box(q, [-0.0345, 0.004, 0], [0.002, 0.074, 0.021], 0, PAPER); box(q, [-0.0358, 0.026, 0], [0.002, 0.012, 0.022], 0, sh(c, 1.5)); for (let i = 0; i < 3; i++) box(q, [-0.0358, -0.004 - i * 0.012, 0], [0.002, 0.002, 0.014], 0, [0.25, 0.18, 0.12]); }, [1.132, 0.83, CASZ(k)]); p.rotation.x = k % 3 === 1 ? 0.05 : k % 3 === 2 ? -0.04 : 0; p.visible = false; return p; });
   const page = part((q) => { const a = 0.25, ca = Math.cos(a), sa = Math.sin(a), at = (lx, lz) => [lx * ca + lz * sa, 0.0048, -lx * sa + lz * ca]; box(q, [0, 0.002, 0], [0.2, 0.004, 0.275], a, [0.88, 0.79, 0.58]);
     for (let i = 0; i < 9; i++) box(q, at(i === 8 ? -0.03 : 0, -0.105 + i * 0.022), [i === 8 ? 0.09 : 0.155 - (i % 3) * 0.012, 0.0008, 0.0035], a, [0.24, 0.16, 0.1]); disc(q, at(0.062, 0.108), [0, 1, 0], 0.014, [0.55, 0.1, 0.08], 0, 10); }, [0.83, 0.7725, 0.04]);
@@ -515,7 +515,7 @@ export function createCabin() {
     lever.rotation.x = st.lever; kettle.visible = st.kettle !== false; crystal.visible = !!st.crystal; if (crystal.visible) { const tw = U.uTime.value; crySpark.material.opacity = 0.1 + 0.07 * Math.sin(tw * 1.3) + 0.06 * Math.max(0, Math.sin(tw * 4.7 + Math.sin(tw * 1.9) * 2)); }
     compass.quaternion.copy(cQ); compass.rotateZ(cA0 + st.heading);   // Nadel zeigt nach Norden, egal wie das Boot liegt (die Kabine ist gespiegelt gebaut, daher +)
     coat.visible = st.suit === 0; suitHang.visible = helmP.visible = bootsP.visible = st.suit === 1;
-    for (let k = 0; k < 6; k++) cass[k].visible = st.own[k] && st.tapeIn !== k; pglow.material.opacity = st.pageNew ? 0.1 + 0.07 * Math.sin(U.uTime.value * 2.2) : 0;
+    for (let k = 0; k < cass.length; k++) cass[k].visible = !!st.own[k] && st.tapeIn !== k; pglow.material.opacity = st.pageNew ? 0.1 + 0.07 * Math.sin(U.uTime.value * 2.2) : 0;
     if (st.tape) for (const r of reels) r.rotation.x += dt * 2.6; tapeLed.visible = st.tape;
     for (const s of steamK) { s.userData.t = (s.userData.t + dt * (0.22 + 0.25 * st.boil)) % 1; const t = s.userData.t; s.position.set(-0.6 + Math.sin(t * 5 + s.id) * 0.03 + t * 0.06, 0.95 + t * (0.4 + 0.4 * st.boil), 0.22 + Math.cos(t * 4 + s.id) * 0.03); const k = 0.06 + t * (0.2 + 0.2 * st.boil); s.scale.set(k, k, 1); s.material.opacity = Math.sin(t * PI) * (0.05 + 0.2 * st.boil); }
     const cp = st.cup === 'desk' ? cupDesk : st.cup === 'pult' ? cupPult : null; cupDesk.visible = st.cup === 'desk'; cupPult.visible = st.cup === 'pult';

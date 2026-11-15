@@ -134,6 +134,8 @@
   @media (max-height: 480px) { .tRow { padding: 5px 12px; margin-bottom: 2px; font-size: 14px; } .tCard { padding: 10px 12px; } #tReel { width: 50px; height: 50px; } }
   .press { box-shadow: inset 0 0 0 200px rgba(225, 245, 250, 0.2) !important; border-color: rgba(235, 250, 252, 0.6) !important; } #scope.press { filter: brightness(1.35); }
   #camBtn { position: fixed; left: calc(12px + env(safe-area-inset-left)); top: calc(114px + env(safe-area-inset-top)); padding: 7px 12px; display: none; }
+  #lampBtn { position: fixed; left: calc(96px + env(safe-area-inset-left)); top: calc(114px + env(safe-area-inset-top)); padding: 7px 12px; display: none; } #lampBtn.on { background: rgba(232, 190, 110, 0.3); border-color: rgba(255, 220, 160, 0.75); }
+  #lampBtn svg { width: 18px; height: 15px; fill: none; stroke: rgba(225, 245, 248, 0.9); stroke-width: 1.6; vertical-align: -3px; }
   #camBtn svg, #camShut svg { width: 18px; height: 15px; fill: none; stroke: rgba(225, 245, 248, 0.9); stroke-width: 1.6; vertical-align: -3px; }
   body.cam #ui > :not(#camUI):not(#banner):not(#note) { display: none !important; }
   #camUI { position: fixed; inset: 0; display: none; pointer-events: none; } body.cam #camUI { display: block; }
@@ -152,7 +154,7 @@
   .logEntry:nth-child(even) .logPhoto { transform: rotate(1.4deg); }
   #photoGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 16px; padding: 4px; } #photoGrid img { width: 100%; box-shadow: 0 3px 10px rgba(60, 40, 20, 0.35); } #photoGrid img:nth-child(odd) { transform: rotate(-1.5deg); } #photoGrid img:nth-child(even) { transform: rotate(1.2deg); }
   #horch { position: fixed; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 12px; background: rgba(8, 6, 3, 0.82); pointer-events: auto; z-index: 3; }
-  #horch.open { display: flex; } #ui:has(#horch.open) :is(#banner, #hint, #act, #sonHint, #camBtn) { visibility: hidden; }
+  #horch.open { display: flex; } #ui:has(#horch.open) :is(#banner, #hint, #act, #sonHint, #camBtn, #lampBtn) { visibility: hidden; }
   #horchCv { width: min(88vw, 72vh); height: min(88vw, 72vh); border-radius: 50%; touch-action: none; box-shadow: 0 0 0 5px #3a2a14, 0 0 0 9px #9a7638, 0 0 0 12px #2a1e0e, 0 8px 30px rgba(0, 0, 0, 0.7); }
   #horchSide { display: flex; flex-direction: column; gap: 12px; align-items: center; }
   #horchSl { width: min(84vw, 380px); height: 44px; margin: 0; accent-color: #c9a25a; touch-action: none; } body.pc #horchSl { display: none; }
@@ -165,7 +167,7 @@
   #helmet { position: fixed; inset: 0; width: 100%; height: 100%; display: none; pointer-events: none; }
   #helmetFog { position: fixed; border-radius: 50%; pointer-events: none; opacity: 0; display: none; background: radial-gradient(circle, rgba(215, 228, 232, 0) 42%, rgba(215, 228, 232, 0.09) 72%, rgba(215, 228, 232, 0.2) 100%); }
   #helmetBub { position: fixed; inset: 0; pointer-events: none; overflow: hidden; display: none; }
-  body.dive #helmet, body.dive #helmetFog, body.dive #helmetBub { display: block; } body.dive #sonar, body.dive #mode, body.dive #camBtn { display: none !important; }
+  body.dive #helmet, body.dive #helmetFog, body.dive #helmetBub { display: block; } body.dive #sonar, body.dive #mode, body.dive #camBtn, body.dive #lampBtn { display: none !important; }
   .hb { position: absolute; border-radius: 50%; border: 1.5px solid rgba(225, 240, 245, 0.5); background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.5), rgba(200, 230, 240, 0.08) 45%, rgba(200, 230, 240, 0) 70%); opacity: 0; animation: hb 2s ease-in forwards; }
   @keyframes hb { 0% { transform: translate(0, 0) scale(0.5); opacity: 0; } 12% { opacity: 0.85; } 50% { transform: translate(calc(var(--dx) * 0.4 + 7px), calc(var(--dy) * 0.42)) scale(1); } 100% { transform: translate(var(--dx), var(--dy)) scale(1.15); opacity: 0; } }
   #err { position: fixed; left: 8px; bottom: 8px; right: 8px; font: 11px monospace; color: #ffb0a0; white-space: pre-wrap; z-index: 9; pointer-events: none; }
@@ -186,6 +188,7 @@
   <div id="fps"></div>
   <div id="mode" class="pill"><span id="modeL"></span><kbd>C</kbd></div>
   <div id="camBtn" class="pill"><svg viewBox="0 0 18 15"><path d="M1.5 4.5h3l1.5-2.5h6l1.5 2.5h3v9h-15z"/><circle cx="9" cy="8.6" r="3"/></svg><kbd>K</kbd></div>
+  <div id="lampBtn" class="pill"><svg viewBox="0 0 18 15"><path d="M2 4.5h6v6H2z"/><path d="M8 3.5l3-1.5v11l-3-1.5"/><path d="M13 5l3.5-1.5M13 7.5h4M13 10l3.5 1.5"/></svg><kbd>Q</kbd></div>
   <div id="camUI"><div id="camFrame"><i></i><i></i><i></i><i></i><div id="camDot"></div></div><div id="camInfo"></div><img id="camThumb" alt="">
     <div id="camShut"><kbd>Space</kbd></div><div id="camClose" class="pill"><span data-t="close"></span><kbd>Esc</kbd></div><div id="camFlash"></div></div>
   <div id="horch"><canvas id="horchCv" width="720" height="720"></canvas><div id="horchSide"><input id="horchSl" type="range" min="-180" max="180" step="1" value="0"><div id="horchInfo"></div><div id="horchClose" class="pill"><span data-t="back"></span><kbd>Esc</kbd></div></div></div>

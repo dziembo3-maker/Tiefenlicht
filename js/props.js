@@ -6,7 +6,7 @@ import { floorH, floorN, meshH } from './terrain.js';
 
 // ---------- kleiner Baukasten: Position, Normale, Verdeckung (aO) und Art der Fläche (aTag) ----------
 // aTag: 0 Knochen, 1 Knochen mit Bewuchs, 2 Gusseisen, 3 Glas, 4 Messing, 5 Schlauch, 6 Kette
-class B {
+export class B {
   constructor() { this.p = []; this.n = []; this.o = []; this.t = []; this.i = []; this.c = 0; }
   v(x, y, z, nx, ny, nz, tag, ao = 1) { this.p.push(x, y, z); this.n.push(nx, ny, nz); this.t.push(tag); this.o.push(ao); return this.c++; }
   tri(a, b, c) { this.i.push(a, b, c); }

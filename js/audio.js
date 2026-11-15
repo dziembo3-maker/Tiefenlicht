@@ -145,6 +145,8 @@ export function createAudio() {
     // darüber lange Rufe, die gleiten wie Walgesang, und ab und zu eine einzelne hohe Glocke. Keine Tropfen (die gehören der Krakenhöhle)
     { ch: [[33, [57, 60, 64, 66, 69]], [29, [57, 60, 65, 69, 72]], [36, [55, 60, 64, 67, 71]], [31, [55, 59, 62, 66, 69]], [33, [57, 60, 64, 69, 71]], [26, [57, 62, 65, 69, 72]]], L: 16, pad: 520, padV: 0.0095, bass: 0.075, n: 3, gap: 3.8, skip: 0.25, type: 'triangle', oct: -12, rel: 6.5, vol: 0.03, send: 2.6,
       glide: 0.95, bell: { n: 3, skip: 0.55, vol: 0.012 } },
+    // 6 = Am Abgrund: e-phrygisch, tief und gleichmäßig wie ein Herzschlag; gedämpfte Töne laufen in ruhigen Schritten abwärts, kaum Hall, kein Gleiten, keine Tropfen
+    { ch: [[28, [52, 53, 55, 59, 64]], [29, [53, 57, 60, 64, 65]], [26, [50, 53, 57, 60, 62]], [28, [52, 55, 59, 62, 64]], [24, [52, 55, 60, 64, 67]], [29, [53, 57, 60, 62, 65]]], L: 9, pad: 600, padV: 0.0075, bass: 0.085, n: 8, gap: 1.05, skip: 0.18, type: 'triangle', oct: -12, rel: 0.9, vol: 0.03, send: 0.8 },
   ];
   let trk = 0;
   const hz = (m) => 440 * Math.pow(2, (m - 69) / 12);
