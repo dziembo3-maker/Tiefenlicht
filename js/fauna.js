@@ -157,14 +157,16 @@ export function createFauna(scene) {
   });
   // Arten: Größe, Tempo, Tiefe, Anzahl um das Boot
   const CFG = [{ size: [1.1, 1.6], speed: 0.75, n: 8, nearFloor: [2, 10], beat: 1.2 }, { size: [1.7, 2.5], speed: 1.0, n: 8, nearFloor: [3, 14], beat: 0.9 }, { size: [1.0, 1.4], speed: 2.0, n: 20, nearFloor: [6, 24], beat: 2.2, school: 4 }, { size: [5.5, 7.2], speed: 2.0, n: 0, nearFloor: [8, 30], beat: 0.6 }];   // der Hai lebt nicht dauerhaft im Ring, er zieht ab und zu vorbei (siehe unten)
-  const F = { kinds, sharkT: rr(20, 45), sharkGap: 60, encT: 12, encGap: 25 };   // sharkGap / encGap: im Mittel so viele Sekunden zwischen Hai-Vorbeizügen und Begegnungen
+  const F = { kinds, sharkT: rr(30, 60), sharkGap: 90, encT: 10, encGap: 25 };   // sharkGap / encGap: im Mittel so viele Sekunden zwischen Hai-Vorbeizügen und Begegnungen
+  /** wohin der Spieler gerade schaut (Winkel im Fauna-Format: x = cos a, z = sin a) */
+  const lookA = (sub) => PI / 2 - (sub.vh !== undefined ? sub.vh : sub.h || 0);
   function valid(x, y, z) { const f = floorH(x, z); return y > f + 1.2 && y < -8; }
   function spawn(k, sub, ring, leader) {
     const c = CFG[k.si];
     for (let tries = 0; tries < 20; tries++) {
       let x, z, y;
       if (leader) { x = leader.x + rr(-4, 4); z = leader.z + rr(-4, 4); y = leader.y + rr(-2, 2); }
-      else { const mv = Math.hypot(sub.vx || 0, sub.vz || 0) > 0.8 && R() < 0.6, a = mv ? PI / 2 - (sub.h || 0) + rr(-0.8, 0.8) : R() * 2 * PI, d = mv ? rr(56, 90) : rr(ring[0], ring[1]); x = sub.x + Math.cos(a) * d; z = sub.z + Math.sin(a) * d; const f = floorH(x, z); y = Math.min(-10, f + rr(c.nearFloor[0], c.nearFloor[1])); }
+      else { const fw = R() < 0.6, a = fw ? lookA(sub) + rr(-0.8, 0.8) : R() * 2 * PI, d = fw ? rr(45, 75) : rr(ring[0], ring[1]); x = sub.x + Math.cos(a) * d; z = sub.z + Math.sin(a) * d; const f = floorH(x, z); y = Math.min(-10, f + rr(c.nearFloor[0], c.nearFloor[1])); }
       if (!valid(x, y, z)) continue;
       return { x, y, z, yaw: R() * 2 * PI, pitch: 0, roll: 0, sp: c.speed * rr(0.8, 1.15), size: rr(c.size[0], c.size[1]), ph: R() * 6, tx: x, ty: y, tz: z, retarget: 0, beat: 0, leader, off: leader ? [rr(-3, 3), rr(-1.5, 1.5), rr(-3, 3)] : null, glow: R(), life: 1e9 };
     }
@@ -209,7 +211,7 @@ export function createFauna(scene) {
         // Schwanzschlag: Haie gleiten und schlagen nur ab und zu, die anderen gleichmäßig
         if (k.si === 3) { f.beat -= dt; if (f.beat < -rr(2, 5)) f.beat = rr(1.5, 3); f.amp = (f.amp || 0) + ((f.beat > 0 ? 0.5 : 0.12) - (f.amp || 0)) * Math.min(1, dt * 1.5); }
         else f.amp = 0.28 + 0.12 * (spd / f.sp - 1);
-        f.ph += dt * c.beat * (k.si === 3 ? (f.beat > 0 ? 1.6 : 0.8) : 1) * 2 * PI * (0.6 + 0.4 * spd / f.sp);
+        f.ph += dt * c.beat * (k.si === 3 ? (f.beat > 0 ? 1.6 : 0.8) : 1) * 2 * PI * (0.6 + 0.4 * spd / f.sp) * Math.sqrt(f.sp / c.speed);
       }
       }
       let n = 0;
@@ -217,11 +219,11 @@ export function createFauna(scene) {
       k.g.instanceCount = n; k.g.attributes.iP.needsUpdate = k.g.attributes.iR.needsUpdate = k.g.attributes.iA.needsUpdate = true;
     }
   };
-  /** Hai: zieht in einiger Entfernung quer vorbei; fährt das Boot, dann eher vorn, damit man ihn auch sieht */
+  /** Hai: zieht in einiger Entfernung quer vorbei, dort wo man hinschaut */
   F.sharkPass = (sub) => {
     F.sharkT = F.sharkGap * rr(0.6, 1.4); const sh = kinds[3];
     for (let k = 0; k < 12; k++) {
-      const mv = Math.hypot(sub.vx || 0, sub.vz || 0) > 0.8, a = mv ? PI / 2 - (sub.h || 0) + rr(-0.9, 0.9) : R() * 2 * PI, d = rr(48, 62), x = sub.x + Math.cos(a) * d, z = sub.z + Math.sin(a) * d, fl = floorH(x, z), y = Math.max(fl + 8, Math.min(-14, sub.y + rr(-6, 8)));
+      const a = lookA(sub) + rr(-0.8, 0.8) * (k < 8 ? 1 : 3), d = rr(48, 62), x = sub.x + Math.cos(a) * d, z = sub.z + Math.sin(a) * d, fl = floorH(x, z), y = Math.max(fl + 8, Math.min(-14, sub.y + rr(-6, 8)));
       if (!valid(x, y, z)) continue;
       const pass = rr(10, 22) * (R() < 0.5 ? 1 : -1), px = sub.x + Math.cos(a + PI / 2) * pass, pz = sub.z + Math.sin(a + PI / 2) * pass, yaw = Math.atan2(px - x, pz - z);
       if (sh.list.length >= sh.M) sh.list.shift();
@@ -229,21 +231,24 @@ export function createFauna(scene) {
     }
     return false;
   };
-  /** Begegnung: ein Tier (bei den Gleitern eine kleine Gruppe) taucht schräg voraus am Rand der Sicht auf und kreuzt den Weg des Boots.
+  /** Begegnung: ein Tier (bei den Gleitern eine kleine Gruppe) taucht in Blickrichtung auf und zieht dicht am Spieler vorbei.
    *  Es kommt kein Tier dazu: dafür verschwindet eines, das gerade weit weg und unsichtbar ist. */
   F.encounter = (sub, si) => {
     if (si === undefined) si = Math.floor(R() * 3); const k = kinds[si], c = CFG[si]; if (!c.n) return false;
-    const mv = Math.hypot(sub.vx || 0, sub.vz || 0) > 0.8, grp = si === 2 ? 4 : 1;
-    for (let tries = 0; tries < 12; tries++) {
-      const a = mv ? PI / 2 - (sub.h || 0) + rr(-0.6, 0.6) : R() * 2 * PI, d = rr(44, 58), x = sub.x + Math.cos(a) * d, z = sub.z + Math.sin(a) * d, fl = floorH(x, z);
-      const y = Math.min(-10, Math.max(fl + c.nearFloor[0] + 1, Math.min(fl + c.nearFloor[1], sub.y + rr(-4, 3)))); if (!valid(x, y, z)) continue;
-      const yaw = Math.atan2(sub.x - x, sub.z - z) + (R() < 0.5 ? 1 : -1) * rr(1.1, 1.6);
+    const mv = Math.hypot(sub.vx || 0, sub.vz || 0) > 0.8, grp = si === 2 ? 4 : 1, slow = si < 2 ? 1.7 : 1;   // langsame Arten schwimmen bei einer Begegnung zügiger, sonst dauert das Kreuzen eine Minute
+    for (let tries = 0; tries < 24; tries++) {
+      const a = lookA(sub) + rr(-0.5, 0.5) * (tries < 6 ? 1 : tries < 12 ? 3 : 6), d = rr(32, 42), x = sub.x + Math.cos(a) * d, z = sub.z + Math.sin(a) * d, fl = floorH(x, z);
+      const y = Math.min(-9, Math.max(fl + 2, sub.y + rr(-3, 2))); if (!valid(x, y, z)) continue;
+      if (tries < 12) { let bl = Math.abs(y - sub.y) > 8; for (let i = 1; i < 8 && !bl; i++) { const q = i / 8; if (floorH(x + (sub.x - x) * q, z + (sub.z - z) * q) > y + (sub.y - y) * q - 1) bl = true; } if (bl) continue; }   // freie Bahn zum Spieler
+      // Ziel: ein Punkt knapp neben dem Spieler (fährt das Boot, etwas voraus), damit das Tier wirklich nah vorbeizieht
+      const side = (R() < 0.5 ? 1 : -1) * rr(5, 12), ux = (sub.x - x) / d, uz = (sub.z - z) / d, ahead = mv ? rr(4, 14) : 0;
+      const px = sub.x - uz * side + Math.sin(sub.h || 0) * ahead, pz = sub.z + ux * side + Math.cos(sub.h || 0) * ahead, yaw = Math.atan2(px - x, pz - z);
       while (k.list.length && k.list.length + grp > Math.min(k.M, c.n)) {   // Platz machen: die am weitesten entfernten Tiere dieser Art gehen
         { let fi = -1, fd = -1; for (let i = 0; i < k.list.length; i++) { const f = k.list[i], dd = Math.hypot(f.x - sub.x, f.z - sub.z); if (dd > fd) { fd = dd; fi = i; } } if (fi >= 0) { const f = k.list[fi]; for (const o of k.list) if (o.leader === f) o.leader = null; k.list.splice(fi, 1); } }
       }
-      let lead = null;
+      let lead = null; const sp = c.speed * slow;
       for (let g = 0; g < grp; g++) {
-        const f = { x: x + (g ? rr(-3, 3) : 0), y: y + (g ? rr(-1.5, 1.5) : 0), z: z + (g ? rr(-3, 3) : 0), yaw, pitch: 0, roll: 0, sp: c.speed * rr(0.85, 1.1), size: rr(c.size[0], c.size[1]), ph: R() * 6, tx: x + Math.sin(yaw) * 90, ty: y, tz: z + Math.cos(yaw) * 90, retarget: 45, beat: 0, glow: R(), life: 1e9, leader: lead, off: lead ? [rr(-3, 3), rr(-1.5, 1.5), rr(-3, 3)] : null };
+        const f = { x: x + (g ? rr(-3, 3) : 0), y: y + (g ? rr(-1.5, 1.5) : 0), z: z + (g ? rr(-3, 3) : 0), yaw, pitch: 0, roll: 0, sp: sp * rr(0.9, 1.1), size: rr(c.size[0], c.size[1]), ph: R() * 6, tx: x + Math.sin(yaw) * (d + 60), ty: y, tz: z + Math.cos(yaw) * (d + 60), retarget: (d + 60) / sp, beat: 0, glow: R(), life: 1e9, leader: lead, off: lead ? [rr(-3, 3), rr(-1.5, 1.5), rr(-3, 3)] : null };
         if (!lead) lead = f; k.list.push(f);
       }
       return true;

@@ -1,7 +1,7 @@
 // schools.js – große Schwärme: Kometenschwarm (kreisender Wirbel), Saphir-Plättchen (pulsierende Kugel), Neon-Säbelfische (lockerer Trupp).
 // Das Handy bewegt nur die Mitte eines Schwarms; wo jeder einzelne Fisch in der Formation schwimmt, wie er sich dreht,
 // mit dem Schwanz schlägt und dem Boot ausweicht, rechnet die Grafikkarte. Ein Zeichenaufruf je Art.
-import { T, rng, clamp, wrapPi } from './util.js';
+import { T, rng, clamp, wrapPi, smooth } from './util.js';
 import { uni, COMMON } from './gfx.js';
 import { floorH, BOUNDS } from './terrain.js';
 
@@ -17,8 +17,8 @@ const SPECIES = [
 ];
 // Formen der Schwärme und ihr Verhalten
 const TYPES = [
-  { sp: 0, n: 46, form: 0, size: [0.62, 0.78], speed: 0.55, beat: 2.8, depth: [7, 22], rad: 7.5 },   // Kometenschwarm: kreisender Wirbel
-  { sp: 1, n: 32, form: 1, size: [0.5, 0.62], speed: 0.45, beat: 2.3, depth: [6, 18], rad: 4 },     // Saphir-Plättchen: dichte, pulsierende Kugel
+  { sp: 0, n: 46, form: 0, size: [0.9, 1.12], speed: 0.55, beat: 2.8, depth: [7, 22], rad: 7.5 },   // Kometenschwarm: kreisender Wirbel
+  { sp: 1, n: 32, form: 1, size: [0.78, 0.95], speed: 0.45, beat: 2.3, depth: [6, 18], rad: 4.8 },     // Saphir-Plättchen: dichte, pulsierende Kugel
   { sp: 2, n: 18, form: 2, size: [1.0, 1.25], speed: 1.5, beat: 1.7, depth: [8, 28], rad: 8 },       // Neon-Säbelfische: lockerer, langgezogener Trupp
 ];
 
@@ -88,7 +88,7 @@ const VS = /* glsl */ `attribute vec4 aK; attribute vec4 iF, iG; uniform float u
       float a = iF.z + tt * (0.34 + 0.1 * iG.w) * (iF.x < 5.8 ? 1.12 : 1.0), r = iF.x + sin(tt * 0.7 + r0 * 6.0) * 0.5, h = iF.y + sin(tt * 0.5 + r0 * 9.0) * 0.35 + sin(a * 2.0 + tt * 0.3) * 0.9;
       pos = vec3(cos(a) * r, h, sin(a) * r); hd = normalize(vec3(-sin(a), 0.12 * cos(a * 2.0 + tt * 0.3), cos(a)));
     } else if (uForm < 1.5) {   // Kugel: Schale, die sich um eine schräge Achse dreht und langsam atmet
-      float R = (2.6 + 0.4 * sin(tt * 0.6) + 0.25 * sin(tt * 1.3 + r0 * 4.0)) * iF.z, ph = iF.y + tt * 0.5 * (iF.z > 0.9 ? 1.0 : 1.18), el = iF.x;
+      float R = (3.3 + 0.45 * sin(tt * 0.6) + 0.25 * sin(tt * 1.3 + r0 * 4.0)) * iF.z, ph = iF.y + tt * 0.5 * (iF.z > 0.9 ? 1.0 : 1.18), el = iF.x;
       vec3 q = vec3(cos(el) * cos(ph), sin(el), cos(el) * sin(ph)) * R; vec3 dq = vec3(-sin(ph), 0.0, cos(ph));
       float c = 0.94, s = 0.34; pos = vec3(q.x, q.y * c - q.z * s, q.y * s + q.z * c); hd = normalize(vec3(dq.x, dq.y * c - dq.z * s, dq.y * s + dq.z * c));
     } else {   // Trupp: lockere, langgezogene Gruppe, die in Fahrtrichtung zieht; jeder pendelt ein wenig für sich
@@ -115,14 +115,14 @@ const FS = (si) => /* glsl */ `precision highp float; ${COMMON} varying vec3 vW,
     if (part < 0.5) {
       float ang = vv * 6.2832, sa = sin(ang), top = smoothstep(-0.3, 0.6, sa), flank = 1.0 - smoothstep(0.0, 0.2, abs(sa));
       ${si === 0 ? `// Kometenschwarm: nachtblau, eine Perlenreihe aus Leuchtpunkten entlang der Seitenlinie
-        base = mix(vec3(0.34, 0.5, 0.82), vec3(0.1, 0.17, 0.42), top);
+        base = mix(vec3(0.62, 0.74, 0.92), vec3(0.2, 0.32, 0.62), top);   // Bauch silbrig hell: hebt sich vom blauen Wasser ab
         float dots = (1.0 - smoothstep(0.14, 0.34, length(vec2(fract(t * 26.0) - 0.5, sa * 2.6)))) * step(0.12, t) * step(t, 0.9);
-        glow = vec3(0.3, 0.95, 1.0) * dots * 2.0 * pulse + vec3(0.1, 0.5, 0.7) * flank * 0.12;` : ''}
+        glow = vec3(0.3, 0.95, 1.0) * dots * 3.2 * pulse + vec3(0.15, 0.6, 0.8) * flank * 0.35;` : ''}
       ${si === 1 ? `// Saphir-Plättchen: tiefes Blau mit Schuppenglanz und Reihen leuchtender Punkte
         vec2 sc = vec2(t * 40.0, vv * 30.0); sc.y += floor(sc.x) * 0.5; float scale = smoothstep(0.3, 0.5, length((fract(sc) - 0.5) * vec2(1.0, 1.3)));
-        base = mix(vec3(0.28, 0.45, 1.0), vec3(0.08, 0.16, 0.6), top) * (1.0 - 0.22 * scale) + vec3(0.08, 0.14, 0.3) * (1.0 - scale);
+        base = mix(vec3(0.5, 0.66, 1.0), vec3(0.18, 0.3, 0.85), top) * (1.0 - 0.22 * scale) + vec3(0.08, 0.14, 0.3) * (1.0 - scale);
         float rows = 0.0; for (int k = 0; k < 3; k++) { float y0 = -0.45 + float(k) * 0.45; rows += (1.0 - smoothstep(0.1, 0.28, length(vec2(fract(t * 26.0 + float(k) * 0.33) - 0.5, (sa - y0) * 4.0)))); }
-        glow = vec3(0.3, 0.55, 1.0) * rows * step(0.1, t) * step(t, 0.85) * 1.2 * pulse;` : ''}
+        glow = vec3(0.35, 0.65, 1.0) * rows * step(0.1, t) * step(t, 0.85) * 2.2 * pulse + vec3(0.12, 0.25, 0.6) * 0.45 * pulse;` : ''}
       ${si === 2 ? `// Neon-Säbelfisch: silbern, unregelmäßige orange Leuchtbänder quer über den Leib
         base = mix(vec3(0.72, 0.76, 0.8), vec3(0.3, 0.36, 0.42), top) * (0.9 + 0.12 * h21(floor(vec2(t * 90.0, vv * 50.0))));
         float bands = smoothstep(0.55, 0.95, sin(t * 44.0 + sin(sa * 2.2 + t * 7.0) * 1.6)) * step(0.14, t) * step(t, 0.88) * (0.55 + 0.45 * flank);
@@ -161,16 +161,19 @@ export function createSchools(scene) {
   });
   S.types = types;
   /** Höhe, in der ein Schwarm hier schwimmen will */
-  const wantY = (ty, x, z) => Math.min(-9 - ty.rad * 0.4, floorH(x, z) + ty.rad * 0.6 + (ty.depth[0] + ty.depth[1]) * 0.5);
-  /** einen Schwarm auftauchen lassen: fährt das Boot, dann schräg voraus am Rand der Sicht, mit Kurs quer zum Weg */
+  const wantY = (ty, x, z, ry) => { const fl = floorH(x, z), lo = fl + ty.rad * 0.7 + 1.5; let y = fl + ty.rad * 0.6 + (ty.depth[0] + ty.depth[1]) * 0.5; if (ry !== undefined) y = clamp(y, ry - 5, ry + 5); return Math.max(lo, Math.min(-6 - ty.rad * 0.3, y)); };   // bleibt in Sichthöhe des Spielers (±5 m), über dem Grund, unter der Oberfläche
+  /** einen Schwarm auftauchen lassen: dort, wohin der Spieler schaut, in Sichthöhe; er zieht auf einen Punkt dicht neben dem Spieler zu */
   S.spawn = (ti, ref, near) => {
-    const s = types[ti]; if (s.on) return false; const ty = s.ty, mv = Math.hypot(ref.vx || 0, ref.vz || 0) > 0.6, h = ref.h || 0;
-    for (let k = 0; k < 24; k++) {
-      const a = mv && k < 16 ? h + rr(-0.75, 0.75) : R() * 2 * PI, d = near ? rr(26, 34) : rr(58, 82), x = ref.x + Math.sin(a) * d, z = ref.z + Math.cos(a) * d;
+    const s = types[ti]; if (s.on) return false; const ty = s.ty, look = ref.vh !== undefined ? ref.vh : ref.h || 0;
+    for (let k = 0; k < 40; k++) {
+      const spread = k < 14 ? 0.45 : k < 28 ? 1.1 : PI, a = look + (k < 14 ? (R() < 0.5 ? 1 : -1) * rr(0.22, 0.5) : rr(-spread, spread)), d = near ? rr(20, 26) : rr(42, 56), x = ref.x + Math.sin(a) * d, z = ref.z + Math.cos(a) * d;
       if (Math.hypot(x, z) > BOUNDS.r * 0.95) continue;
-      const y = wantY(ty, x, z), fl = floorH(x, z); if (y - ty.rad * 0.7 < fl + 2 || y > -8) continue;
-      const toBoat = Math.atan2(ref.x - x, ref.z - z);
-      Object.assign(s, { on: true, out: false, x, y, z, yaw: toBoat + (R() < 0.5 ? 1 : -1) * rr(1.1, 1.9), turn: 0, fade: 0, life: 0 }); s.m.visible = true; return true;
+      const y = wantY(ty, x, z, ref.y + rr(0, 4)), fl = floorH(x, z); if (y - ty.rad * 0.7 < fl + 1 || y > -5) continue;
+      if (k < 32 && Math.abs(y - ref.y) > 10) continue;   // erst nur in Sichthöhe suchen
+      let blocked = false; for (let i = 1; i < 10 && !blocked; i++) { const q = i / 10; if (floorH(x + (ref.x - x) * q, z + (ref.z - z) * q) > y + (ref.y - y) * q - ty.rad * 0.4) blocked = true; }
+      if (blocked && k < 32) continue;   // kein Hang zwischen Schwarm und Spieler
+      const side = (R() < 0.5 ? 1 : -1) * rr(near ? 3 : 2, near ? 9 : 10), ux = (ref.x - x) / d, uz = (ref.z - z) / d, px = ref.x - uz * side, pz = ref.z + ux * side;
+      Object.assign(s, { on: true, out: false, x, y, z, yaw: Math.atan2(px - x, pz - z), turn: 0, fade: 0, life: 0, run: d + 10 }); s.m.visible = true; return true;
     }
     return false;
   };
@@ -178,15 +181,16 @@ export function createSchools(scene) {
   S.active = () => types.filter((s) => s.on).length;
   S.update = (dt, ref, avoid) => {
     S.timer -= dt;
-    if (S.timer <= 0) { S.timer = S.gap * rr(0.6, 1.4); if (S.active() < 2) { const free = types.filter((s) => !s.on); if (free.length) S.spawn(free[Math.floor(R() * free.length)].ti, ref); } }
+    if (S.timer <= 0) { S.timer = S.gap * rr(0.6, 1.4); if (S.active() < 2) { const free = types.filter((s) => !s.on); if (free.length && !S.spawn(free[Math.floor(R() * free.length)].ti, ref)) S.timer = 6; } }   // kein Platz (zu flach): bald noch einmal versuchen
     for (const s of types) {
       if (!s.on) continue; const ty = s.ty; s.life += dt;
-      // Kurs: sanftes Schlängeln, Rand der Probe meiden, Höhe über dem Grund halten
-      s.turn += (rr(-1, 1) * 0.25 - s.turn) * Math.min(1, dt * 0.3); s.yaw = wrapPi(s.yaw + s.turn * dt * 0.25);
+      // Anflug: zügig und geradeaus zum Spieler hin, in seiner Nähe dann gemächlich; danach sanftes Schlängeln
+      const dR = Math.hypot(s.x - ref.x, s.z - ref.z), boost = s.run > 0 ? 1 + 2.2 * smooth(14, 34, dR) : 1;
+      if (s.run > 0) s.run -= ty.speed * boost * dt; else { s.turn += (rr(-1, 1) * 0.25 - s.turn) * Math.min(1, dt * 0.3); s.yaw = wrapPi(s.yaw + s.turn * dt * 0.25); }
       if (Math.hypot(s.x, s.z) > BOUNDS.r * 0.9) s.yaw += wrapPi(Math.atan2(-s.x, -s.z) - s.yaw) * Math.min(1, dt * 0.5);
       const ahx = s.x + Math.sin(s.yaw) * 12, ahz = s.z + Math.cos(s.yaw) * 12; if (floorH(ahx, ahz) > s.y - ty.rad * 0.7 - 1) s.yaw += dt * 0.6;   // vorn steigt der Grund: abdrehen
-      s.x += Math.sin(s.yaw) * ty.speed * dt; s.z += Math.cos(s.yaw) * ty.speed * dt;
-      s.y += (wantY(ty, s.x, s.z) - s.y) * Math.min(1, dt * 0.25); s.y = Math.max(s.y, floorH(s.x, s.z) + ty.rad * 0.7 + 1.5);
+      s.x += Math.sin(s.yaw) * ty.speed * boost * dt; s.z += Math.cos(s.yaw) * ty.speed * boost * dt;
+      s.y += (wantY(ty, s.x, s.z, dR < 70 ? ref.y : undefined) - s.y) * Math.min(1, dt * 0.25); s.y = Math.max(s.y, floorH(s.x, s.z) + ty.rad * 0.7 + 1.5);
       const dB = Math.hypot(s.x - ref.x, s.z - ref.z); if (dB > 170 || (s.life > 240 && dB > 110)) s.out = true;
       s.fade = s.out ? Math.max(0, s.fade - dt * 0.5) : Math.min(1, s.fade + dt * 0.5); if (s.out && s.fade <= 0) { s.on = false; s.m.visible = false; continue; }
       s.u.uC.value.set(s.x, s.y, s.z); s.u.uDir.value.set(Math.sin(s.yaw), 0, Math.cos(s.yaw)); s.u.uAv.value.set(avoid.x, avoid.y, avoid.z); s.u.uFade.value = 0.3 + 0.7 * s.fade;
