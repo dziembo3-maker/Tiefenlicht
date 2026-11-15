@@ -94,7 +94,7 @@ export function createAudio() {
   A.setListener = (x, z, h) => { L.x = x; L.z = z; L.h = h; };
   /** Horcher auf (true) oder ab; bearWorld: Weltrichtung, in die er zeigt */
   A.hydro = (open, bearWorld) => {
-    H.bear = bearWorld; if (open === H.open) return; H.open = open; if (!ctx) return; const t = ctx.currentTime;
+    H.bear = bearWorld; if (open === H.open) return; H.open = open; if (open) songT = Math.min(songT, 0.6); if (!ctx) return; const t = ctx.currentTime;
     hydroHiss.gain.setTargetAtTime(open ? 0.05 : 0, t, 0.25); master.gain.setTargetAtTime(A.muted ? 0 : open ? 0.3 : 0.9, t, 0.3);
     for (const k of ['kassette', 'kabine']) BUS[k].gain.setTargetAtTime(A.mix[k] * (open ? 0.35 : 1), t, 0.3);
     BUS.wale.gain.setTargetAtTime(waleGain(), t, 0.3);   // Gesänge treten weit zurück, damit man die Klicks hört
@@ -255,7 +255,7 @@ export function createAudio() {
     if (at) for (let q = 0; q < x; q += 0.35) H.pend.push([t + q, at.meter * (0.75 + 0.25 * Math.sin(q * 2.1))]);   // der Zeiger im Horcher schlägt mit dem Gesang aus
   };
   /** ein Gesang aus der Richtung der Buckelwale: aus der Nähe mit bloßem Ohr, von Weitem nur im Hörkegel des Horchers */
-  function songFrom(src) { const h = heard(src); if (h.g < 0.01) return; A.whale(true, { far: Math.min(1.5, h.g * 0.75), pan: h.pan, lp: H.open ? 2400 : Math.max(600, 2200 - h.d * 10), meter: Math.min(1, h.far * 1.2) }); }
+  function songFrom(src) { const h = heard(src); if (h.g < 0.01) return; A.whale(true, { far: H.open ? Math.min(4.5, h.g * 2.2) : Math.min(1.5, h.g * 0.75), pan: h.pan, lp: H.open ? 2600 : Math.max(600, 2200 - h.d * 10), meter: Math.min(1, h.far * 1.4) }); }   // im Horcher so deutlich wie die Klicks der Pottwale
   // ---------- Taucheranzug: Luft zischt leise durch den Schlauch, beim Ausatmen blubbert es aus dem Ventil, Schritte dumpf, Ventil faucht ----------
   let suitHiss = null, valveG = null, suitOn = false;
   A.setSuit = (on) => { suitOn = on; if (!ctx) return; const t = ctx.currentTime;
@@ -282,7 +282,7 @@ export function createAudio() {
     bubT -= dt * (0.5 + thrust * 2.5);
     if (bubT <= 0) { bubT = rnd(0.25, 1.3); const f = rnd(320, 760), n = 1 + Math.floor(Math.random() * 3); for (let i = 0; i < n; i++) tone('sine', f * (1 + i * 0.12), f * 2.1 * (1 + i * 0.12), 0.006, rnd(0.05, 0.09), rnd(0.006, 0.02), 0.25, i * rnd(0.05, 0.09), BUS.blasen); }
     groanT -= dt;
-    if (A.songSrc) { songT -= dt; if (songT <= 0) { songT = rnd(6, 10); songFrom(A.songSrc); } }
+    if (A.songSrc) { songT -= dt; if (songT <= 0) { songT = H.open ? rnd(2.2, 3.8) : rnd(5, 8); songFrom(A.songSrc); } }
     else if (A.whaleCfg.on) { whaleT -= dt; if (whaleT <= 0) { whaleT = A.whaleCfg.gap * rnd(0.5, 1.5); A.whale(); } }
     if (groanT <= 0) {
       groanT = rnd(20, 50);

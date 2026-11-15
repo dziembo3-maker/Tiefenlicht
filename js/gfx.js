@@ -4,14 +4,14 @@ import { T } from './util.js';
 export const SUN = new T.Vector3(0.22, 0.74, 0.56).normalize();      // Richtung, aus der das Licht von oben einfällt
 export const U = {
   uTime: { value: 0 }, uNoise: { value: null }, uSunDir: { value: SUN }, uDeep: { value: 1 }, uFogK: { value: 0.021 },
-  uSubPos: { value: new T.Vector3() }, uSubA: { value: new T.Vector3() }, uSubB: { value: new T.Vector3() }, uWarmPos: { value: new T.Vector3() }, uLampPos: { value: new T.Vector3() }, uLampDir: { value: new T.Vector3(0, 0, 1) }, uLampOn: { value: 1 },
+  uSubPos: { value: new T.Vector3() }, uSubA: { value: new T.Vector3() }, uSubB: { value: new T.Vector3() }, uWarmPos: { value: new T.Vector3() }, uLampPos: { value: new T.Vector3() }, uLampDir: { value: new T.Vector3(0, 0, 1) }, uLampOn: { value: 1 }, uLampRange: { value: 1 }, uLampFog: { value: 0 },
   uGlow: { value: [new T.Vector4(), new T.Vector4(), new T.Vector4(), new T.Vector4()] }, uGlowCol: { value: [new T.Vector3(), new T.Vector3(), new T.Vector3(), new T.Vector3()] },
   uPing: { value: new T.Vector4(0, 0, 0, -1) }, uPingFade: { value: 0 },
 };
 export const uni = (extra) => Object.assign({}, U, extra || {});
 
 export const COMMON = /* glsl */ `
-uniform float uTime, uDeep, uFogK, uLampOn, uPingFade; uniform sampler2D uNoise; uniform vec3 uSunDir, uSubPos, uWarmPos, uLampPos, uLampDir; uniform vec4 uGlow[4]; uniform vec3 uGlowCol[4]; uniform vec4 uPing;
+uniform float uTime, uDeep, uFogK, uLampOn, uLampRange, uLampFog, uPingFade; uniform sampler2D uNoise; uniform vec3 uSunDir, uSubPos, uWarmPos, uLampPos, uLampDir; uniform vec4 uGlow[4]; uniform vec3 uGlowCol[4]; uniform vec4 uPing;
 // Farbe des Wassers in Blickrichtung: unten fast schwarz, waagrecht tiefes Blau, oben helles Türkis
 vec3 waterCol(vec3 d) {
   vec3 c = mix(vec3(0.001, 0.016, 0.050), vec3(0.012, 0.205, 0.375), smoothstep(-0.75, 0.08, d.y));
@@ -27,7 +27,7 @@ float caustic(vec2 p) {
 vec3 lights(vec3 wp, vec3 N) {
   vec3 dl = wp - uLampPos; float dist = length(dl); vec3 dn = dl / max(dist, 0.001);
   float cone = smoothstep(0.84, 0.97, dot(dn, uLampDir));
-  vec3 l = vec3(0.50, 0.80, 0.92) * cone * (0.25 + 0.75 * max(dot(N, -dn), 0.0)) * uLampOn * 6.0 / (3.0 + dist * dist * 0.04);
+  vec3 l = vec3(0.50, 0.80, 0.92) * cone * (0.25 + 0.75 * max(dot(N, -dn), 0.0)) * uLampOn * 6.0 / (3.0 + dist * dist * 0.04 / (uLampRange * uLampRange));   // uLampRange > 1: das Licht trägt weiter (Flutlicht)
   vec3 wv = uWarmPos - wp; float wr = length(wv); l += vec3(1.0, 0.50, 0.20) * (0.35 + 0.65 * max(dot(N, wv / max(wr, 0.001)), 0.0)) * min(1.1, 1.7 / (1.0 + wr * wr * 0.16));
   for (int i = 0; i < 4; i++) { vec3 g = uGlow[i].xyz - wp; float r = length(g); l += uGlowCol[i] * (0.3 + 0.7 * max(dot(N, g / max(r, 0.001)), 0.0)) * uGlow[i].w / (1.0 + r * r * 0.06); }
   return l;
@@ -49,6 +49,7 @@ vec3 pingGlow(vec3 wp) {
 }
 vec3 fog(vec3 col, vec3 wp) {
   vec3 v = wp - cameraPosition; float d = length(v), f = 1.0 - exp(-d * uFogK);
+  if (uLampFog > 0.0 && uLampOn > 0.0) { vec3 dl = wp - uLampPos; float dd = length(dl), cone = smoothstep(0.86, 0.96, dot(dl / max(dd, 0.001), uLampDir)); f *= 1.0 - uLampFog * cone * (1.0 - smoothstep(25.0, 45.0 * uLampRange, dd)); }   // im Lichtkegel des Flutlichts schluckt das Wasser weniger: ein klarer Korridor
   return mix(col, waterCol(v / d), f) + pingGlow(wp) * (1.0 - f * 0.5);
 }`;
 export const VERT = `varying vec3 vW, vN; void main(){ vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; vN = mat3(modelMatrix) * normal; gl_Position = projectionMatrix * viewMatrix * w; }`;
