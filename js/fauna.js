@@ -6,6 +6,7 @@ import { uni, COMMON } from './gfx.js';
 import { floorH } from './terrain.js';
 
 const PI = Math.PI;
+
 // Körperform: [t (0 = Schnauze, 1 = Schwanzstiel), Höhe, Breite, Mittelhöhe]
 const SPECIES = [
   { name: 'lantern', len: 1, body: [[0, 0.004, 0.004, -0.005], [0.03, 0.05, 0.045, -0.006], [0.1, 0.095, 0.082, 0], [0.22, 0.115, 0.1, 0.004], [0.4, 0.11, 0.095, 0.004], [0.6, 0.09, 0.075, 0.002], [0.78, 0.06, 0.05, 0], [0.92, 0.035, 0.03, 0], [1, 0.03, 0.022, 0]], plates: 9, eye: [0.075, 0.035, 0.016],
@@ -161,6 +162,9 @@ export function createFauna(scene) {
   /** wohin der Spieler gerade schaut (Winkel im Fauna-Format: x = cos a, z = sin a) */
   const lookA = (sub) => PI / 2 - (sub.vh !== undefined ? sub.vh : sub.h || 0);
   function valid(x, y, z) { const f = floorH(x, z); return y > f + 1.2 && y < -8; }
+  /** Tiefe: zwischen 140 und 200 m werden die Fische seltener, darunter gibt es keine mehr (der Gleiter kommt überall vor) */
+  const keepAt = (y) => 1 - clamp((-y - 140) / 60, 0, 1);
+
   function spawn(k, sub, ring, leader) {
     const c = CFG[k.si];
     for (let tries = 0; tries < 20; tries++) {
@@ -168,6 +172,7 @@ export function createFauna(scene) {
       if (leader) { x = leader.x + rr(-4, 4); z = leader.z + rr(-4, 4); y = leader.y + rr(-2, 2); }
       else { const fw = R() < 0.6, a = fw ? lookA(sub) + rr(-0.8, 0.8) : R() * 2 * PI, d = fw ? rr(45, 75) : rr(ring[0], ring[1]); x = sub.x + Math.cos(a) * d; z = sub.z + Math.sin(a) * d; const f = floorH(x, z); y = Math.min(-10, f + rr(c.nearFloor[0], c.nearFloor[1])); }
       if (!valid(x, y, z)) continue;
+      if (!leader && k.si !== 2 && R() > keepAt(y)) continue;
       return { x, y, z, yaw: R() * 2 * PI, pitch: 0, roll: 0, sp: c.speed * rr(0.8, 1.15), size: rr(c.size[0], c.size[1]), ph: R() * 6, tx: x, ty: y, tz: z, retarget: 0, beat: 0, leader, off: leader ? [rr(-3, 3), rr(-1.5, 1.5), rr(-3, 3)] : null, glow: R(), life: 1e9 };
     }
     return null;
@@ -184,8 +189,8 @@ export function createFauna(scene) {
   F.update = (dt, sub, time) => {
     // Hai-Vorbeizüge und Begegnungen, beide mit eigenem Takt
     F.sharkT -= dt; const sh = kinds[3];
-    if (F.sharkT <= 0 && sh.list.length === 0) F.sharkPass(sub); else if (F.sharkT <= 0) F.sharkT = 5;
-    F.encT -= dt; if (F.encT <= 0) { F.encT = F.encGap * rr(0.6, 1.4); F.encounter(sub); }
+    if (F.sharkT <= 0 && sh.list.length === 0) { if (R() < keepAt(sub.y)) F.sharkPass(sub); else F.sharkT = F.sharkGap * rr(0.6, 1.4); } else if (F.sharkT <= 0) F.sharkT = 5;
+    F.encT -= dt; if (F.encT <= 0) { F.encT = F.encGap * rr(0.6, 1.4); if (R() < keepAt(sub.y)) F.encounter(sub); }
     for (const k of kinds) {
       const c = CFG[k.si];
       if (F.frozen) { for (const f of k.list) f.ph += dt * c.beat * 2 * PI * 0.6; } else {
@@ -194,7 +199,7 @@ export function createFauna(scene) {
       for (let i = k.list.length - 1; i >= 0; i--) {
         const f = k.list[i]; f.life -= dt;
         const dS = Math.hypot(f.x - sub.x, f.z - sub.z);
-        if (dS > 150 || f.life < 0) { if (f.leader === undefined || f.leader === null) for (const o of k.list) if (o.leader === f) o.leader = null; k.list.splice(i, 1); continue; }
+        if (dS > 150 || f.life < 0 || (k.si !== 2 && f.y < -205)) { if (f.leader === undefined || f.leader === null) for (const o of k.list) if (o.leader === f) o.leader = null; k.list.splice(i, 1); continue; }
         // Ziel: Anführer folgen, sonst eigenes Ziel
         let tx = f.tx, ty = f.ty, tz = f.tz;
         if (f.leader && k.list.includes(f.leader)) { const L = f.leader, cy = Math.cos(L.yaw), sy = Math.sin(L.yaw); tx = L.x + f.off[0] * cy + f.off[2] * sy - Math.sin(L.yaw) * 2; ty = L.y + f.off[1]; tz = L.z - f.off[0] * sy + f.off[2] * cy - Math.cos(L.yaw) * 2; }

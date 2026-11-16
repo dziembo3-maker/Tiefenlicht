@@ -1,7 +1,7 @@
 // world.js – die große Welt: Gelände in Kacheln, die beim Fahren nachgeladen werden; was wo steht (Felsen, Tang, Kristalle, Korallen, Fundstellen)
 import { T, rng, ico, noise, smooth } from './util.js';
 import { rockMaterial } from './gfx.js';
-import { floorH, shelfH, handDist, steep, cxAt, halfW, GROTTO, WRECK, PLAIN, WHALE, BELL, HOLE, plainK } from './terrain.js';
+import { floorH, shelfH, handDist, steep, cxAt, halfW, GROTTO, WRECK, PLAIN, WHALE, BELL, HOLE, plainK, PLAT } from './terrain.js';
 import { CAVE } from './cave.js';
 import { buildWhale, buildBell, propMaterial } from './props.js';
 import { wreckFrame, buildWreck } from './wreck.js';
@@ -97,6 +97,12 @@ export function poisNear(x, z, range) {
 function handmade() {
   const B = new Map(), R = rng(4711), P = placer(R), rr = P.rr;
   const at = (x, z) => { const k = key(cell(x), cell(z)); if (!B.has(k)) B.set(k, newItems()); return B.get(k); };
+  // Plateau an der Abgrundwand: ein Felswulst rings um die Kante, der über die Wand hinausragt (Überhang), darunter ein zweiter, kleinerer
+  { const tx = -PLAT.dz, tz = PLAT.dx;
+    for (let k = -4; k <= 4; k++) { const ph = k / 4 * 1.15, ca = Math.cos(ph), sa = Math.sin(ph), x = PLAT.x + PLAT.dx * PLAT.a * 0.92 * ca + tx * PLAT.b * 0.92 * sa, z = PLAT.z + PLAT.dz * PLAT.a * 0.92 * ca + tz * PLAT.b * 0.92 * sa;
+      let ox = PLAT.dx * ca / PLAT.a + tx * sa / PLAT.b, oz = PLAT.dz * ca / PLAT.a + tz * sa / PLAT.b; const ol = Math.hypot(ox, oz); ox /= ol; oz /= ol; const rot = Math.atan2(ox, oz);
+      P.blob(at(x, z), x + ox * 1.4, PLAT.y - 3.4 - Math.abs(sa) * 0.6, z + oz * 1.4, rr(3.2, 4.0), rr(3.3, 4.0), rr(4.4, 5.6), rot, 300 + k * 7, 2, true);
+      P.blob(at(x, z), x - ox * 0.6, PLAT.y - 9 - rr(0, 2), z - oz * 0.6, rr(2.6, 3.4), rr(3.0, 4.2), rr(3.6, 4.8), rot + 0.4, 340 + k * 5, 2, true); } }
   // Felsbogen quer über die Schlucht, mit Zapfen
   const AZ = -18, ac = cxAt(AZ), aw = halfW(AZ) + 9, arch = [];
   for (let j = 0; j <= 16; j++) { const t = j / 16, s = Math.sin(Math.PI * t); arch.push([ac + (t * 2 - 1) * aw + Math.sin(t * 7) * 2, -54 + 20 * Math.pow(s, 0.8) + Math.sin(t * 11) * 1.2, AZ + Math.sin(t * 4.2) * 5 - 2, 7.6 - 4.1 * Math.pow(s, 0.7)]); }

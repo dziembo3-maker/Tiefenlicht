@@ -1,7 +1,7 @@
 // main.js – Ablauf: Eingabe, Fahrverhalten, Kamera, Sonar, Bildaufbau
 import { T, clamp, damp, wrapPi, smooth, noiseTexture } from './util.js';
 import { U, createBackdrop, createPost } from './gfx.js';
-import { floorH, floorN, cxAt, BOUNDS, deepAt, PLAIN, WHALE, BELL, HOLE } from './terrain.js';
+import { floorH, floorN, cxAt, BOUNDS, deepAt, PLAIN, WHALE, BELL, HOLE, PLAT } from './terrain.js';
 import { createShaft } from './props.js';
 import { createSnow } from './snow.js';
 import { createWorld, poisNear } from './world.js';
@@ -16,6 +16,7 @@ import { createTable } from './sonartable.js';
 import { MISSIONS, HINTED, REACH, createCanisters } from './missions.js';
 import { createWhales, choosePod } from './whales.js';
 import { createHumpbacks, chooseHumpSpot } from './humpback.js';
+import { createDeepLife } from './deeplife.js';
 import { createUpgrade, LAMP } from './upgrade.js';
 import { addWhaleFigure } from './whalefig.js';
 import { createDiver } from './diver.js';
@@ -33,7 +34,7 @@ createBackdrop(scene);
 let boatKind = 0; try { boatKind = +(localStorage.getItem('tiefenlicht.boat') || 0) || 0; } catch (e) { /* ohne Speicher */ }
 const life = createLife(scene), fauna = createFauna(scene), schools = createSchools(scene), world = createWorld(scene, life), post = createPost(renderer), audio = createAudio();
 let boat = createSub(scene, boatKind);
-createShaft(scene, PLAIN.x + 6, PLAIN.z + 4, -8, PLAIN.floor - 1, 46); const snow = createSnow(scene), cans = createCanisters(scene, world), whales = createWhales(scene), hump = createHumpbacks(scene), diver = createDiver(scene);
+createShaft(scene, PLAIN.x + 6, PLAIN.z + 4, -8, PLAIN.floor - 1, 46); const snow = createSnow(scene), cans = createCanisters(scene, world), whales = createWhales(scene), hump = createHumpbacks(scene), deepLife = createDeepLife(scene), diver = createDiver(scene);
 const cave = createCave(scene); diver.cave = CAVE;
 const cabin = createCabin(), cabinScene = new T.Scene(), camIn = new T.PerspectiveCamera(72, 1, 0.04, 40); cabinScene.add(cabin.group); const vitrine = addVitrine(cabin), whaleFig = addWhaleFigure(cabin), upg = createUpgrade(scene);
 cabin.group.traverse((o) => { const p = o.position; if (Math.abs(p.x - 0.83) < 0.005 && Math.abs(p.z - 0.04) < 0.005) { if (o.isSprite) p.set(0.9, 0.82, -0.25); else if (Math.abs(p.y - 0.7725) < 0.005) o.visible = false; } });   // keine lose Seite mehr: neue Seiten kommen direkt ins Logbuch, das dann schimmert
@@ -215,7 +216,7 @@ function drive(dt) {
   let vf = S.vx * fx + S.vz * fz, vl = S.vx * fz - S.vz * fx;                 // längs und quer zum Boot
   vf += (S.thrust * 3.9 - vf * 0.55) * dt; vl -= vl * Math.min(1, 1.7 * dt);
   S.vx = fx * vf + fz * vl; S.vz = fz * vf - fx * vl;
-  const DEEP = devDeep || MS.done.includes('m7') ? -2000 : deepAt(S.x, S.z); let vyT = vIn * 3.3; if (S.y < DEEP + 7 && vyT < 0) vyT *= smooth(DEEP, DEEP + 7, S.y);
+  const DEEP = devDeep ? -2000 : MS.done.includes('m7') ? -450 : deepAt(S.x, S.z); let vyT = vIn * 3.3; if (S.y < DEEP + 7 && vyT < 0) vyT *= smooth(DEEP, DEEP + 7, S.y);
   S.vy = damp(S.vy, vyT, 1.5, dt);
   S.x += S.vx * dt; S.y += S.vy * dt; S.z += S.vz * dt;
   // Abstand zum Grund und zu den Wänden: weich federnd, darunter fest
@@ -852,7 +853,7 @@ function frame(now) {
   if (window.__cam) { camera.position.set(...window.__cam[0]); camera.lookAt(...window.__cam[1]); }
   helmEl.style.visibility = showOut ? 'hidden' : '';
   if (run) { camera.getWorldDirection(fwd); S.vh = Math.atan2(fwd.x, fwd.z);   // Blickrichtung: dort tauchen Begegnungen und Schwärme auf
-    life.update(dt, V.mode === 'dive' ? diver : S, pxScale, world.glows); fauna.update(dt, S, U.uTime.value); schools.update(dt, S, V.mode === 'dive' ? { x: diver.x, y: diver.y - 0.8, z: diver.z } : S); cans.update(); whales.update(dt, U.uTime.value, pxScale); hump.update(dt, U.uTime.value, pxScale); humpStep(dt); }
+    life.update(dt, V.mode === 'dive' ? diver : S, pxScale, world.glows); fauna.update(dt, S, U.uTime.value); schools.update(dt, S, V.mode === 'dive' ? { x: diver.x, y: diver.y - 0.8, z: diver.z } : S); cans.update(); whales.update(dt, U.uTime.value, pxScale); hump.update(dt, U.uTime.value, pxScale); deepLife.update(dt, U.uTime.value, pxScale, S); humpStep(dt); }
   if (bannerT > 0 && run) { bannerT -= dt; if (bannerT <= 0) bannerEl.style.opacity = 0; }
   if (sonHintT > 0 && run) { sonHintT -= dt; if (sonHintT <= 0) $('sonHint').style.opacity = 0; }
   if (tapesOpen) drawTapes(dt);
@@ -936,7 +937,7 @@ $('mGo').addEventListener('pointerup', (e) => { e.preventDefault(); goBtn(); });
 for (const [id, p] of [['mBoat', 'boat'], ['mSet', 'set'], ['mHelp', 'help'], ['mMis', 'mis']]) $(id).addEventListener('pointerdown', (e) => { e.preventDefault(); showPanel(p); });
 for (const b of document.querySelectorAll('.mBack')) b.addEventListener('pointerdown', (e) => { e.preventDefault(); showPanel('main'); });
 $('menu').classList.add('ready');
-window.__sub = { hump, syncHump, get humpWatchT() { return humpWatchT; }, set humpWatchT(v) { humpWatchT = v; }, get devHump() { return devHump; }, cave, CAVE, HOLE, get nearTooth() { return nearTooth; }, get nearCan2() { return nearCan2; }, get nearBell() { return nearBell; }, takeSuit, takeTooth, takeCan2, curPage, BOOK, replayMission, fillMis, pageHas, set devDeep(v) { devDeep = v; }, turnPage, toggleDev, buildDev, seen, misTarget, schools, diver, hullGap, suitOut, suitIn, helmetExhale, get nearHatch() { return nearHatch; }, audio, M, MS, cans, whales, syncPod, syncMis, sectors, echoes, CAMV, PHOTOS, openCam, closeCam, shoot, camTargetOk, photoTarget, openHorch, closeHorch, get horchDeg() { return horchDeg; }, set horchDeg(v) { horchDeg = v; }, startMission, takeCan, openPage, openLog, playTape, MISSIONS, openMenu, closeMenu, showPanel, setBoat, post, get boat() { return boat; }, save, load, texts, setLang, renderer, fauna, S, C, I, U, V, nav, setMode, setSt, table, cabin, tea, LOG, ACT, get target() { return target; }, start, ping, world, life, poisNear, floorH, get frames() { return frames; }, tp(x, y, z, h) { world.update(x, z, Infinity); S.x = x; S.y = y; S.z = z; S.h = h; S.vx = S.vy = S.vz = 0; C.yaw = h; C.oy = C.op = 0; C.pos.set(x - Math.sin(h) * 11, y + 3, z - Math.cos(h) * 11); C.look.set(x, y + 1, z); }, marks, info: () => ({ tris: renderer.info.render.triangles, calls: renderer.info.render.calls, PR, MSAA, chunks: world.chunks.size, near: world.near.length, glows: world.glows.length }) };
+window.__sub = { deepLife, hump, syncHump, get humpWatchT() { return humpWatchT; }, set humpWatchT(v) { humpWatchT = v; }, get devHump() { return devHump; }, cave, CAVE, HOLE, get nearTooth() { return nearTooth; }, get nearCan2() { return nearCan2; }, get nearBell() { return nearBell; }, takeSuit, takeTooth, takeCan2, curPage, BOOK, replayMission, fillMis, pageHas, set devDeep(v) { devDeep = v; }, turnPage, toggleDev, buildDev, seen, misTarget, schools, diver, hullGap, suitOut, suitIn, helmetExhale, get nearHatch() { return nearHatch; }, audio, M, MS, cans, whales, syncPod, syncMis, sectors, echoes, CAMV, PHOTOS, openCam, closeCam, shoot, camTargetOk, photoTarget, openHorch, closeHorch, get horchDeg() { return horchDeg; }, set horchDeg(v) { horchDeg = v; }, startMission, takeCan, openPage, openLog, playTape, MISSIONS, openMenu, closeMenu, showPanel, setBoat, post, get boat() { return boat; }, save, load, texts, setLang, renderer, fauna, S, C, I, U, V, nav, setMode, setSt, table, cabin, tea, LOG, ACT, get target() { return target; }, start, ping, world, life, poisNear, floorH, get frames() { return frames; }, tp(x, y, z, h) { world.update(x, z, Infinity); S.x = x; S.y = y; S.z = z; S.h = h; S.vx = S.vy = S.vz = 0; C.yaw = h; C.oy = C.op = 0; C.pos.set(x - Math.sin(h) * 11, y + 3, z - Math.cos(h) * 11); C.look.set(x, y + 1, z); }, marks, info: () => ({ tris: renderer.info.render.triangles, calls: renderer.info.render.calls, PR, MSAA, chunks: world.chunks.size, near: world.near.length, glows: world.glows.length }) };
 // ---------- Entwicklermenü (unter ⚙, Passwort) ----------
 const DEV_PW = 'Entwicklung', devEl = $('dev'), pw = $('devPw');
 let devOn = false; try { devOn = localStorage.getItem('tiefenlicht.dev') === '1'; } catch (e) { /* egal */ }
@@ -988,6 +989,12 @@ function buildDev() {
     ['Kometenschwarm', 'Saphir-Plättchen', 'Neon-Säbelfische'].forEach((n, ti) => btn(n + ' jetzt', () => { const t = schools.types[ti]; t.on = false; t.m.visible = false; if (!schools.spawn(ti, S, true)) note('Hier ist kein Platz für den Schwarm (zu flach)'); devLive(); }, r));
     btn('Schwarm: Wirbel jetzt', () => schools.swirl(), r); btn('Schwärme weg', () => schools.clear(), r); }
   { const r2 = row(), l = document.createElement('span'); l.id = 'devLive'; l.style.fontSize = '11px'; r2.appendChild(l); devLive(); }
+  sec('TIEFSEETIERE');
+  { const C = deepLife.cfg, row1 = (label, key, max) => { const r = row(), l = document.createElement('span'), v = document.createElement('span'), s = document.createElement('input'); s.type = 'range'; s.min = 0; s.max = max; s.step = 1; s.value = C[key]; l.textContent = label; v.textContent = s.value; s.addEventListener('input', () => { C[key] = +s.value; v.textContent = s.value; }); r.appendChild(l); r.appendChild(s); r.appendChild(v); };
+    h3('HÄUFIGKEIT · HÖCHSTENS GLEICHZEITIG (AB 180 M, VOLL AB 240 M)'); row1('Laternenfisch-Schwärme', 'schools', 2); row1('Krill-Bänder', 'krill', 3); row1('Tiefsee-Mondfisch', 'mola', 2); row1('Laternenträger-Angler', 'angler', 3); row1('Riesen-Schlammstachel', 'eel', 3); row1('Riesen-Staatsqualle', 'siphon', 3);
+    h3('SCHWARMGRÖSSE'); { const r = row(), l = document.createElement('span'), v = document.createElement('span'), s = document.createElement('input'); s.type = 'range'; s.min = 20; s.max = 200; s.step = 10; s.value = C.schoolN; l.textContent = 'Laternenfische je Schwarm'; v.textContent = s.value; s.addEventListener('input', () => { C.schoolN = +s.value; v.textContent = s.value; }); r.appendChild(l); r.appendChild(s); r.appendChild(v); }
+    h3('VOR MIR ERSCHEINEN LASSEN'); { const r = row(); r.style.flexWrap = 'wrap'; for (const [k, n] of [['school', 'Laternenfisch-Schwarm'], ['krill', 'Krill'], ['mola', 'Tiefsee-Mondfisch'], ['angler', 'Laternenträger-Angler'], ['eel', 'Riesen-Schlammstachel'], ['siphon', 'Riesen-Staatsqualle']]) btn(n, () => deepLife.spawnNear(k, S), r); btn('Tiefseetiere weg', () => deepLife.clear(), r); }
+    { const r2 = row(), l = document.createElement('span'), c = deepLife.counts(); l.style.fontSize = '11px'; l.textContent = `gerade da: ${c.school} Schwärme, ${c.krill} Krill, ${c.mola} Mondfisch, ${c.angler} Angler, ${c.eel} Schlammstachel, ${c.siphon} Quallen`; r2.appendChild(l); } }
   sec('WALE');
   h3('POTTWALE'); { const r = row(); r.style.flexWrap = 'wrap';
     btn('Pottwale vor mich (Test)', () => { MS.pod = { x: S.x + Math.sin(S.h) * 70, z: S.z + Math.cos(S.h) * 70, kind: 'test', seed: Math.floor(Math.random() * 1e6) }; syncPod(); save(); buildDev(); }, r);
@@ -1002,7 +1009,9 @@ function buildDev() {
   { const r = row(); r.style.flexWrap = 'wrap';
     btn('Start', () => devTp(cxAt(-86), -86 + 0.001)); btn('Wrack', () => goTo({ x: -300, z: 236, kind: 'wreck' })); btn('Kristallgrotte', () => goTo({ x: 111, z: 63, kind: 'grove' }));
     btn('Schnee-Ebene', () => goTo({ x: PLAIN.x + 30, z: PLAIN.z + 26, kind: 'grove' })); btn('Walskelett', () => goTo({ x: WHALE.x, z: WHALE.z, kind: 'wreck' })); btn('Taucherglocke', () => goTo({ x: BELL.x, z: BELL.z, kind: 'bell' }));
-    btn('Kristallhain', () => goTo(nearest('grove'))); btn('Korallengarten', () => goTo(nearest('garden'))); btn('Warmer Spalt', () => goTo(nearest('vent'))); btn('Loch', () => devTp(HOLE.x + 15, HOLE.z - 9, HOLE.x, HOLE.z)); const rv = btn(devReveal ? 'Orte: aufgedeckt' : 'Alle Orte aufdecken', () => { devReveal = !devReveal; try { localStorage.setItem('tiefenlicht.devreveal', devReveal ? '1' : '0'); } catch (x) { /* egal */ } rv.textContent = devReveal ? 'Orte: aufgedeckt' : 'Alle Orte aufdecken'; }); btn('Abgrund (Kante)', () => { if (V.mode === 'in') { V.mode = 'out'; applyMode(); } tpTo(cxAt(215), -60, 215, 0); save(); }); btn('Abgrund (Grund)', () => { if (!devDeep) { note('Erst unter Ausrüstung die Tiefengrenze ausschalten'); return; } if (V.mode === 'in') { V.mode = 'out'; applyMode(); } tpTo(90, floorH(90, 700) + 12, 700, 0); save(); }); }
+    btn('Kristallhain', () => goTo(nearest('grove'))); btn('Korallengarten', () => goTo(nearest('garden'))); btn('Warmer Spalt', () => goTo(nearest('vent'))); btn('Loch', () => devTp(HOLE.x + 15, HOLE.z - 9, HOLE.x, HOLE.z)); const rv = btn(devReveal ? 'Orte: aufgedeckt' : 'Alle Orte aufdecken', () => { devReveal = !devReveal; try { localStorage.setItem('tiefenlicht.devreveal', devReveal ? '1' : '0'); } catch (x) { /* egal */ } rv.textContent = devReveal ? 'Orte: aufgedeckt' : 'Alle Orte aufdecken'; }); btn('Abgrund (Kante)', () => { if (V.mode === 'in') { V.mode = 'out'; applyMode(); } tpTo(cxAt(215), -60, 215, 0); save(); }); btn('Abgrund (Grund)', () => { if (!devDeep) { note('Erst unter Ausrüstung die Tiefengrenze ausschalten'); return; } if (V.mode === 'in') { V.mode = 'out'; applyMode(); } tpTo(90, floorH(90, 700) + 12, 700, 0); save(); });
+    btn('Plateau (300 m)', () => { if (V.mode === 'in') { V.mode = 'out'; applyMode(); } const x = PLAT.x + PLAT.dx * 4, z = PLAT.z + PLAT.dz * 4; tpTo(x, floorH(x, z) + 4, z, Math.atan2(PLAT.dx, PLAT.dz)); save(); });
+    btn('Tiefsee (250 m)', () => { if (V.mode === 'in') { V.mode = 'out'; applyMode(); } tpTo(60, -250, 640, 0); save(); }); }
   sec('MISSIONEN');
   h3('ALLGEMEIN'); { const r = row(); r.style.flexWrap = 'wrap';
     btn('nächste starten', () => { startMission(); buildDev(); }, r);

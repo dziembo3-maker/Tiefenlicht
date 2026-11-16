@@ -13,6 +13,8 @@ export const PLAIN = { x: -310, z: -240, r: 92, floor: -102 };
 export const WHALE = { x: -312, z: -238, yaw: 0.55 };
 export const BELL = { x: -128, z: -174, yaw: 2.2 };
 // das Loch im Boden einer Schlucht südöstlich der Glocke: eine flache Mulde, in der Mitte der Schacht (r = Öffnung, cut = so weit fehlt das Geländegitter)
+/** Plateau an der Abgrundwand: Mitte, Richtung aus der Wand hinaus (dx, dz), Halbachsen a (hinaus) und b (entlang der Wand), Höhe */
+export const PLAT = { x: -234.6, z: 543.5, dx: 0.906, dz: -0.423, a: 19, b: 24, y: -300 };
 export const HOLE = { x: 102, z: -318, r: 2.0, cut: 3.8 };
 const plainR = (x, z) => { const dx = x - PLAIN.x, dz = z - PLAIN.z, a = Math.atan2(dz, dx); return Math.hypot(dx, dz) / (PLAIN.r * (1 + 0.36 * (fbm(Math.cos(a) * 1.4 + 5.3, Math.sin(a) * 1.4 + 2.1, 2) - 0.5))); };
 /** 1 mitten in der Ebene, 0 weit draußen (für Schnee, Bewuchs, Tiefengrenze) */
@@ -88,12 +90,15 @@ export function floorH(x, z) {
   // große Tiefsee: Wandbreite und Absätze wechseln, damit es mal steil, mal kurz flacher abfällt
   const ad = abyssD(x, z);
   if (ad < 140) {
-    const wn = noise(x * 0.004 + 3.3, z * 0.004 - 8.1), W = 45 + 95 * wn, ledge = smooth(0.35, 0.75, noise(x * 0.007 - 2.2, z * 0.007 + 6.6));
-    let ka = smooth(10, -W, ad); ka = ka * (1 - 0.6 * ledge) + terr(ka, 4) * 0.6 * ledge;
-    const fl = -330 - 55 * fbm(x * 0.0035 + 9.9, z * 0.0035 + 1.2, 3) + (fbm(x * 0.02 - 4, z * 0.02 + 3, 2) - 0.5) * 18;
+    const wn = noise(x * 0.004 + 3.3, z * 0.004 - 8.1), W = 55 + 110 * wn, ledge = smooth(0.35, 0.75, noise(x * 0.007 - 2.2, z * 0.007 + 6.6));
+    let ka = smooth(10, -W, ad); ka = ka * (1 - 0.6 * ledge) + terr(ka, 7) * 0.6 * ledge;   // bis 800 m: mehr Absätze, damit die hohen Wände nicht glatt gezogen wirken
+    const fl = -785 - 35 * fbm(x * 0.0035 + 9.9, z * 0.0035 + 1.2, 3) + (fbm(x * 0.02 - 4, z * 0.02 + 3, 2) - 0.5) * 18;
     depth = Math.max(depth, (shelf - fl) * ka);
   }
   let h = shelf - depth + (fbm(x * 0.085, z * 0.085, 3) - 0.5) * 3.4 + (noise(x * 0.31, z * 0.31) - 0.5) * 0.7 - SHIFT;
+  // Plateau bei 300 m an der Abgrundwand nahe dem Kristallhain: eine flache Kanzel, die sanft aus der Wand wächst
+  { const px = x - PLAT.x, pz = z - PLAT.z; if (px * px + pz * pz < 1600) { const q = (px * PLAT.dx + pz * PLAT.dz) / PLAT.a, w = (-px * PLAT.dz + pz * PLAT.dx) / PLAT.b, rr = Math.hypot(q, w) * (1 + 0.14 * (noise(x * 0.09 + 4.1, z * 0.09 - 2.7) - 0.5));
+    if (rr < 1) { const top = PLAT.y - 1.2 * Math.max(0, q) + (fbm(x * 0.12, z * 0.12, 2) - 0.5) * 1.4, k = smooth(1, 0.86, rr); if (top > h) h += (top - h) * k; } } }
   const hx = x - HOLE.x, hz = z - HOLE.z; if (hx * hx + hz * hz < 400) { const d = Math.sqrt(hx * hx + hz * hz); h -= 3.0 * (1 - smooth(3, 17, d)); }   // Mulde um das Loch
   return h;
 }

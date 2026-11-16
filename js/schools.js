@@ -189,7 +189,8 @@ export function createSchools(scene) {
   S.active = () => types.filter((s) => s.on).length;
   S.update = (dt, ref, avoid) => {
     S.timer -= dt;
-    if (S.timer <= 0) { S.timer = S.gap * rr(0.6, 1.4); if (S.active() < 2 && ref.y > -115) { const free = types.filter((s) => !s.on); if (free.length && !S.spawn(free[Math.floor(R() * free.length)].ti, ref)) S.timer = 6; } }   // kein Platz (zu flach): bald noch einmal versuchen
+    // zwischen 140 und 200 m werden die Schwärme seltener, darunter keine mehr (nur die Saphir-Plättchen bleiben)
+    if (S.timer <= 0) { S.timer = S.gap * rr(0.6, 1.4); const keep = 1 - Math.min(1, Math.max(0, (-ref.y - 140) / 60)); if (S.active() < 2) { const free = types.filter((s) => !s.on && (s.ti === 1 || R() < keep)); if (free.length && !S.spawn(free[Math.floor(R() * free.length)].ti, ref)) S.timer = 6; } }   // kein Platz (zu flach): bald noch einmal versuchen
     for (const s of types) {
       if (!s.on) continue; const ty = s.ty; s.life += dt;
       // Anflug: zügig und geradeaus zum Spieler hin, in seiner Nähe dann gemächlich; danach sanftes Schlängeln

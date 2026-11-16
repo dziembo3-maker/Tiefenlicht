@@ -268,7 +268,7 @@ export function createCabin() {
   // ---------- rechts hinten: Sonartisch ----------
   box(g, [0.92, 0.42, -1.42], [0.6, 0.84, 0.92], 0, WT2, 0, 0, WOOD); quad(g, [0.6, 0.84, -1.89], [0.6, 0.84, -0.95], [1.24, 1.13, -0.95], [1.24, 1.13, -1.89], WD3, 0, WOOD); box(g, [0.605, 0.83, -1.42], [0.04, 0.05, 0.96], 0, BRASS, 0, 0, MET);
   // Unterbau unter der schrägen Platte: Seitenwangen und Rückwand, damit sie nicht über der Kommode schwebt
-  for (const z of [-1.89, -0.95]) { quad(g, [0.6, 0.84, z], [1.24, 0.84, z], [1.24, 1.13, z], [0.6, 0.84, z], WT2, 0, WOOD); quad(g, [0.6, 0.84, z], [0.6, 0.84, z], [1.24, 1.13, z], [1.24, 0.84, z], WT2, 0, WOOD); }
+  for (const z of [-1.895, -0.945]) { const A = [0.6, 0.835, z], Bq = [1.24, 0.835, z], Cq = [1.24, 1.135, z]; tri(g, A, Bq, Cq, WT2, 0, WOOD); tri(g, A, Cq, Bq, WT2, 0, WOOD); }   // Seitenwangen als echte Dreiecke (vorher fehlte ihnen die Flächenrichtung, darum schwarz)
   quad(g, [1.24, 0.84, -1.89], [1.24, 0.84, -0.95], [1.24, 1.13, -0.95], [1.24, 1.13, -1.89], WT2, 0, WOOD); quad(g, [1.24, 0.84, -1.89], [1.24, 1.13, -1.89], [1.24, 1.13, -0.95], [1.24, 0.84, -0.95], WT2, 0, WOOD);
   const sn = [-0.413, 0.911, 0], sc = [0.9, 0.976, -1.42];
   ring(g, [sc[0] + sn[0] * 0.015, sc[1] + sn[1] * 0.015, sc[2]], sn, 0.3, 0.032, 32, 6, BRASS, 0, MET);
