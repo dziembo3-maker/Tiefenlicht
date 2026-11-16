@@ -37,7 +37,17 @@ export function createUpgrade(scene) {
   lb.tube([[0, -0.32, 0.05, 0.02], [0, -0.38, 0.05, 0.02]], 6, 4);
   lb.place(0, LAMP.x, LAMP.y - 0.08, LAMP.z, 0.7, 1.25, 0.15); lb.occlude(0.6);
   const lampMesh = new T.Mesh(lb.build(), propMaterial()); lampMesh.frustumCulled = false; scene.add(lampMesh); lampMesh.visible = false;
-  const glow = { x: LAMP.x, y: LAMP.y + 0.6, z: LAMP.z, col: [1.0, 0.86, 0.6], power: 1.1, size: 1.2 };
+  const glow = { x: LAMP.x, y: LAMP.y + 0.8, z: LAMP.z, col: [1.0, 0.86, 0.6], power: 2.6, size: 2.6 };
+  // er brennt noch: das Glas leuchtet, und ein Lichtkegel fällt schräg in den Sand
+  const beam = new T.Group(); beam.position.set(LAMP.x, LAMP.y - 0.08, LAMP.z); beam.rotation.set(1.25, 0.7, 0.15, 'YXZ');
+  { const disc = new T.Mesh(new T.CircleGeometry(0.28, 20), new T.MeshBasicMaterial({ color: 0xfff0c8 })); disc.position.y = 0.345; disc.rotation.x = -Math.PI / 2; beam.add(disc);
+    const cg = new T.CylinderGeometry(1.7, 0.27, 7, 24, 1, true); cg.translate(0, 3.85, 0);
+    const cone = new T.Mesh(cg, new T.ShaderMaterial({ transparent: true, depthWrite: false, blending: T.AdditiveBlending, side: T.DoubleSide,
+      vertexShader: 'varying float vH; varying vec3 vN, vV; void main(){ vH = position.y; vec4 mv = modelViewMatrix * vec4(position, 1.0); vN = normalize(normalMatrix * normal); vV = normalize(-mv.xyz); gl_Position = projectionMatrix * mv; }',
+      fragmentShader: 'precision highp float; varying float vH; varying vec3 vN, vV; void main(){ float a = pow(clamp(1.0 - (vH - 0.35) / 7.0, 0.0, 1.0), 1.8) * pow(abs(dot(normalize(vN), normalize(vV))), 1.5); gl_FragColor = vec4(vec3(1.0, 0.86, 0.6) * a * 0.22, 1.0); }' }));
+    beam.add(cone); }
+  beam.visible = false; scene.add(beam);
+  const tankGlow = { x: TANKS.x + 0.5, y: floorH(TANKS.x, TANKS.z) + 2.2, z: TANKS.z + 0.5, col: [1.0, 0.82, 0.55], power: 2.0, size: 2.4 };
 
   // ---------- zwei verstärkte Ballasttanks: lange Eisenzylinder mit Messingbändern und Ventilen ----------
   const tb = new B();
@@ -48,10 +58,12 @@ export function createUpgrade(scene) {
     tb.place(s, x, floorH(x, z) + 0.36, z, yaw, Math.PI / 2, 0); }
   tb.occlude(0.9);
   const tankMesh = new T.Mesh(tb.build(), propMaterial()); tankMesh.frustumCulled = false; scene.add(tankMesh); tankMesh.visible = false;
+  // eine Positionslampe des Kapitäns steckt zwischen den Tanks, damit man sie im Hain findet
+  const tankLamp = new T.Mesh(new T.SphereGeometry(0.13, 12, 8), new T.MeshBasicMaterial({ color: 0xffe2a8 })); tankLamp.position.set(TANKS.x + 0.55, floorH(TANKS.x + 0.55, TANKS.z + 0.45) + 0.95, TANKS.z + 0.45); tankLamp.visible = false; scene.add(tankLamp);
 
   const U = {
-    blockers, glow,
-    set lamp(v) { lampMesh.visible = v; }, set tanks(v) { tankMesh.visible = v; },
+    blockers, glow, tankGlow,
+    set lamp(v) { lampMesh.visible = v; beam.visible = v; }, set tanks(v) { tankMesh.visible = v; tankLamp.visible = v; },
     /** das große Lampengehäuse am Bug, wenn man den Scheinwerfer hat; on = leuchtet */
     fit(boat, has, on) {
       if (!boat.__flood) { const q = new B(), b = boat.body, z = 0.42, y = b.r + 0.2;   // oben auf dem Rumpf, vor der Luke

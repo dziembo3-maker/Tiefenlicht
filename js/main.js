@@ -422,6 +422,7 @@ function syncMis() {
   st.kettle = MS.done.includes('m1'); st.crystal = MS.done.includes('m3');   // Fundstücke: der Kessel aus der ersten, der Kristall aus der dritten Mission
   const m5done = MS.done.includes('m5'); cave.setTooth(!(m5done || (MS.active === 'm5' && MS.tooth))); cave.setCan(!(m5done || (MS.active === 'm5' && MS.can2))); vitrine.visible = m5done;
   if (MS.active === 'm5' && MS.stage && !MS.can2) world.setExtra([cave.canGlow]); else if (MS.active === 'm7' && MS.stage === 'lamp') world.setExtra([upg.glow]); else if (cans.shown < 0) world.setExtra([]);
+  if (MS.active === 'm7' && MS.stage === 'tanks') world.setExtra((world.extra || []).filter((g) => g !== upg.tankGlow).concat([upg.tankGlow]));   // die Tanks leuchten im Hain
   upg.lamp = MS.active === 'm7' && MS.stage === 'lamp'; upg.tanks = MS.active === 'm7'; whaleFig.visible = MS.done.includes('m6'); lampApply();   // das Lämpchen der hineingefallenen Dose leuchtet schwach in die Kammer
 }
 /** die schlafenden Pottwale: stehen, sobald die Mission läuft, und bleiben danach; während der Suche klicken sie lauter und regelmäßig, die Gesänge treten halb zurück */

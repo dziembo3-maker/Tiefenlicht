@@ -302,12 +302,12 @@ export function createCabin() {
 
   // ---------- Material ----------
   const wood = new T.TextureLoader().load('wood.jpg'); wood.wrapS = T.ClampToEdgeWrapping; wood.wrapT = T.RepeatWrapping; wood.anisotropy = 4;
-  const LP = [[0, 1.95, -0.55], [-1.0, 1.36, 1.36], [1.0, 1.36, 1.36], [0.86, 0.98, 0.35], [-0.6, 0.4, 0.25], [0.86, 1.1, -1.42]], LC = [[1.0, 0.68, 0.38, 1.7], [1.0, 0.68, 0.38, 0.7], [1.0, 0.68, 0.38, 0.7], [1.0, 0.7, 0.4, 0.6], [1.0, 0.4, 0.12, 0.9], [0.2, 1.0, 0.5, 0.1]];
+  const LP = [[0, 1.95, -0.55], [-1.0, 1.36, 1.36], [1.0, 1.36, 1.36], [0.86, 0.98, 0.35], [-0.6, 0.4, 0.25], [0.86, 1.1, -1.42], [-1.12, 1.27, -1.0]], LC = [[1.0, 0.68, 0.38, 1.7], [1.0, 0.68, 0.38, 0.7], [1.0, 0.68, 0.38, 0.7], [1.0, 0.7, 0.4, 0.6], [1.0, 0.4, 0.12, 0.9], [0.2, 1.0, 0.5, 0.1], [1.0, 0.74, 0.45, 0.9]];   // 6: kleines Licht über dem Holzwal (an, sobald er dort steht)
   const UC = { uNoise: U.uNoise, uTime: U.uTime, uWood: { value: wood }, uMap: { value: chartTexture() }, uCloth: { value: clothTexture() }, uWin: { value: new T.Vector3(0.1, 0.4, 0.6) }, uEye: { value: new T.Vector3() }, uLamp: { value: 1 }, uFire: { value: 1 },
     uLP: { value: LP.map((p) => new T.Vector3(p[0], p[1], p[2])) }, uLC: { value: LC.map((c) => new T.Vector3(c[0] * c[3], c[1] * c[3], c[2] * c[3])) } };
   const LC0 = LC.map((c) => new T.Vector3(c[0] * c[3], c[1] * c[3], c[2] * c[3]));
   const VS = `attribute float aWind, aShade, aAO; attribute vec3 aUV; varying vec3 vL, vN, vC, vUV; varying float vE, vG, vA; void main(){ vL = position; vN = normal; vC = color; vE = aShade; vG = aWind; vA = aAO; vUV = aUV; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
-  const FS = /* glsl */ `precision highp float; uniform sampler2D uNoise, uWood, uMap, uCloth; uniform float uTime, uLamp, uFire; uniform vec3 uWin, uEye, uLP[6], uLC[6]; varying vec3 vL, vN, vC, vUV; varying float vE, vG, vA;
+  const FS = /* glsl */ `precision highp float; uniform sampler2D uNoise, uWood, uMap, uCloth; uniform float uTime, uLamp, uFire; uniform vec3 uWin, uEye, uLP[7], uLC[7]; varying vec3 vL, vN, vC, vUV; varying float vE, vG, vA;
     vec3 woodAt(vec2 uv, float k) { return texture2D(uWood, vec2((k + 0.03 + uv.x * 0.94) * 0.25, uv.y)).rgb; }
     void main(){ vec3 N = normalize(vN), V = normalize(uEye - vL); if (dot(N, V) < 0.0) N = -N;
       vec3 base = vC; float ao = vA;
@@ -326,7 +326,7 @@ export function createCabin() {
       }
       float fl = 0.82 + 0.1 * sin(uTime * 11.0) * sin(uTime * 6.3) + 0.08 * sin(uTime * 23.0 + 1.0), metal = step(0.5, vG) * step(vG, 1.5);
       vec3 L = vec3(0.13, 0.088, 0.064) * (0.4 + 0.6 * uLamp), S = vec3(0.0);
-      for (int i = 0; i < 6; i++) { vec3 d = uLP[i] - vL; float r2 = dot(d, d); d *= inversesqrt(r2); float k = (i == 4) ? fl : 0.97 + 0.03 * sin(uTime * 3.0 + float(i) * 2.0), at = 1.0 / (1.0 + r2 * 0.9);
+      for (int i = 0; i < 7; i++) { vec3 d = uLP[i] - vL; float r2 = dot(d, d); d *= inversesqrt(r2); float k = (i == 4) ? fl : 0.97 + 0.03 * sin(uTime * 3.0 + float(i) * 2.0), at = 1.0 / (1.0 + r2 * 0.9);
         L += uLC[i] * k * (0.15 + 0.85 * max(dot(N, d), 0.0)) * at; S += uLC[i] * k * pow(max(dot(reflect(-d, N), V), 0.0), metal > 0.5 ? 22.0 : 10.0) * at * (metal > 0.5 ? 2.2 : 0.25); }
       vec3 dw = vec3(0.0, 1.15, 1.75) - vL; float rw = dot(dw, dw); L += uWin * (0.2 + 0.8 * max(dot(N, dw * inversesqrt(rw)), 0.0)) / (1.0 + rw * 0.8);
       float ao2 = mix(1.0, ao, 0.85);
@@ -488,7 +488,7 @@ export function createCabin() {
   const NDu = 160, dp = new Float32Array(NDu * 3), dsd = new Float32Array(NDu); for (let i = 0; i < NDu; i++) { dp[i * 3] = rr(-1, 1); dp[i * 3 + 1] = rr(0.3, 2.1); dp[i * 3 + 2] = rr(-2, 1.4); dsd[i] = R(); }
   const dg = new T.BufferGeometry(); dg.setAttribute('position', new T.BufferAttribute(dp, 3)); dg.setAttribute('aS', new T.BufferAttribute(dsd, 1));
   const dust = quadPoints(dg, new T.ShaderMaterial({ uniforms: Object.assign({ uPx: { value: 600 } }, UC), transparent: true, depthWrite: false, blending: T.AdditiveBlending,
-    vertexShader: `attribute float aS; uniform float uTime, uPx, uLamp; uniform vec3 uLP[6]; varying float vA; void main(){ vec3 p = position + vec3(sin(uTime * 0.13 + aS * 30.0) * 0.15, sin(uTime * 0.07 + aS * 17.0) * 0.12, cos(uTime * 0.11 + aS * 23.0) * 0.15);
+    vertexShader: `attribute float aS; uniform float uTime, uPx, uLamp; uniform vec3 uLP[7]; varying float vA; void main(){ vec3 p = position + vec3(sin(uTime * 0.13 + aS * 30.0) * 0.15, sin(uTime * 0.07 + aS * 17.0) * 0.12, cos(uTime * 0.11 + aS * 23.0) * 0.15);
       float l = 0.0; for (int i = 0; i < 4; i++) { float d = distance(p, uLP[i]); l += 1.0 / (1.0 + d * d * 9.0); } vA = l * (0.4 + 0.6 * uLamp);
       vec4 mv = modelViewMatrix * vec4(p, 1.0); gl_PointSize = clamp(0.006 * uPx / max(-mv.z, 0.05), 1.0, 4.0); gl_Position = projectionMatrix * mv; }`,
     fragmentShader: `precision highp float; varying float vA; void main(){ float r = length(gl_PointCoord - 0.5); gl_FragColor = vec4(vec3(1.0, 0.8, 0.55) * (1.0 - smoothstep(0.1, 0.5, r)) * vA * 0.5, 1.0); }` }));
@@ -510,7 +510,7 @@ export function createCabin() {
   C.update = (dt, eyeLocal, winCol, pxScale) => {
     UC.uEye.value.copy(eyeLocal); UC.uWin.value.copy(winCol); dust.material.uniforms.uPx.value = pxScale;
     st.fire += (st.fireT - st.fire) * Math.min(1, dt * 0.8); st.lamp += (st.lampT - st.lamp) * Math.min(1, dt * 6); UC.uFire.value = st.fire; UC.uLamp.value = st.lamp;
-    for (let i = 0; i < 3; i++) UC.uLC.value[i].copy(LC0[i]).multiplyScalar(st.lamp); UC.uLC.value[4].copy(LC0[4]).multiplyScalar(st.fire);
+    for (let i = 0; i < 3; i++) UC.uLC.value[i].copy(LC0[i]).multiplyScalar(st.lamp); UC.uLC.value[4].copy(LC0[4]).multiplyScalar(st.fire); UC.uLC.value[6].copy(LC0[6]).multiplyScalar(st.fig ? 0.35 + 0.65 * st.lamp : 0);
     wheel.quaternion.setFromUnitVectors(new T.Vector3(0, 0, -1), wn); wheel.rotateZ(st.wheel);
     lever.rotation.x = st.lever; kettle.visible = st.kettle !== false; crystal.visible = !!st.crystal; if (crystal.visible) { const tw = U.uTime.value; crySpark.material.opacity = 0.1 + 0.07 * Math.sin(tw * 1.3) + 0.06 * Math.max(0, Math.sin(tw * 4.7 + Math.sin(tw * 1.9) * 2)); }
     compass.quaternion.copy(cQ); compass.rotateZ(cA0 + st.heading);   // Nadel zeigt nach Norden, egal wie das Boot liegt (die Kabine ist gespiegelt gebaut, daher +)
