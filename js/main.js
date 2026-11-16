@@ -780,7 +780,7 @@ $('fsTop').addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPr
 /** der Vollbildknopf (nur am PC) steht oben links gleich rechts neben ❚❚; im Vollbild zeigen die Ecken nach innen */
 function fsPlace() { if (!FS_OK || !PC) return; const r = $('gear').getBoundingClientRect(); if (r.width) $('fsTop').style.left = Math.round(r.right + 8) + 'px'; }
 document.addEventListener('fullscreenchange', () => { fsT = performance.now(); $('fsIco').setAttribute('d', document.fullscreenElement ? 'M5 1.5V5H1.5M12.5 5H9V1.5M9 12.5V9h3.5M1.5 9H5v3.5' : 'M1.5 5V1.5H5M9 1.5h3.5V5M12.5 9v3.5H9M5 12.5H1.5V9'); if (started && !M.open && PC && !devOpen() && V.st !== 'table' && !$('log').classList.contains('open') && !tapesOpen && !horchOpen) setTimeout(lockMouse, 60); });
-let resetArm = 0; $('resetBtn').addEventListener('pointerdown', (e) => { e.preventDefault(); if (resetArm && performance.now() - resetArm < 4000) { try { localStorage.removeItem(SAVE_KEY); localStorage.removeItem(PH_KEY); } catch (x) { /* egal */ } noSave = true; location.reload(); } else { resetArm = performance.now(); $('resetBtn').textContent = t('reset_sure'); setTimeout(() => { $('resetBtn').textContent = t('reset'); }, 4000); } });
+let resetArm = 0; $('resetBtn').addEventListener('pointerdown', (e) => { e.preventDefault(); if (resetArm && performance.now() - resetArm < 4000) { try { localStorage.removeItem(SAVE_KEY); localStorage.removeItem(PH_KEY); for (const k of ['devsuit', 'devflood', 'devdeep', 'devreveal', 'devcam']) localStorage.removeItem('tiefenlicht.' + k); } catch (x) { /* egal */ } noSave = true; location.reload(); } else { resetArm = performance.now(); $('resetBtn').textContent = t('reset_sure'); setTimeout(() => { $('resetBtn').textContent = t('reset'); }, 4000); } });
 function syncPerf() { $('perf').value = perf; $('perfV').textContent = t('perf_n')[perf]; $('perfD').textContent = t('perf_d')[perf]; }
 $('perf').addEventListener('input', (e) => { perf = +e.target.value; try { localStorage.setItem('tiefenlicht.perf', String(perf)); } catch (x) { /* egal */ } applyPerf(); resize(); syncPerf(); });
 function syncFov() { $('fovO').value = FOV.out; $('fovI').value = FOV.in; $('fovOV').textContent = Math.round(fovFor('out')) + '°'; $('fovIV').textContent = Math.round(fovFor('in')) + '°'; }
@@ -870,7 +870,7 @@ function frame(now) {
     if (MS.active && (!MS.stage || MS.stage === 'tanks')) { const l = cans.lamp(misIdx(MS.active)); nearCan = Math.hypot(l.x - S.x, l.z - S.z) < REACH && Math.abs(l.y - S.y) < REACH + 4; }
     nearBell = MS.active === 'm5' && MS.stage === 'bell' && V.mode !== 'dive' && Math.hypot(BELL.x - S.x, BELL.z - S.z) < 16 && S.y - floorH(BELL.x, BELL.z) < 18;
     $('camBtn').style.display = hasCam() && started && !CAMV.on && !horchOpen && !tapesOpen && (V.mode === 'out' || V.st === 'seat') ? 'block' : 'none';
-    $('lampBtn').style.display = hasFlood() && started && !CAMV.on && !horchOpen && !tapesOpen && (V.mode === 'out' || V.st === 'seat') ? 'block' : 'none'; $('lampBtn').classList.toggle('on', MS.floodOn);
+    $('lampBtn').style.display = hasFlood() && started && !CAMV.on && !horchOpen && !tapesOpen && (V.mode === 'out' || V.st === 'seat') ? 'block' : 'none'; $('lampBtn').classList.toggle('on', MS.floodOn); { const cb = $('camBtn'); if (cb.offsetWidth) $('lampBtn').style.left = (cb.offsetLeft + cb.offsetWidth + 8) + 'px'; else $('lampBtn').style.left = ''; }   // direkt hinter den Kamera-Knopf, egal wie breit der ist
     const al = actLabel(), actL = $('actL'); if (actL.textContent !== al) { actL.textContent = al; actEl.style.display = al ? 'block' : 'none'; } }
   const bT = M.open ? (M.panel === 'boat' ? 0 : M.panel === 'set' ? 0.55 : 1) : 0, b0 = post.blur; post.blur = Math.abs(b0 - bT) < 0.004 ? bT : damp(b0, bT, 6, dt);
   if (run || showOut || M.dirty > 0 || post.blur !== b0) {   // ruht das Spiel hinter dem Menü, wird das Bild nur noch fertig weichgezeichnet und dann stehen gelassen
@@ -956,7 +956,7 @@ function lampDev() { lampApply(); }
 let devFlood = false; try { devFlood = localStorage.getItem('tiefenlicht.devflood') === '1'; } catch (e) { /* egal */ }
 const hasFlood = () => MS.flood || MS.done.includes('m7') || devFlood;
 /** wirkt der starke Scheinwerfer gerade? Nur am Boot (nicht für die Helmlampe); der Entwicklerregler kann ihn zusätzlich aufdrehen */
-function lampApply() { const k = V.mode === 'dive' ? devLamp : Math.max(devLamp, hasFlood() && MS.floodOn ? 4.2 : 1);
+function lampApply() { const k = V.mode === 'dive' ? devLamp : Math.max(devLamp, hasFlood() && MS.floodOn ? 3 : 1);
   U.uLampRange.value = Math.pow(k, 1.35); U.uLampFog.value = clamp((k - 1) / 4, 0, 1) * 0.92; if (V.mode !== 'dive') U.uLampOn.value = 1 + (k - 1) * 0.35; upg.fit(boat, hasFlood(), MS.floodOn); }
 /** Q oder der Lampenknopf: an und aus, nur am Steuer oder draußen; beim Aufstehen bleibt es, wie es ist */
 function toggleFlood() { if (!hasFlood() || !(V.mode === 'out' || (V.mode === 'in' && V.st === 'seat'))) return; MS.floodOn = !MS.floodOn; audio.click(0.9); lampApply(); note(t(MS.floodOn ? 'flood_on' : 'flood_off')); save(); }

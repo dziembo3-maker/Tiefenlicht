@@ -298,15 +298,15 @@ export function createLife(scene) {
   {
     const g = new T.InstancedBufferGeometry(); g.setAttribute('position', new T.BufferAttribute(F32([-0.5, 0, 0, 0.5, 0, 0, 0.5, 1, 0, -0.5, 1, 0]), 3)); g.setIndex([0, 1, 2, 0, 2, 3]);
     const iP = [], iQ = [];
-    for (let i = 0; i < 120; i++) { const thin = R() < 0.55; iP.push(rr(0, 340) + SUN.x * 6, 6, rr(0, 340) + SUN.z * 6, thin ? rr(1.5, 4.5) : rr(6, 17)); iQ.push(rr(80, 125), R() * 6.3, thin ? rr(0.7, 1.2) : rr(0.4, 0.8), 0); }
+    for (let i = 0; i < 120; i++) { const thin = R() < 0.55; iP.push(rr(0, 340) + SUN.x * 6, 6, rr(0, 340) + SUN.z * 6, thin ? rr(1.5, 4.5) : rr(6, 17)); iQ.push(rr(80, 125), R() * 6.3, thin ? rr(0.55, 0.85) : rr(0.35, 0.65), 0); }   // etwas schwächer, vor allem die hellsten
     g.setAttribute('iP', new T.InstancedBufferAttribute(F32(iP), 4)); g.setAttribute('iQ', new T.InstancedBufferAttribute(F32(iQ), 4)); g.instanceCount = iP.length / 4;
     const m = new T.Mesh(g, new T.ShaderMaterial({ uniforms: uni(), side: T.DoubleSide, transparent: true, depthWrite: false, blending: T.AdditiveBlending,
       vertexShader: `attribute vec4 iP, iQ; uniform vec3 uSunDir; uniform float uTime; varying vec2 vQ; varying vec3 vW; varying float vI;
         void main(){ vec3 ax = -uSunDir, b0 = iP.xyz; b0.xz = mod(b0.xz - cameraPosition.xz + 170.0, 340.0) - 170.0 + cameraPosition.xz; vec3 p0 = b0 + ax * position.y * iQ.x + vec3(sin(uTime * 0.05 + iQ.y) * 2.0, 0.0, 0.0), sd = normalize(cross(ax, cameraPosition - p0));
           vec3 p = p0 + sd * position.x * iP.w * (1.0 + position.y * 1.2); vQ = position.xy; vW = p; vI = iQ.z * (0.72 + 0.28 * sin(uTime * 0.31 + iQ.y * 3.0)); gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0); }`,
       fragmentShader: `precision highp float; uniform float uFogK, uDeep; varying vec2 vQ; varying vec3 vW; varying float vI;
-        void main(){ float e = 1.0 - 4.0 * vQ.x * vQ.x, d = distance(vW, cameraPosition); float a = e * e * smoothstep(0.0, 0.1, vQ.y) * pow(max(1.0 - vQ.y, 0.0), 0.9) * smoothstep(4.0, 24.0, d) * exp(-d * uFogK * 0.5);
-          gl_FragColor = vec4(vec3(0.07, 0.34, 0.46) * a * vI * 1.8 * uDeep, 1.0); }` }));
+        void main(){ float e = 1.0 - 4.0 * vQ.x * vQ.x, d = distance(vW, cameraPosition); float a = e * e * smoothstep(0.0, 0.1, vQ.y) * pow(max(1.0 - vQ.y, 0.0), 0.9) * smoothstep(6.0, 30.0, d) * exp(-d * uFogK * 0.5);
+          gl_FragColor = vec4(vec3(0.07, 0.34, 0.46) * a * vI * 1.5 * uDeep, 1.0); }` }));
     m.frustumCulled = false; m.renderOrder = 3; scene.add(m);
   }
 
