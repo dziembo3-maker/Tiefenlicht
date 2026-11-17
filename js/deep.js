@@ -179,11 +179,27 @@ function buildSiphon() {
   return B.geo();
 }
 
+/** Riesen-Staatsqualle für die Vermessung (Kapitel 2): dieselbe Glocke, aber die vier Mundarme hängen sehr lang herab (Einheiten der Glocke: ARM),
+ *  dazu längere Nesselfäden. Mit size 3 hat die Glocke 3 m Durchmesser, die Arme reichen gut 35 m tief. */
+function buildSiphonGiant() {
+  const B = Builder(), R = rng(9), ARM = 11.5;
+  const bell = (Rb, Hb, part, y0) => B.grid(16, 36, (i, j) => { const f = i / 16, a = j / 36 * 2 * PI, th = f * 1.72, rr = Rb * Math.sin(th) * (1 + 0.05 * Math.cos(12 * a) * f ** 4);
+    return [[Math.cos(a) * rr, y0 + Hb * Math.cos(th) * (th > PI / 2 ? 1.6 : 1), Math.sin(a) * rr], 0, part, f, j / 36]; }, true, false);
+  bell(0.5, 0.62, 0, 0); bell(0.38, 0.44, 1, -0.02);
+  B.ball([0, 0.2, 0], 0.17, 2, 0, { S: 14, R: 10, sy: 1.5, vv: 0 });
+  for (let k = 0; k < 4; k++) { const a = k / 4 * 2 * PI + 0.4; B.grid(180, 4, (i, j) => { const f = i / 180, w = (j / 4 - 0.5) * 0.24 * (1 - 0.55 * f), fr = Math.sin(f * 90 + k) * 0.06 * (0.3 + f) * (j / 4 - 0.5) * 4, rad = 0.08 + 0.1 * f, tw = f * 3 + k;
+    const ox = Math.cos(a) * rad + Math.cos(a + PI / 2 + tw) * w + Math.cos(a) * fr, oz = Math.sin(a) * rad + Math.sin(a + PI / 2 + tw) * w + Math.sin(a) * fr;
+    return [[ox, 0.1 - f * ARM * (0.92 + 0.08 * Math.sin(k * 1.3)), oz], k, 3, f, j / 4]; }, false, false); }
+  for (let k = 0; k < 26; k++) { const a = k / 26 * 2 * PI + R() * 0.2, L = 2.2 + R() * R() * 6.5, fl = 0.75 + R() * 0.6, pts = []; for (let s = 0; s <= 60; s++) { const f = s / 60, rr = 0.47 * (1 - 0.45 * Math.sin(Math.min(1, f * 4) * PI) * fl + 0.35 * f * fl); pts.push([Math.cos(a) * rr, -0.1 - f * L, Math.sin(a) * rr]); }
+    B.tube(pts, (f) => 0.009 * (1 - 0.7 * f), 4, k, 3); }
+  return B.geo();
+}
+
 // ======================= Shader =======================
 const VS = (sp) => /* glsl */ `#define SP ${sp}
   attribute vec4 aK; attribute vec4 iP, iR, iA; uniform float uTime; varying vec3 vW, vN; varying vec4 vK; varying vec4 vI;
   void main(){ vec3 p = position, nr = normalize(normal); float part = aK.y, ph = iA.x, amp = iA.y, sd = iA.z;
-  #if SP == 4
+  #if SP == 4 || SP == 5
     // Qualle: die Glocke zieht sich zusammen und öffnet sich; Arme und Fäden folgen träge und schwingen
     float k = 0.5 + 0.5 * sin(uTime * 1.25 + sd * 6.0), kk = k * k;
     if (part < 1.5) { float f = aK.z; p.xz *= 1.0 - 0.2 * kk * f * f; p.y += 0.07 * kk * f; }
@@ -272,7 +288,7 @@ const FS = (sp) => /* glsl */ `#define SP ${sp}
     else if (part < 3.5) { base = vv < 0.4 ? vec3(0.01) : vv < 0.85 ? vec3(0.6, 0.58, 0.5) : vec3(0.03); glow = vv > 0.4 && vv < 0.85 ? vec3(0.2, 0.18, 0.15) : vec3(0.0); }
     else { base = vec3(0.2, 0.1, 0.08); glow = vec3(1.0, 0.35, 0.12) * (0.25 + vv * 0.6); }
   #endif
-  #if SP == 4
+  #if SP == 4 || SP == 5
     float alpha = 0.5; float ribs = lineAt(fract(u * 18.0) - 0.5, 0.12);
     if (part < 0.5) { glow = vec3(0.25, 0.5, 1.0) * (0.07 + fr * 0.6 + ribs * 0.07 * vv) + vec3(0.7, 0.75, 1.0) * smoothstep(0.93, 1.0, vv) * 0.6; }
     else if (part < 1.5) { glow = vec3(0.45, 0.35, 1.0) * (0.06 + fr * 0.3) + vec3(1.0, 0.4, 0.7) * ribs * 0.12 * (1.0 - vv); }
@@ -305,15 +321,15 @@ function krillCloud(N = 1800) {
 }
 
 // ======================= Arten zusammen =======================
-export const DEEP_KINDS = ['lantern', 'mola', 'angler', 'stachel', 'siphon'];
-const BUILD = [buildLantern, buildMola, buildAngler, buildStachel, buildSiphon];
+export const DEEP_KINDS = ['lantern', 'mola', 'angler', 'stachel', 'siphon', 'giant'];
+const BUILD = [buildLantern, buildMola, buildAngler, buildStachel, buildSiphon, buildSiphonGiant];
 /** legt für jede Art ein Instanzen-Netz an (max Tiere); setze Tiere mit set(kind, i, {x,y,z,L,yaw,pitch,roll,ph,amp,seed,glow}) und dann commit() */
 export function createDeepModels(scene, max = { lantern: 300, mola: 4, angler: 6, stachel: 6, siphon: 3 }) {
   const M = {};
   DEEP_KINDS.forEach((k, sp) => { const n = max[k] || 0; if (!n) { M[k] = { n: 0, k: 0 }; return; } const g = BUILD[sp](), D = { g, n, k: 0 };
     for (const a of ['iP', 'iR', 'iA']) { D[a] = new Float32Array(n * 4); g.setAttribute(a, new T.InstancedBufferAttribute(D[a], 4)); } g.instanceCount = 0;
-    const mat = new T.ShaderMaterial({ uniforms: uni(), side: T.DoubleSide, vertexShader: VS(sp), fragmentShader: FS(sp), transparent: sp === 4, depthWrite: sp !== 4, blending: sp === 4 ? T.AdditiveBlending : T.NormalBlending });
-    const mesh = new T.Mesh(g, mat); mesh.frustumCulled = false; if (sp === 4) mesh.renderOrder = 6; scene.add(mesh); D.mesh = mesh; M[k] = D; });
+    const mat = new T.ShaderMaterial({ uniforms: uni(), side: T.DoubleSide, vertexShader: VS(sp), fragmentShader: FS(sp), transparent: sp >= 4, depthWrite: sp < 4, blending: sp >= 4 ? T.AdditiveBlending : T.NormalBlending });
+    const mesh = new T.Mesh(g, mat); mesh.frustumCulled = false; if (sp >= 4) mesh.renderOrder = 6; scene.add(mesh); D.mesh = mesh; M[k] = D; });
   const krill = []; for (let i = 0; i < 3; i++) { const c = krillCloud(); c.mesh.visible = false; scene.add(c.mesh); krill.push(c); }
   return {
     M, krill,

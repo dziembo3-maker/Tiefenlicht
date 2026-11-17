@@ -13,7 +13,7 @@ import { createSub, BOATS } from './sub.js';
 import { createAudio } from './audio.js';
 import { createCabin, SEAT, FLOOR_Y } from './cabin.js';
 import { createTable } from './sonartable.js';
-import { MISSIONS, HINTED, REACH, createCanisters } from './missions.js';
+import { MISSIONS, HINTED, REACH, createCanisters, CH1, CH2M } from './missions.js';
 import { createWhales, choosePod } from './whales.js';
 import { createHumpbacks, chooseHumpSpot } from './humpback.js';
 import { createDeepLife } from './deeplife.js';
@@ -194,8 +194,9 @@ $('sonar').addEventListener('pointerdown', (e) => { e.preventDefault(); if (star
 
 // ---------- Fahren ----------
 /** Hindernisse in der Nähe: Felsen und Säulen aus der Welt, dazu die schlafenden Wale, wenn man bei ihnen ist */
-const sphBuf = []; function nearSpheres() { const w = whales.list.length && Math.hypot(whales.list[0].x - S.x, whales.list[0].z - S.z) < 140, hc = hump.spheres.length && Math.hypot(hump.src.x - S.x, hump.src.z - S.z) < 160, kc = Math.hypot(KIT.x - S.x, KIT.z - S.z) < 70; if (!w && !hc && !kc) return world.near;
-  sphBuf.length = 0; for (const s of world.near) sphBuf.push(s); if (w) for (const s of whales.spheres) sphBuf.push(s); if (hc) for (const s of hump.spheres) sphBuf.push(s); if (kc) for (const s of crash.spheres) sphBuf.push(s); return sphBuf; }
+const sphBuf = []; function nearSpheres() { if (CH2 && CH2.spheres.length) { sphBuf.length = 0; for (const s of nearSpheres0()) sphBuf.push(s); for (const s of CH2.spheres) sphBuf.push(s); return sphBuf; } return nearSpheres0(); }
+const sphBuf0 = []; function nearSpheres0() { const w = whales.list.length && Math.hypot(whales.list[0].x - S.x, whales.list[0].z - S.z) < 140, hc = hump.spheres.length && Math.hypot(hump.src.x - S.x, hump.src.z - S.z) < 160, kc = Math.hypot(KIT.x - S.x, KIT.z - S.z) < 70; if (!w && !hc && !kc) return world.near;
+  sphBuf0.length = 0; for (const s of world.near) sphBuf0.push(s); if (w) for (const s of whales.spheres) sphBuf0.push(s); if (hc) for (const s of hump.spheres) sphBuf0.push(s); if (kc) for (const s of crash.spheres) sphBuf0.push(s); return sphBuf0; }
 const nT = { x: 0, y: 0, z: 0 }, CLEAR = 3.9, SOFT = 1.2; let gateT = 0; const tr = (k) => t(k);   // in drive() heißt t die Zeit
 function props(dt) {   // Steuerrad, Tiefenruder, Tee: laufen immer mit, auch wenn man draußen ist
   cabin.state.suit = suitState(); cabin.state.heading = S.h; cabin.state.depth = -S.y;
@@ -207,7 +208,7 @@ function props(dt) {   // Steuerrad, Tiefenruder, Tee: laufen immer mit, auch we
   if (frames % 30 === 0) discover();
 }
 function drive(dt) {
-  const ctl = !CAMV.on && !horchOpen && !logOpen() && (V.mode === 'out' || V.st === 'seat') && !(MS.active === 'm8' && MS.stage !== 'dive'), K = ctl ? I.keys : {}; let jx = ctl ? I.jx : 0, jy = ctl ? I.jy : 0;
+  const ctl = !CAMV.on && !PERI.on && !horchOpen && !logOpen() && (V.mode === 'out' || V.st === 'seat') && !(MS.active === 'm8' && MS.stage !== 'dive'), K = ctl ? I.keys : {}; let jx = ctl ? I.jx : 0, jy = ctl ? I.jy : 0;
   if (K.KeyA || K.ArrowLeft) jx -= 1; if (K.KeyD || K.ArrowRight) jx += 1; if (K.KeyW || K.ArrowUp) jy -= 1; if (K.KeyS || K.ArrowDown) jy += 1;
   const mag = Math.min(1, Math.hypot(jx, jy)), vIn = ctl ? (I.up || K.Space ? 1 : 0) - (I.down || K.ShiftLeft || K.ShiftRight ? 1 : 0) : 0;
   let want = 0, thrust = 0;
@@ -284,16 +285,16 @@ C.look.set(S.x, S.y + 1, S.z + 2);
 // ---------- Kabine: Ego-Perspektive ----------
 const HOLE_P = { x: HOLE.x, z: HOLE.z, kind: 'hole', always: true }, table = createTable(S, nav, $('tableCv'), () => sectors[0], () => (MS.done.includes('m5') || (MS.active === 'm5' && MS.stage) ? [HOLE_P] : []), (p) => (p.kind === 'hole' ? t('s_hole') : devReveal || seen.has(Math.round(p.x) + ',' + Math.round(p.z)) ? t('s_' + (p.short || p.kind)) : null), () => t('compass')), eyeL = new T.Vector3(), winCol = new T.Vector3(), tmpS = new T.Vector3(), fadeEl = $('fade'), actEl = $('act'), modeEl = $('mode');
 let switching = false;
-function ui() { document.body.className = (V.mode === 'in' ? 'in ' + V.st : V.mode === 'dive' ? 'dive' : 'out') + (PC ? ' pc' : '') + (FS_OK ? ' fs' : '') + (M.open ? ' menu' : '') + (CAMV.on ? ' cam' : ''); $('modeL').textContent = V.mode === 'in' ? t('to_out') : t('to_in'); fsPlace(); }
+function ui() { document.body.className = (V.mode === 'in' ? 'in ' + V.st : V.mode === 'dive' ? 'dive' : 'out') + (PC ? ' pc' : '') + (FS_OK ? ' fs' : '') + (M.open ? ' menu' : '') + (CAMV.on ? ' cam' : '') + (PERI.on ? ' peri' : '') + (PERI.on && PERI.red ? ' periRed' : ''); $('modeL').textContent = V.mode === 'in' ? t('to_out') : t('to_in'); fsPlace(); }
 function applyMode() {
   const inn = V.mode === 'in', dive = V.mode === 'dive'; boatVis();
-  if (inn && MS.fresh >= 0 && started) setTimeout(() => note(t('page_new')), 1200);
+  if (inn && MS.fresh >= 0 && started) setTimeout(() => note(t('page_new')), 1200); else if (inn && MS.c2.ch === 2 && MS.c2.fresh >= 0 && started) setTimeout(() => note(t('page2_new')), 1200);
   if (inn) { const mm = V.mem; V.mem = null; if (mm) { V.st = mm.st; V.px = V.hx = mm.px; V.pz = V.hz = mm.pz; V.hy = mm.st === 'seat' ? SEAT.y : 1.56; V.yaw = mm.yaw; V.pitch = mm.pitch; } else { V.st = 'walk'; V.px = 0; V.pz = -0.95; V.yaw = 0; V.pitch = 0; V.hx = 0; V.hy = 1.56; V.hz = -0.95; } table.reset(); if (!PC) { hintEl.textContent = t('hint_in_touch'); hintEl.style.opacity = 1; hintT = 6; } }   // zurück, wo man vor dem Hinausschauen war (am Steuer: man fährt einfach weiter)if (!PC) { hintEl.textContent = t('hint_in_touch'); hintEl.style.opacity = 1; hintT = 6; } }
   else if (dive) { hintEl.textContent = t(PC ? 'dive_hint_pc' : 'dive_hint_touch'); hintEl.style.opacity = 1; hintT = 9; }
   else { if (hintEl.textContent === t('hint_in_touch') || hintEl.textContent === t('dive_hint_touch') || hintEl.textContent === t('dive_hint_pc')) { hintEl.style.opacity = 0; hintT = 0; } C.yaw = S.h; C.oy = C.op = 0; C.dist = 14; C.pos.set(S.x - Math.sin(S.h) * 14, S.y + 4, S.z - Math.cos(S.h) * 14); C.look.set(S.x, S.y + 1, S.z); }
   if (!inn && !dive) sonHint(); audio.setInside(inn); audio.setSuit(dive); U.uLampOn.value = (dive ? 0.5 : 1) * (1 + (devLamp - 1) * 0.35); if (!dive) lampBase = U.uLampOn.value; lampApply(); world.setSmall(!inn); life.setInside(inn); cabin.state.suit = suitState(); ui(); resize(); syncFov(); if (dive) drawHelmet();
 }
-function setMode(m) { closeTapes(); closeHorch(); if (CAMV.on) closeCam(true); if (switching || !started || V.mode === m) return; switching = true; if (V.mode === 'in' && m === 'out') V.mem = { st: V.st === 'table' ? 'walk' : V.st, px: V.st === 'table' ? -0.15 : V.px, pz: V.st === 'table' ? -1.3 : V.pz, yaw: V.yaw, pitch: V.pitch }; fadeEl.style.opacity = 1; setTimeout(() => { V.mode = m; applyMode(); fadeEl.style.opacity = 0; switching = false; }, 330); }
+function setMode(m) { closeTapes(); closeHorch(); if (CAMV.on) closeCam(true); if (PERI.on) closePeri(true); if (switching || !started || V.mode === m) return; switching = true; if (V.mode === 'in' && m === 'out') V.mem = { st: V.st === 'table' ? 'walk' : V.st, px: V.st === 'table' ? -0.15 : V.px, pz: V.st === 'table' ? -1.3 : V.pz, yaw: V.yaw, pitch: V.pitch }; fadeEl.style.opacity = 1; setTimeout(() => { V.mode = m; applyMode(); fadeEl.style.opacity = 0; switching = false; }, 330); }
 // ---------- Taucheranzug: durch die Luke hinaus, am Schlauch über den Grund gehen, am Heck wieder hinein ----------
 let lampBase = 1, extK = 1;   // Grundhelligkeit der Bootsscheinwerfer und Faktor des Lichtschalters (siehe boatLights)
 let devDeep = false, devReveal = false, devLamp = 1; try { devDeep = localStorage.getItem('tiefenlicht.devdeep') === '1'; devReveal = localStorage.getItem('tiefenlicht.devreveal') === '1'; devLamp = clamp(+(localStorage.getItem('tiefenlicht.devlamp') || 1) || 1, 1, 5); } catch (e) { /* egal */ }   // Entwicklerschalter: ohne Tiefengrenze
@@ -388,7 +389,7 @@ const LABEL = {
   kettle: () => (!cabin.state.kettle ? '' : tea.phase === 'cold' ? t('kettle_on') : tea.phase === 'ready' ? t('kettle_pour') : ''),
   stove: () => (cabin.state.fireT > 1.2 ? '' : t('stove')),
   cupDesk: () => (cabin.state.cup === 'desk' ? t('cup_take') : ''), cupPult: () => (cabin.state.cup === 'pult' ? (cabin.state.cupHeat > 0.05 ? t('cup_drink') : t('cup_away')) : ''),
-  hatch: () => (hasSuit() ? t('suit_out') : ''), suit: () => (hasSuit() ? t('suit_out') : ''), deck: () => t('tape_menu'), light: () => (cabin.state.lampT > 0.5 ? t('light_dim') : t('light_on')), log: () => t('log_read'), horch: () => t('horch'),
+  hatch: () => (hasSuit() ? t('suit_out') : ''), suit: () => (hasSuit() ? t('suit_out') : ''), deck: () => t('tape_menu'), light: () => (cabin.state.lampT > 0.5 ? t('light_dim') : t('light_on')), log: () => t('log_read'), horch: () => t('horch'), oldlog: () => (MS.c2.ch === 2 ? t('log_old') : ''),
   blow: () => (MS.active === 'm8' ? (MS.stage === 'blow' ? t('m8_act_blow') : '') : MS.done.includes('m8') ? t(BLOW.on ? 'blow_stop' : 'm8_act_blow') : ''),
 };
 const ACT = {
@@ -396,24 +397,38 @@ const ACT = {
   kettle: () => { if (tea.phase === 'cold') { tea.phase = 'heat'; tea.t = 0; audio.click(0.6); } else if (tea.phase === 'ready') { tea.phase = 'cool'; tea.t = 0; cabin.state.cup = 'desk'; cabin.state.cupHeat = 1; audio.pour(); } },
   stove: () => { cabin.state.fireT = 1.7; setTimeout(() => { cabin.state.fireT = 1; }, 45000); audio.click(0.8); },
   cupDesk: () => { cabin.state.cup = 'pult'; audio.click(0.3); }, cupPult: () => { if (cabin.state.cupHeat > 0.05) { cabin.state.cupHeat = Math.max(0, cabin.state.cupHeat - 0.34); if (cabin.state.cupHeat <= 0.05) note(t('tea_done')); } else cabin.state.cup = 'none'; audio.click(0.25); },
-  hatch: () => suitOut(), suit: () => suitOut(), deck: () => openTapes(), light: () => { cabin.state.lampT = cabin.state.lampT > 0.5 ? 0.08 : 1; audio.click(0.9); }, log: () => openLog(), horch: () => openHorch(),
+  hatch: () => suitOut(), suit: () => suitOut(), deck: () => openTapes(), light: () => { cabin.state.lampT = cabin.state.lampT > 0.5 ? 0.08 : 1; audio.click(0.9); }, log: () => openLog(), horch: () => openHorch(), oldlog: () => openLog(null, 1),
   blow: () => { if (MS.active === 'm8') crashBlow(); else if (MS.done.includes('m8')) { if (BLOW.on) blowStop(); else { BLOW.on = true; audio.blow(); } } },
 };
 function pickTarget() {
   if (V.mode !== 'in' || V.st === 'table') return null;
   camera.getWorldDirection(fwd); let best = null, bs = 0;
-  const keys = V.st === 'seat' ? ['cupPult', 'deck', 'horch', 'blow'] : Object.keys(LABEL).filter((k) => k !== 'cupPult' || cabin.state.cup === 'pult');
+  const keys = V.st === 'seat' ? ['cupPult', 'deck', 'horch', 'blow', 'light'] : Object.keys(LABEL).filter((k) => k !== 'cupPult' || cabin.state.cup === 'pult');
   for (const k of keys) { if (!LABEL[k]()) continue; cabin.toWorld(k, wv); const d = wv.sub(camera.position), l = d.length(), reach = k === 'seat' || k === 'table' ? 1.9 : 1.45; if (l > reach) continue; const c = d.dot(fwd) / l, need = k === 'seat' || k === 'table' || k === 'hatch' ? 0.86 : 0.93; if (c > need && c - l * 0.02 > bs) { bs = c - l * 0.02; best = k; } }
   return best;
 }
 const canHere = () => (nearCan || nearBell) && (V.mode === 'out' || (V.st === 'seat' && !target));   // Dose (und den Anzug an der Glocke) birgt man vom Steuer aus: draußen oder am Steuerrad
-const actLabel = () => (canHere() ? t(nearBell ? 'suit_take' : 'can_take') : V.mode === 'dive' ? (CR.weldT > 0 ? '' : crashAct ? t('m8_act_' + crashAct) : nearLampItem ? t('lamp_take') : nearTooth ? t('tooth_take') : nearCan2 ? t('can_take') : nearHatch ? t('suit_in') : '') : V.mode !== 'in' || V.st === 'table' ? '' : target ? LABEL[target]() : V.st === 'seat' ? t('stand') : '');
-actEl.addEventListener('pointerdown', (e) => { e.preventDefault(); if (V.mode === 'dive') { if (CR.weldT > 0) return; if (crashAct) crashDo(crashAct); else if (nearLampItem) takeLamp(); else if (nearTooth) takeTooth(); else if (nearCan2) takeCan2(); else if (nearHatch) suitIn(); return; } if (canHere()) { if (nearBell) takeSuit(); else takeCan(); } else if (V.mode !== 'in') return; else if (target && LABEL[target]()) ACT[target](); else if (V.st === 'seat') setSt('walk'); });
+const c2Act = () => (CH2 && MS.active && isCh2(MS.active) && (V.mode === 'out' || (V.mode === 'in' && V.st === 'seat' && !target)) ? CH2.act() : null);
+const actLabel = () => (c2Act() ? t(c2Act()) : canHere() ? t(nearBell ? 'suit_take' : 'can_take') : V.mode === 'dive' ? (CR.weldT > 0 ? '' : crashAct ? t('m8_act_' + crashAct) : nearLampItem ? t('lamp_take') : nearTooth ? t('tooth_take') : nearCan2 ? t('can_take') : nearHatch ? t('suit_in') : '') : V.mode !== 'in' || V.st === 'table' ? '' : target ? LABEL[target]() : V.st === 'seat' ? t('stand') : '');
+actEl.addEventListener('pointerdown', (e) => { e.preventDefault(); if (V.mode === 'dive') { if (CR.weldT > 0) return; if (crashAct) crashDo(crashAct); else if (nearLampItem) takeLamp(); else if (nearTooth) takeTooth(); else if (nearCan2) takeCan2(); else if (nearHatch) suitIn(); return; } if (c2Act()) { CH2.doAct(); return; } if (canHere()) { if (nearBell) takeSuit(); else takeCan(); } else if (V.mode !== 'in') return; else if (target && LABEL[target]()) ACT[target](); else if (V.st === 'seat') setSt('walk'); });
 // ---------- Missionen: beginnen an der Seite auf dem Schreibtisch; gestartet liegt draußen eine Messingdose, die man birgt ----------
-const MS = { active: null, done: [], pageSeen: -1, hint: null, stage: null, cam: false, pod: null, hump: null, flood: false, floodOn: false, suit: false, tooth: false, can2: false, markSeen: false, pmax: 0, got: null, fresh: -1 }, bannerEl = $('banner'); let nearCan = false, nearCan2 = false, bannerT = 0, sonHintT = 0;
+// Kapitel 2: nur sichtbar, wenn im Entwicklermenü freigeschaltet (tiefenlicht.ch2). c2.ch = 2, sobald das Kapitel begonnen hat; eigene Notizseiten (fresh, got) und der sinkende Wal (fallY)
+let ch2On = false; try { ch2On = localStorage.getItem('tiefenlicht.ch2') === '1'; } catch (e) { /* egal */ }
+const MS = { active: null, done: [], pageSeen: -1, hint: null, stage: null, cam: false, pod: null, hump: null, flood: false, floodOn: false, suit: false, tooth: false, can2: false, markSeen: false, pmax: 0, got: null, fresh: -1, c2: { ch: 1, fresh: -1, got: null, fallY: null } }, bannerEl = $('banner'); let nearCan = false, nearCan2 = false, bannerT = 0, sonHintT = 0;
 /** einmal pro Mission, beim ersten Mal am Steuer (oder draußen): kleiner Hinweis neben dem Sonar */
-function sonHint() { if (!started || !MS.active || CAMV.on || !(V.mode === 'out' || V.st === 'seat')) return; const bell = MS.active === 'm5' && MS.stage === 'bell', key = MS.active + (bell ? ':bell' : ''); if (MS.hint === key || (MS.active === 'm5' && MS.stage && !bell) || (MS.active === 'm8' && (MS.stage !== 'dive' || overAbyss()))) return; MS.hint = key; const h = $('sonHint'); h.textContent = t(bell ? 'son_hint_bell' : MS.active === 'm8' ? 'son_hint_m8' : (MISSIONS[misIdx(MS.active)].pod || MISSIONS[misIdx(MS.active)].hump) ? 'son_hint_m4' : 'son_hint'); h.style.opacity = 1; sonHintT = 9; lastHint = { k: 'son', tx: h.textContent, st: MS.stage }; save(); }
-const misIdx = (id) => MISSIONS.findIndex((m) => m.id === id), nextMis = () => MISSIONS.find((m) => !MS.done.includes(m.id)) || null;
+function sonHint() { if (!started || !MS.active || CAMV.on || !(V.mode === 'out' || V.st === 'seat')) return; const bell = MS.active === 'm5' && MS.stage === 'bell', key = MS.active + (bell ? ':bell' : ''); if (MS.hint === key || (MS.active === 'm5' && MS.stage && !bell) || (MS.active === 'm8' && (MS.stage !== 'dive' || overAbyss())) || (isCh2(MS.active) && !misTarget())) return; MS.hint = key; const h = $('sonHint'); h.textContent = t(bell ? 'son_hint_bell' : MS.active === 'm8' ? 'son_hint_m8' : isCh2(MS.active) ? 'son_hint_c2' : (MISSIONS[misIdx(MS.active)].pod || MISSIONS[misIdx(MS.active)].hump) ? 'son_hint_m4' : 'son_hint'); h.style.opacity = 1; sonHintT = 9; lastHint = { k: 'son', tx: h.textContent, st: MS.stage }; save(); }
+const misIdx = (id) => MISSIONS.findIndex((m) => m.id === id), ch2Live = () => ch2On && MS.c2.ch === 2, nextMis = () => MISSIONS.find((m) => !MS.done.includes(m.id) && (!m.ch2 || ch2Live())) || null;
+const isCh2 = (id) => { const m = MISSIONS[misIdx(id)]; return !!(m && m.ch2); };
+/** erste Stufe der Kapitel-2-Missionen (der Rest steht in chapter2.js) */
+const C2_FIRST = { m9: 'top', m10: 'find', m11: 'find', m12: 'find', m13: 'find' };
+// ---------- Kapitel 2: das Modul mit Orten, Tieren und Abläufen wird erst geladen, wenn das Kapitel begonnen hat ----------
+let CH2 = null, ch2Loading = false;
+const ch2Ctx = { MS, S, t: (k, v) => t(k, v), banner: (a, b) => banner(a, b), note: (x) => note(x), addLog: (e) => addLog(e), dir8: (x, z) => DIR8(x, z), sync: () => syncMis(), save: () => save(), audio: null, world,
+  finish: (id, pid) => { const m = MISSIONS[misIdx(id)]; if (m && MS.active === id) finishMission(m, pid); }, input: () => !!(I.up || I.down || I.keys.Space || I.keys.ShiftLeft || I.keys.ShiftRight) };
+function loadCh2() { if (CH2 || ch2Loading) return; ch2Loading = true; ch2Ctx.audio = audio;
+  import('./chapter2.js').then((mod) => { CH2 = mod.createCh2(scene, ch2Ctx); if (MS.active && isCh2(MS.active) && !MS.stage) CH2.start(MS.active); }).catch((e) => { ch2Loading = false; console.error(e); }); }
+/** draußen ist es dunkel: Licht in der Kabine aus (die Außenlampen folgen dem Schalter) und kein Scheinwerfer */
+const isDark = () => extK < 0.25 && !(hasFlood() && MS.floodOn);
 // ---------- Fensterbesuch: sitzt oder steht man in der Kabine und das Boot ruht, zieht immer wahrscheinlicher ein Fisch oder Schwarm dicht vor dem Bugfenster vorbei ----------
 // Die Chance steigt jede Sekunde (ab 20 s langsam, dann steil); nach 105 s kommt sicher einer. Danach beginnt es von vorn
 /** Anblashebel nach der Probefahrt: hilft beim Auftauchen */
@@ -510,16 +525,21 @@ function shakeOn() { if (CR.shake < 0.003) return false; const a = CR.shake * 0.
 function shakeOff() { camera.position.sub(shk); camIn.position.sub(shk); }
 // Seiten gehören Missionen: Seite 0 liegt von Anfang an bereit, danach bringt jede Mission ihre Seiten in fester Reihenfolge (das Loch zwei).
 // Spielt man eine Mission erneut, bleibt ihre Seite als leere Seite stehen, bis man sie wieder findet; so verrutscht nichts.
-const PAGE_OWN = (() => { const o = [null]; for (const m of MISSIONS) for (let k = 0; k < (m.pages || 1); k++) o.push({ id: m.id, k }); return o; })();
+const PAGE_OWN = (() => { const o = [null]; for (const m of CH1) for (let k = 0; k < (m.pages || 1); k++) o.push({ id: m.id, k }); return o; })();
 function pageHas(i) { if (i === 0) return true; const o = PAGE_OWN[i]; if (!o) return false; if (MS.done.includes(o.id)) return true; return MS.active === o.id && ((o.id === 'm5' && (o.k === 0 ? !!MS.stage : MS.can2)) || (o.id === 'm8' && MS.can2)); }
 const curPage = () => { let n = 0; for (let i = 0; i < PAGE_OWN.length; i++) if (pageHas(i)) n = i; return Math.min(Math.max(n, MS.pmax), t('pages').length - 1); };
 /** merkt sich, welche Seiten gerade lesbar sind; eine neu hinzugekommene wird „frisch“ (das Logbuch schimmert und schlägt sie auf) */
 function trackPages() { const now = []; for (let i = 0; i < PAGE_OWN.length && i < t('pages').length; i++) if (pageHas(i)) now.push(i); if (!MS.got) MS.got = MS.pageSeen >= 0 ? now.slice() : [];
   let nw = -1; for (const i of now) if (!MS.got.includes(i)) nw = Math.max(nw, i); if (nw >= 0) MS.fresh = nw; MS.got = now; MS.pmax = Math.max(MS.pmax, now.length ? now[now.length - 1] : 0); }
+// Kapitel 2: eigene Notizen im neuen Logbuch. Seite 0 ist der Anfang, jede erledigte Mission bringt die nächste
+const PAGE2_OWN = [null].concat(CH2M.map((m) => m.id));
+function pageHas2(i) { if (MS.c2.ch !== 2) return false; return i === 0 || (i < PAGE2_OWN.length && MS.done.includes(PAGE2_OWN[i])); }
+const curPage2 = () => { let n = 0; for (let i = 0; i < PAGE2_OWN.length; i++) if (pageHas2(i)) n = i; return Math.min(n, t('pages2').length - 1); };
+function trackPages2() { if (MS.c2.ch !== 2) return; const now = []; for (let i = 0; i < PAGE2_OWN.length; i++) if (pageHas2(i)) now.push(i); const got = MS.c2.got || []; let nw = -1; for (const i of now) if (!got.includes(i)) nw = Math.max(nw, i); if (nw >= 0) MS.c2.fresh = nw; MS.c2.got = now; }
 function banner(a, b) { if (MS.active && a !== t('mis_started') && a !== t('mis_done')) lastHint = { k: 'banner', a, b, st: MS.stage }; bannerEl.children[0].textContent = a; bannerEl.children[1].textContent = b; bannerEl.classList.toggle('long', b.length > 46); bannerEl.style.opacity = 1; bannerT = 5; }   // lange Hinweise kleiner und umbrochen
 function syncMis() {
-  const st = cabin.state; st.own = [true, false, false, false, false, false, false, false]; for (const id of MS.done) { const m = MISSIONS[misIdx(id)]; if (m) st.own[m.tape] = true; } { const am = MS.active && MS.stage ? MISSIONS[misIdx(MS.active)] : null; if (am && am.tape != null && (!(am.tapeLate || am.crash) || MS.can2)) st.own[am.tape] = true; } if (!st.own[st.tapeIn]) st.tapeIn = 0;
-  trackPages(); cans.show(MS.active && (!MS.stage || MS.stage === 'tanks') ? misIdx(MS.active) : -1); st.pageNew = MS.fresh >= 0;   // ungelesene Seite: schimmert leicht
+  const st = cabin.state; st.own = [true, false, false, false, false, false, false, false]; for (const id of MS.done) { const m = MISSIONS[misIdx(id)]; if (m && m.tape != null) st.own[m.tape] = true; } { const am = MS.active && MS.stage ? MISSIONS[misIdx(MS.active)] : null; if (am && am.tape != null && (!(am.tapeLate || am.crash) || MS.can2)) st.own[am.tape] = true; } if (!st.own[st.tapeIn]) st.tapeIn = 0;
+  trackPages(); trackPages2(); cans.show(MS.active && !isCh2(MS.active) && (!MS.stage || MS.stage === 'tanks') ? misIdx(MS.active) : -1); st.pageNew = MS.fresh >= 0 || (MS.c2.ch === 2 && MS.c2.fresh >= 0); st.ch2 = MS.c2.ch === 2; if (ch2Live()) loadCh2();   // ungelesene Seite: schimmert leicht
   if (!MS.active) nearCan = false; syncPod(); syncHump();
   st.kettle = MS.done.includes('m1'); st.crystal = MS.done.includes('m3');   // Fundstücke: der Kessel aus der ersten, der Kristall aus der dritten Mission
   const m5done = MS.done.includes('m5'); cave.setTooth(!(m5done || (MS.active === 'm5' && MS.tooth))); cave.setCan(!(m5done || (MS.active === 'm5' && MS.can2))); vitrine.visible = m5done;
@@ -568,10 +588,10 @@ function humpStep(dt) {
     const m = MISSIONS[misIdx('m6')]; MS.stage = 'end'; note(t('m6_end')); setTimeout(() => finishMission(m, humpPid), 1200); } }
 }
 const POD_FIXED = [{ x: WHALE.x, z: WHALE.z, kind: 'skeleton' }, { x: cxAt(235), z: 235, kind: 'hole' }];
-function startMission(m = nextMis()) { if (!m || MS.active) return; MS.active = m.id; lastHint = null; if (m.tanks) MS.stage = 'lamp'; if (m.crash) { MS.stage = 'dive'; MS.can2 = false; CR.t = 0; CR.weldT = 0; CR.over = false; } if (m.pod) { MS.stage = 'photo'; MS.pod = choosePod(S.x, S.z, 400, POD_FIXED); } if (m.hump) { MS.stage = 'listen'; MS.hump = humpSpot(); humpPid = null; } $('log').classList.remove('open'); banner(t('mis_started'), t('mis_' + m.id)); audio.click(0.7); syncMis(); save(); lockMouse(); }
+function startMission(m = nextMis()) { if (!m || MS.active) return; MS.active = m.id; lastHint = null; if (m.tanks) MS.stage = 'lamp'; if (m.crash) { MS.stage = 'dive'; MS.can2 = false; CR.t = 0; CR.weldT = 0; CR.over = false; } if (m.pod) { MS.stage = 'photo'; MS.pod = choosePod(S.x, S.z, 400, POD_FIXED); } if (m.hump) { MS.stage = 'listen'; MS.hump = humpSpot(); humpPid = null; } if (m.ch2) { MS.stage = C2_FIRST[m.id]; if (m.id === 'm12') MS.c2.fallY = -165; if (CH2) CH2.start(m.id); } $('log').classList.remove('open'); banner(t('mis_started'), t('mis_' + m.id)); audio.click(0.7); syncMis(); save(); lockMouse(); }
 /** wohin das Sonar bei einer Mission zeigt: Dose, Fotoziel, die Glocke (Anzug) oder nichts (zurück zum Loch findet man nur über den Kurs) */
 const BELL_T = { x: BELL.x, z: BELL.z }, ABYSS_T = { x: FALL0.x, z: FALL0.z }, overAbyss = () => floorH(S.x, S.z) < -400;   // Probefahrt: das Sonar zeigt zum Abgrund neben dem Plateau
-function misTarget() { if (!MS.active) return null; const i = misIdx(MS.active), m = MISSIONS[i]; if (m.pod || m.hump) return null; if (m.crash) return MS.stage === 'dive' && !overAbyss() ? ABYSS_T : null; if (!MS.stage || MS.stage === 'tanks') return cans.lamp(i); if (MS.stage === 'lamp') return LAMP; if (MS.stage === 'lampback') return null; if (MS.stage === 'photo') return photoTarget(); if (MS.stage === 'bell') return BELL_T; return null; }
+function misTarget() { if (!MS.active) return null; const i = misIdx(MS.active), m = MISSIONS[i]; if (m.ch2) return CH2 ? CH2.target() : null; if (m.pod || m.hump) return null; if (m.crash) return MS.stage === 'dive' && !overAbyss() ? ABYSS_T : null; if (!MS.stage || MS.stage === 'tanks') return cans.lamp(i); if (MS.stage === 'lamp') return LAMP; if (MS.stage === 'lampback') return null; if (MS.stage === 'photo') return photoTarget(); if (MS.stage === 'bell') return BELL_T; return null; }
 function clearGold() { for (let i = marks.length - 1; i >= 0; i--) if (marks[i].gold) marks.splice(i, 1); for (let i = echoes.length - 1; i >= 0; i--) if (echoes[i].gold || echoes[i].sector) echoes.splice(i, 1); sectors.length = 0; }
 /** an der Taucherglocke: der alte Anzug kommt an Bord */
 function takeSuit() {
@@ -605,7 +625,9 @@ function takeCan() {
 function finishMission(m, pid) {
   if (m.id === 'm3') { const p = MISSIONS[misIdx('m3')]; setTimeout(() => addLog({ kind: 'find', id: 'm3k', dist: Math.round(Math.hypot(p.x, p.z) / 10) * 10, dir: DIR8(p.x, p.z) }), 3200); }   // ein kleiner Kristall von der Grotte
   MS.done.push(m.id); MS.active = null; MS.stage = null; MS.tooth = MS.can2 = false; nearCan = nearCan2 = false; syncMis(); banner(t('mis_done'), t('mis_' + m.id)); if (m.tapeLate || m.crash) playTape(m.tape, true);
+  if (m.crash) c2Delay = 11;
   if (m.pod) { setTimeout(() => addLog({ kind: 'diary', id: m.id, pid }), 2500); setTimeout(() => note(t('env_open')), 6000); }
+  else if (m.ch2) { if (m.id === 'm13') { if (CH2) CH2.levLeave(); setTimeout(() => chapterCard(t('ch2_end_a'), t('ch2_end_b'), 7), 8000); } else setTimeout(() => { if (MS.c2.fresh >= 0) note(t('page2_new')); }, 5500); }
   else if (m.hump) { setTimeout(() => addLog({ kind: 'diary', id: m.id, pid }), 2500); setTimeout(() => { note(t('env2_open')); playTape(m.tape, true); }, 6500); }   // Buckelwale: der zweite Umschlag mit Seite und Kassette
   else if (m.crash) setTimeout(() => note(t('m8_free')), 5000);   // die Seite kam schon mit der Dose
   else if (MS.fresh >= 0) setTimeout(() => note(t('page_new')), 5500);   // der erste lange eigene Eintrag, dann der Umschlag aus der dritten Dose
@@ -625,10 +647,10 @@ function camStep() {
   U.uDeep.value = deepK(camP.y);
 }
 /** Fotoziel der laufenden Mission (oder null): Punkt über Grund, wie nah man sein muss, Name für die Beschriftung */
-function photoTarget() { if (MS.active === 'm6' && (MS.stage === 'watch' || MS.stage === 'follow')) { const c = hump.center(); return c ? { x: c.x, y: c.y, z: c.z, r: 75, name: 'n_humpbacks' } : null; } if (!MS.active || MS.stage !== 'photo') return null; const p = MISSIONS[misIdx(MS.active)].photo; if (p.pod) { const c = whales.center(); return c ? { x: c.x, y: c.y, z: c.z, r: p.r, name: p.name } : null; } return { x: p.x, y: floorH(p.x, p.z) + p.h, z: p.z, r: p.r, name: p.name }; }
+function photoTarget() { if (MS.active && isCh2(MS.active)) return CH2 ? CH2.photoTarget() : null; if (MS.active === 'm6' && (MS.stage === 'watch' || MS.stage === 'follow')) { const c = hump.center(); return c ? { x: c.x, y: c.y, z: c.z, r: 75, name: 'n_humpbacks' } : null; } if (!MS.active || MS.stage !== 'photo') return null; const p = MISSIONS[misIdx(MS.active)].photo; if (p.pod) { const c = whales.center(); return c ? { x: c.x, y: c.y, z: c.z, r: p.r, name: p.name } : null; } return { x: p.x, y: floorH(p.x, p.z) + p.h, z: p.z, r: p.r, name: p.name }; }
 /** zählt das Foto? Ziel ungefähr mittig im Bild, nah genug, kein Fels dazwischen */
 function camTargetOk() {
-  const p = photoTarget(); if (!p || !CAMV.on) return false; const c = camera.position; if (c.distanceTo(tv.set(p.x, p.y, p.z)) > p.r) return false;
+  const p = photoTarget(); if (!p || !CAMV.on || (p.dark && !isDark())) return false; const c = camera.position; if (c.distanceTo(tv.set(p.x, p.y, p.z)) > p.r) return false;
   camera.updateMatrixWorld(); tv.project(camera); if (tv.z > 1 || Math.abs(tv.x) > 0.6 || Math.abs(tv.y) > 0.6) return false;
   for (let i = 1; i < 14; i++) { const k = i / 14, x = c.x + (p.x - c.x) * k, y = c.y + (p.y - c.y) * k, z = c.z + (p.z - c.z) * k; if (floorH(x, z) > y + 0.4) return false; }
   return true;
@@ -666,6 +688,7 @@ function takePhoto() {
   addLog({ kind: 'photo', pid: id, cap }); note(t('photo_saved'));
   const th = $('camThumb'); th.src = src; th.classList.add('show'); thumbT = 2.6;
   if (ok && MS.active === 'm6') { if (!humpPid) humpPid = id; if (MS.stage === 'watch' && humpWatchT <= 0) humpWatchT = 10; }   // nach dem ersten guten Foto ziehen sie bald los
+  else if (ok && MS.active && isCh2(MS.active)) { if (CH2) CH2.photoTaken(id); }
   else if (ok) setTimeout(() => { const m = MISSIONS[misIdx(MS.active)]; if (m && MS.stage === 'photo') finishMission(m, id); }, 900);
 }
 $('camBtn').addEventListener('pointerdown', (e) => { e.preventDefault(); openCam(); });
@@ -680,6 +703,35 @@ function showHelp() { if (!started || !MS.active) return; const h = lastHint && 
 $('helpBtn').addEventListener('pointerdown', (e) => { e.preventDefault(); showHelp(); });
 $('camShut').addEventListener('pointerdown', (e) => { e.preventDefault(); shoot(); });
 $('camClose').addEventListener('pointerdown', (e) => { e.preventDefault(); closeCam(); });
+// ---------- Periskop (Kapitel 2): eigene Ansicht über dem Boot, nur nach links und rechts drehen; Rotfilter macht ferne rote Tinte sichtbar ----------
+const PERI = { on: false, deg: 0, red: false, drag: null, sl: false };   // deg: Drehung gegen den Bug, Steuerbord positiv
+const hasPeri = () => !!(CH2 && CH2.periOk());
+function openPeri() { if (!hasPeri() || PERI.on || CAMV.on || switching || !started || !(V.mode === 'out' || V.st === 'seat')) return; closeTapes(); closeHorch(); unlock(); switching = true; fadeEl.style.opacity = 1;
+  setTimeout(() => { PERI.on = true; PERI.deg = 0; I.jx = I.jy = 0; I.joyId = null; $('peri').classList.add('open'); if (CH2) CH2.see = PERI.red ? 1 : 0; boatVis(); ui(); resize(); fadeEl.style.opacity = 0; switching = false; audio.click(0.6); }, 300); }
+function closePeri(now) { if (!PERI.on) return; const done = () => { PERI.on = false; PERI.drag = null; if (CH2) CH2.see = 0; $('peri').classList.remove('open'); boatVis(); ui(); resize(); lockMouse(); };
+  if (now) { done(); return; } switching = true; fadeEl.style.opacity = 1; setTimeout(() => { done(); fadeEl.style.opacity = 0; switching = false; }, 300); }
+function periFilter() { PERI.red = !PERI.red; if (CH2) CH2.see = PERI.red ? 1 : 0; $('periFil').classList.toggle('on', PERI.red); audio.click(0.5); ui(); }
+function periStep(dt) {
+  const K = I.keys; PERI.deg += ((K.KeyD || K.ArrowRight ? 1 : 0) - (K.KeyA || K.ArrowLeft ? 1 : 0)) * 40 * dt; PERI.deg = ((PERI.deg + 540) % 360) - 180;
+  const yaw = S.h - PERI.deg * Math.PI / 180; camP.set(S.x, S.y + 3.4, S.z); camera.position.copy(camP); camera.lookAt(camP.x + Math.sin(yaw), camP.y - 0.03, camP.z + Math.cos(yaw)); U.uDeep.value = deepK(camP.y);
+  if (CH2) CH2.peri(yaw, PERI.red);
+  if (frames % 4 === 0) { const brg = Math.round(((-yaw * 180 / Math.PI) % 360 + 360) % 360) % 360, tx = t('peri_brg', { d: String(brg).padStart(3, '0') }) + (PERI.red ? '  ·  ' + t('peri_red') : ''); if ($('periDeg').textContent !== tx) $('periDeg').textContent = tx;
+    const sv = String(Math.round(PERI.deg)); if (!PERI.sl && $('periSl').value !== sv) $('periSl').value = sv; }
+}
+{ const pe = $('peri');   // ziehen dreht das Periskop (wie den Blick mit der Hand greifen)
+  pe.addEventListener('pointerdown', (e) => { if (e.target.closest('#periBar')) return; PERI.drag = { id: e.pointerId, x: e.clientX }; });
+  pe.addEventListener('pointermove', (e) => { if (!PERI.drag || e.pointerId !== PERI.drag.id) return; PERI.deg -= (e.clientX - PERI.drag.x) * 0.18; PERI.drag.x = e.clientX; });
+  for (const ev of ['pointerup', 'pointercancel']) pe.addEventListener(ev, () => { PERI.drag = null; });
+  $('periSl').addEventListener('input', () => { PERI.sl = true; PERI.deg = +$('periSl').value; }); $('periSl').addEventListener('change', () => { PERI.sl = false; });
+  $('periFil').addEventListener('pointerdown', (e) => { e.preventDefault(); periFilter(); });
+  $('periClose').addEventListener('pointerdown', (e) => { e.preventDefault(); closePeri(); });
+  $('periBtn').addEventListener('pointerdown', (e) => { e.preventDefault(); openPeri(); }); }
+// ---------- Kapitelwechsel: große Schrift in der Mitte; danach liegt ein neues Logbuch auf dem Schreibtisch, das alte steht im Regal ----------
+let c2Pend = false, c2Delay = 3, chapTm = 0;
+function chapterCard(a, b, hold = 5) { const el = $('chap'); el.children[0].textContent = a; el.children[1].textContent = b; el.classList.add('show'); clearTimeout(chapTm); chapTm = setTimeout(() => el.classList.remove('show'), hold * 1000); }
+function beginCh2() { c2Delay = 3; if (MS.c2.ch === 2 || !ch2On || !MS.done.includes('m8')) { c2Pend = false; return; } chapterCard(t('ch1_end_a'), t('ch1_end_b'), 5); audio.page();
+  setTimeout(() => { MS.c2.ch = 2; MS.c2.fresh = -1; MS.c2.got = []; syncMis(); save(); chapterCard(t('ch2_a'), t('ch2_b'), 6); }, 6200);
+  setTimeout(() => note(t('ch2_book')), 13500); }
 // ---------- Horchgerät: Peilscheibe drehen, Kopfhörer auf. Klicks hört man weit, aber nur aus der Richtung, in die es zeigt ----------
 let horchOpen = false, horchDeg = 0, horchDrag = null, relockEsc = false;
 function openHorch() { unlock(); closeTapes(); horchOpen = true; $('horch').classList.add('open'); }
@@ -741,9 +793,9 @@ function drawTapes(dt) {
   for (let i = 0; i < 128; i++) { const v = data ? (data[i * 2] - 128) * sc2 : 0, x = i / 127 * WW, y = WH / 2 - v; if (i) w.lineTo(x, y); else w.moveTo(x, y); }
   w.stroke();
 }
-let misOpen = null, misArm = null;
+let misOpen = null, misArm = null, misCh = 0;
 /** was gerade bei der laufenden Mission zu tun ist (Text im Missionen-Reiter, auch für den Hilfeknopf) */
-const misDesc = (m) => t(m.id === 'm5' ? 'mish_m5' + (MS.stage ? '_' + MS.stage : '') : m.id === 'm8' ? 'mish_m8_' + (MS.stage === 'current' ? 'dive' : MS.stage === 'lift' ? 'blow' : MS.stage || 'dive') : m.id === 'm7' ? 'mish_m7' + (MS.stage === 'lampback' ? 'b' : MS.stage === 'tanks' ? 'c' : '') : m.id === 'm6' ? 'mish_m6' + (MS.stage === 'watch' ? 'b' : MS.stage === 'follow' || MS.stage === 'end' ? 'c' : '') : 'mish_' + m.id + (MS.stage ? 'b' : ''));
+const misDesc = (m) => t(m.ch2 ? 'mish_' + m.id + '_' + (MS.stage && MS.stage !== 'done' ? MS.stage : C2_FIRST[m.id]) : m.id === 'm5' ? 'mish_m5' + (MS.stage ? '_' + MS.stage : '') : m.id === 'm8' ? 'mish_m8_' + (MS.stage === 'current' ? 'dive' : MS.stage === 'lift' ? 'blow' : MS.stage || 'dive') : m.id === 'm7' ? 'mish_m7' + (MS.stage === 'lampback' ? 'b' : MS.stage === 'tanks' ? 'c' : '') : m.id === 'm6' ? 'mish_m6' + (MS.stage === 'watch' ? 'b' : MS.stage === 'follow' || MS.stage === 'end' ? 'c' : '') : 'mish_' + m.id + (MS.stage ? 'b' : ''));
 function fillMis() {
   const box = $('misList'); box.innerHTML = '';
   const add = (cls, name, state, desc, id) => { const d = document.createElement('div'); d.className = 'mis ' + cls; if (name) { const a = document.createElement('div'); a.className = 'mn'; const n = document.createElement('span'); n.textContent = name; const s2 = document.createElement('span'); s2.className = 'ms2'; s2.textContent = state; a.appendChild(n); a.appendChild(s2); d.appendChild(a); const p = document.createElement('div'); p.className = 'md'; p.textContent = desc; d.appendChild(p); } else d.textContent = '· · ·';
@@ -756,9 +808,14 @@ function fillMis() {
           devTap(ab, () => { if (!arm) { misArm = 'x' + id; fillMis(); setTimeout(() => { if (misArm === 'x' + id) { misArm = null; if (M.panel === 'mis') fillMis(); } }, 4000); return; } misArm = null; misOpen = null; if (abortMission(id)) closeMenu(); });
           d.appendChild(ab); } } }
     box.appendChild(d); };
-  for (const m of MISSIONS) { if (MS.active === m.id) add('run', t('mis_' + m.id), t('mis_s_run'), misDesc(m), m.id); else if (MS.done.includes(m.id)) add('done', t('mis_' + m.id), '✓ ' + t('mis_s_done'), t('misd_' + m.id), m.id); }
-  const nx = nextMis(); if (!MS.active && nx) add('', '?', t('mis_s_open'), MS.done.length ? t('mis_open') : t('mis_intro'));
-  const rest = MISSIONS.length - MS.done.length - (MS.active || nx ? 1 : 0) + HINTED; for (let i = 0; i < Math.min(rest, 4); i++) add('hid');
+  // Kapitelseiten: mit den Pfeilen zwischen Kapitel 1 und 2 blättern (erst, wenn Kapitel 2 begonnen hat)
+  const two = ch2Live(); if (!two) misCh = 1; else if (!misCh) misCh = 2;
+  if (two) { const h = document.createElement('div'); h.className = 'misCh'; const mk = (txt, d) => { const b = document.createElement('span'); b.className = 'pill mini' + ((misCh + d < 1 || misCh + d > 2) ? ' off' : ''); b.textContent = txt; devTap(b, () => { const n = misCh + d; if (n < 1 || n > 2) return; misCh = n; misOpen = null; misArm = null; fillMis(); }); return b; };
+    const tt = document.createElement('span'); tt.className = 'misChT'; tt.textContent = t('ch_title')[misCh - 1]; h.appendChild(mk('‹', -1)); h.appendChild(tt); h.appendChild(mk('›', 1)); box.appendChild(h); }
+  const list = misCh === 2 ? CH2M : CH1, inCh = (m) => (m.ch2 ? 2 : 1) === misCh;
+  for (const m of list) { if (MS.active === m.id) add('run', t('mis_' + m.id), t('mis_s_run'), misDesc(m), m.id); else if (MS.done.includes(m.id)) add('done', t('mis_' + m.id), '✓ ' + t('mis_s_done'), t('misd_' + m.id), m.id); }
+  const nx = nextMis(), doneHere = list.filter((m) => MS.done.includes(m.id)).length; if (!MS.active && nx && inCh(nx)) add('', '?', t('mis_s_open'), misCh === 2 ? (doneHere ? t('mis_open2') : t('mis_intro2')) : MS.done.length ? t('mis_open') : t('mis_intro'));
+  const rest = list.length - doneHere - ((MS.active && inCh(MISSIONS[misIdx(MS.active)])) || (nx && inCh(nx)) ? 1 : 0) + (misCh === 1 && !two ? HINTED : 0); for (let i = 0; i < Math.min(rest, 4); i++) add('hid');
 }
 /** eine Mission noch einmal spielen: nimmt nur weg, was sie selbst gebracht hat (Seiten bleiben leer stehen). Werkzeuge bleiben, wenn eine spätere Mission sie schon gebraucht hat */
 function replayMission(id) { const m = resetMission(id); if (!m) return false; startMission(m); return true; }
@@ -776,6 +833,7 @@ function resetMission(id) {
   if (m.hump) MS.hump = null;   // die Buckelwale ziehen beim Neustart woanders
   if (m.tanks) { MS.flood = false; MS.floodOn = false; }
   if (m.crash) { MS.can2 = false; crashReset(); if (S.y < -140) tpTo(S.x, -120, S.z, S.h); }   // Schaden und Werkzeug sind wieder wie vorher, die Kittiwake hat ihre Schraube zurück; vom Plateau geht es wieder nach oben
+  if (m.ch2) { if (CH2) CH2.reset(id); if (id === 'm12') MS.c2.fallY = null; }
   if (m.pod) MS.pod = null;   // die alten Pottwale verschwinden, beim Start wird eine neue Gruppe gewürfelt
   if (MS.hint && own.test(MS.hint)) MS.hint = null;
   for (let k = LOG.length - 1; k >= 0; k--) { const e = LOG[k]; if ((e.kind === 'find' || e.kind === 'diary') && e.id && own.test(e.id)) LOG.splice(k, 1); }
@@ -785,8 +843,8 @@ function resetMission(id) {
 // ---------- Logbuch: füllt sich von selbst, wenn man etwas findet ----------
 const LOG = [], seen = new Set(); let playTime = 0;
 const DIR8 = (dx, dz) => Math.round(((Math.atan2(-dx, dz) + 2 * Math.PI) % (2 * Math.PI)) / (Math.PI / 4)) % 8;   // Norden = +z; so wie die Welt gezeichnet wird, liegt Osten bei -x
-function addLog(e) { e.min = Math.round(playTime / 60); e.depth = Math.round(-S.y); LOG.push(e); note(t('log_note', { t: entryTitle(e) })); save(); }
-const entryTitle = (e) => (e.kind === 'shark' ? '—' : e.kind === 'photo' ? t('n_photo') : e.kind === 'diary' ? t('n_diary_' + e.id) : e.id === 'm5s' ? t('n_suit') : e.id === 'm5t' ? t('n_tooth') : e.id === 'm1k' ? t('n_kettle') : e.id === 'm7l' ? t('n_lamp') : e.id === 'm8k' ? t('n_kitti') : e.id === 'm7' ? t('n_tanks') : e.id === 'm3k' ? t('n_crystal') : t('n_' + e.kind) + (e.n ? ' (' + (e.n + 1) + '.)' : ''));
+function addLog(e) { if (MS.c2.ch === 2) e.ch = 2; e.min = Math.round(playTime / 60); e.depth = Math.round(-S.y); LOG.push(e); note(t('log_note', { t: entryTitle(e) })); save(); }
+const entryTitle = (e) => (e.kind === 'shark' ? '—' : e.kind === 'photo' ? t('n_photo') : e.kind === 'diary' ? t('n_diary_' + e.id) : e.id === 'm5s' ? t('n_suit') : e.id === 'm5t' ? t('n_tooth') : e.id === 'm1k' ? t('n_kettle') : e.id === 'm7l' ? t('n_lamp') : e.id === 'm8k' ? t('n_kitti') : e.id === 'm9' ? t('n_siph') : e.id === 'm12t' ? t('n_sample') : e.id === 'm7' ? t('n_tanks') : e.id === 'm3k' ? t('n_crystal') : t('n_' + e.kind) + (e.n ? ' (' + (e.n + 1) + '.)' : ''));
 const entryText = (e) => { if (e.kind === 'shark') return t('shark'); if (e.kind === 'photo') return (e.cap || []).join('  ·  '); if (e.kind === 'diary') return t('diary_' + e.id); if (e.kind === 'find') return t('find_' + e.id) + ' ' + t('where', { d: e.dist, dir: t('dirs')[e.dir] }); const tx = t(e.kind); return tx[e.n % tx.length] + ' ' + t('where', { d: e.dist, dir: t('dirs')[e.dir] }); };
 function discover() {
   for (const p of poisNear(S.x, S.z, 80)) { const k = Math.round(p.x) + ',' + Math.round(p.z); if (seen.has(k)) continue;   // Fundort zählt erst in einem flachen Oval: waagerecht wie bisher, senkrecht nur ±12 m um die Mitte des Objekts
@@ -794,7 +852,7 @@ function discover() {
 }
 // Logbuch: ein Buch mit festen Seiten zum Blättern (Pfeile unten, A / D, Wischen). Drei Reiter: „Eigenes“ füllt sich von selbst,
 // „Kapitän“ sammelt seine Seiten (jede beginnt auf einer neuen Buchseite), „Fotos“ zeigt zwei Sofortbilder je Seite. Aufgeschlagen wird immer das Neueste.
-let logTab = 'own';
+let logTab = 'own', bookCh = 1;   // bookCh: welches Buch offen ist (1 = das alte des Kapitäns, 2 = das neue)
 const BOOK = { pages: [], i: 0, cap: [] }, logPg = $('logPage'), logOpen = () => $('log').classList.contains('open');
 const mkDiv = (cls, text) => { const d = document.createElement('div'); d.className = cls; if (text != null) d.textContent = text; return d; };
 /** verteilt Blöcke auf Seiten: { el } bleibt ganz, { cls, text } ist Fließtext und darf satzweise umbrechen, brk: neue Seite beginnen */
@@ -819,7 +877,14 @@ function paginate(blocks) {
 }
 function bookBlocks() {
   const B = [], head = (txt) => B.push({ el: mkDiv('logHead', txt) });
-  if (logTab === 'cap') {
+  if (logTab === 'cap' && bookCh === 2) {   // eigene Notizen im neuen Buch
+    head(t('log_notes_h')); BOOK.cap = [];
+    for (let i = 0; i <= curPage2(); i++) { const pg = t('pages2')[i]; if (!pg) continue;
+      if (!pageHas2(i)) { B.push({ el: mkDiv('logBlank', '· · ·'), brk: i > 0, mark: (n) => { BOOK.cap[i] = n; } }); continue; }
+      B.push({ el: mkDiv('logTitle capTitle', pg[0]), brk: i > 0, mark: (n) => { BOOK.cap[i] = n; } });
+      for (const par of pg[1].split('\n\n')) B.push({ cls: 'logPar', text: par });
+      if (pg[2]) B.push({ el: mkDiv('logSign', pg[2]) }); }
+  } else if (logTab === 'cap') {
     head(t('log_cap_h')); BOOK.cap = [];
     for (let i = 0; i <= curPage(); i++) { const pg = t('pages')[i]; if (!pg) continue;
       if (!pageHas(i)) { B.push({ el: mkDiv('logBlank', '· · ·'), brk: i > 0, mark: (n) => { BOOK.cap[i] = n; } }); continue; }   // Seite einer neu gestarteten Mission: bleibt leer, bis man sie wieder findet
@@ -830,9 +895,9 @@ function bookBlocks() {
     head(t('log_pho'));
     if (!PHOTOS.length) B.push({ el: mkDiv('', t('photo_none')) });
   } else {
-    head(t('log'));
-    if (!LOG.length) { const d = mkDiv('logEntry'); d.appendChild(mkDiv('logTitle', t('log_empty_t'))); d.appendChild(mkDiv('', t('log_empty'))); B.push({ el: d }); }
-    for (const e of LOG) {
+    head(t(bookCh === 2 ? 'log2' : 'log')); const LG = LOG.filter((e) => (bookCh === 2 ? e.ch === 2 : !e.ch));   // jedes Buch hat seine eigenen Einträge
+    if (!LG.length) { const d = mkDiv('logEntry'); d.appendChild(mkDiv('logTitle', t(bookCh === 2 ? 'log2_empty_t' : 'log_empty_t'))); d.appendChild(mkDiv('', t(bookCh === 2 ? 'log2_empty' : 'log_empty'))); B.push({ el: d }); }
+    for (const e of LG) {
       const when = (e.min < 1 ? t('now') : t('after', { m: e.min })) + ', ' + e.depth + ' m', d = mkDiv('logEntry'); d.appendChild(mkDiv('logTitle', entryTitle(e) + '  ·  ' + when));
       const img = e.kind === 'photo' || e.kind === 'diary' ? photoSrc(e.pid) : null;
       if (img) { const im = document.createElement('img'); im.className = 'logPhoto'; im.src = img; im.addEventListener('pointerup', () => { if (!logSwiped) showBig(img); }); d.appendChild(im); }
@@ -853,7 +918,7 @@ function buildBook(at) {
       BOOK.pages.push(pg); }
   } else BOOK.pages = paginate(bookBlocks());
   const last = BOOK.pages.length - 1;
-  const open = MS.fresh >= 0 ? MS.fresh : curPage(); BOOK.i = at === 'new' ? (logTab === 'cap' ? (BOOK.cap[open] !== undefined ? BOOK.cap[open] : last) : last) : Math.min(last, Math.max(0, at | 0));
+  const open = bookCh === 2 ? (MS.c2.fresh >= 0 ? MS.c2.fresh : curPage2()) : MS.fresh >= 0 ? MS.fresh : curPage(); BOOK.i = at === 'new' ? (logTab === 'cap' ? (BOOK.cap[open] !== undefined ? BOOK.cap[open] : last) : last) : Math.min(last, Math.max(0, at | 0));
   showBookPage(0);
 }
 function showBookPage(dir) {
@@ -861,22 +926,25 @@ function showBookPage(dir) {
   logPg.classList.remove('turnN', 'turnP'); if (dir) { void logPg.offsetWidth; logPg.classList.add(dir > 0 ? 'turnN' : 'turnP'); }
   $('logNum').textContent = (BOOK.i + 1) + ' / ' + n; $('logPrev').classList.toggle('off', BOOK.i <= 0); $('logNext').classList.toggle('off', BOOK.i >= n - 1); $('logNav').style.visibility = n > 1 ? 'visible' : 'hidden';
   // „Mission starten“ steht unter der neuesten Kapitänsseite: der Knopf erscheint, sobald man auf ihr ist
-  const nx = nextMis(), go = $('logGo'), onNewest = logTab === 'cap' && BOOK.i >= (BOOK.cap[curPage()] !== undefined ? BOOK.cap[curPage()] : 1e9);
-  const show = onNewest && nx && nx.page === curPage(); go.classList.toggle('show', !!show); go.classList.toggle('run', !!MS.active); go.textContent = MS.active ? t('mis_running') : t('mis_start');
+  const cp = bookCh === 2 ? curPage2() : curPage(), nx = nextMis(), go = $('logGo'), onNewest = logTab === 'cap' && BOOK.i >= (BOOK.cap[cp] !== undefined ? BOOK.cap[cp] : 1e9);
+  const show = onNewest && nx && (bookCh === 2 ? nx.ch2 && nx.page2 === cp : !nx.ch2 && nx.page === cp); go.classList.toggle('show', !!show); go.classList.toggle('run', !!MS.active); go.textContent = MS.active ? t('mis_running') : t('mis_start');
 }
 function turnPage(d) { if (!logOpen()) return; const j = clamp(BOOK.i + d, 0, BOOK.pages.length - 1); if (j === BOOK.i) return; BOOK.i = j; showBookPage(d); audio.page(); }
-function openLog(tab) {
-  unlock(); logTab = tab || (MS.fresh >= 0 ? 'cap' : logTab); $('log').classList.remove('page');   // ungelesene Seite: das Logbuch schlägt sie gleich auf
+function openLog(tab, book) {
+  bookCh = book || (MS.c2.ch === 2 ? 2 : 1); const fr = bookCh === 2 ? MS.c2.fresh : MS.fresh;
+  unlock(); logTab = tab || (fr >= 0 ? 'cap' : logTab); $('log').classList.remove('page');
+  { const cb = document.querySelector('#logTabs .pill[data-tab="cap"]'); if (cb) cb.textContent = t(bookCh === 2 ? 'log_notes' : 'log_cap'); }   // ungelesene Seite: das Logbuch schlägt sie gleich auf
   for (const b of document.querySelectorAll('#logTabs .pill')) b.classList.toggle('on', b.dataset.tab === logTab);
   $('log').classList.add('open'); buildBook('new');
-  if (logTab === 'cap' && MS.fresh >= 0) { MS.fresh = -1; MS.pageSeen = curPage(); syncMis(); save(); }
+  if (logTab === 'cap' && bookCh === 1 && MS.fresh >= 0) { MS.fresh = -1; MS.pageSeen = curPage(); syncMis(); save(); }
+  if (logTab === 'cap' && bookCh === 2 && MS.c2.fresh >= 0) { MS.c2.fresh = -1; syncMis(); save(); }
 }
 /** alter Name: öffnet das Logbuch beim Kapitän */
 function openPage() { openLog('cap'); }
 function closeLog() { if (!logOpen()) return; $('log').classList.remove('open'); lockMouse(); markHint(); }
 /** Loch-Mission: hat man die Seite gelesen, kommt der Hinweis, das Loch am Sonartisch zu markieren (einmal) */
 function markHint() { if (MS.active === 'm5' && MS.stage === 'mark' && !MS.markSeen && MS.fresh < 0) { MS.markSeen = true; save(); setTimeout(() => banner(t('m5_mark_h'), t('m5_mark')), 500); } }
-for (const b of document.querySelectorAll('#logTabs .pill')) b.addEventListener('pointerdown', (e) => { e.preventDefault(); openLog(b.dataset.tab); });
+for (const b of document.querySelectorAll('#logTabs .pill')) b.addEventListener('pointerdown', (e) => { e.preventDefault(); openLog(b.dataset.tab, bookCh); });
 $('logPrev').addEventListener('pointerdown', (e) => { e.preventDefault(); turnPage(-1); });
 $('logNext').addEventListener('pointerdown', (e) => { e.preventDefault(); turnPage(1); });
 $('logGo').addEventListener('pointerdown', (e) => { e.preventDefault(); if (!MS.active && $('logGo').classList.contains('show')) startMission(); });
@@ -950,6 +1018,8 @@ window.addEventListener('keydown', (e) => { if (e.repeat) return;
   if (horchOpen && (e.code === 'Escape' || e.code === 'KeyF')) { closeHorch(e.code === 'Escape'); return; }
   if (e.code === 'KeyH' && started && MS.active && !CAMV.on) { showHelp(); return; }
   if (CAMV.on) { if (e.code === 'Space') shoot(); else if (e.code === 'Escape' || e.code === 'KeyK') closeCam(); return; }
+  if (PERI.on) { if (e.code === 'Escape' || e.code === 'KeyP') closePeri(); else if (e.code === 'KeyF') periFilter(); return; }
+  if (e.code === 'KeyP' && started && V.mode !== 'dive') { openPeri(); return; }
   if (V.mode === 'dive') { if (e.code === 'KeyF') actEl.dispatchEvent(new Event('pointerdown')); else if (e.code === 'Escape' && performance.now() - escT > 400 && started) { escT = performance.now(); openMenu(); } return; }
   if (e.code === 'KeyK' && started) { openCam(); return; }
   if (e.code === 'KeyQ' && started) { toggleFlood(); return; }
@@ -972,11 +1042,11 @@ function frame(now) {
   if (started && run) { drive(dt); props(dt); sonarStep(dt); if (frames % 2 === 0 && (V.mode === 'out' || V.st === 'seat')) sonarDraw(); }
   else { boat.group.position.set(S.x, S.y, S.z); boat.group.rotation.set(0, S.h, 0); boat.group.updateMatrixWorld(true); U.uSubPos.value.set(S.x, S.y, S.z); U.uSubA.value.set(0, 0, boat.body.z0).applyMatrix4(boat.group.matrixWorld); U.uSubB.value.set(0, 0, boat.body.z1).applyMatrix4(boat.group.matrixWorld); U.uLampPos.value.copy(boat.lampLocal).applyMatrix4(boat.group.matrixWorld); U.uWarmPos.value.copy(boat.warmLocal).applyMatrix4(boat.group.matrixWorld); U.uLampDir.value.set(0, -0.1, 1).normalize().transformDirection(boat.group.matrixWorld); }
   if (showOut) { const w = window.innerWidth, h = window.innerHeight, ch = $('menu').querySelector('.card').offsetHeight + 14; camera.setViewOffset(w, h, 0, Math.min(h * 0.4, ch * 0.5 + h * 0.1), w, h); } else if (camera.view && camera.view.enabled) camera.clearViewOffset();   // Boot über der Karte zeigen
-  if (run || showOut) { world.update(S.x, S.z, started ? 1 : 0); if (CAMV.on && !showOut) camStep(); else if (V.mode === 'in' && !showOut) cabinStep(dt); else if (V.mode === 'dive' && !showOut) diveStep(dt); else cameraStep(dt); }
+  if (run || showOut) { world.update(S.x, S.z, started ? 1 : 0); if (CAMV.on && !showOut) camStep(); else if (PERI.on && !showOut) periStep(dt); else if (V.mode === 'in' && !showOut) cabinStep(dt); else if (V.mode === 'dive' && !showOut) diveStep(dt); else cameraStep(dt); }
   if (window.__cam) { camera.position.set(...window.__cam[0]); camera.lookAt(...window.__cam[1]); }
   helmEl.style.visibility = showOut ? 'hidden' : '';
   if (run) { camera.getWorldDirection(fwd); S.vh = Math.atan2(fwd.x, fwd.z);   // Blickrichtung: dort tauchen Begegnungen und Schwärme auf
-    life.update(dt, V.mode === 'dive' ? diver : S, pxScale, world.glows); fauna.update(dt, S, U.uTime.value); schools.update(dt, S, V.mode === 'dive' ? { x: diver.x, y: diver.y - 0.8, z: diver.z } : S); cans.update(); whales.update(dt, U.uTime.value, pxScale); hump.update(dt, U.uTime.value, pxScale); deepLife.update(dt, U.uTime.value, pxScale, S); crashFrame(dt); windowVisit(dt); boatLights(dt); humpStep(dt); }
+    life.update(dt, V.mode === 'dive' ? diver : S, pxScale, world.glows); fauna.update(dt, S, U.uTime.value); schools.update(dt, S, V.mode === 'dive' ? { x: diver.x, y: diver.y - 0.8, z: diver.z } : S); cans.update(); whales.update(dt, U.uTime.value, pxScale); hump.update(dt, U.uTime.value, pxScale); deepLife.update(dt, U.uTime.value, pxScale, S); if (CH2) CH2.update(dt, U.uTime.value, pxScale, isDark()); crashFrame(dt); windowVisit(dt); boatLights(dt); humpStep(dt); }
   if (bannerT > 0 && run) { bannerT -= dt; if (bannerT <= 0) bannerEl.style.opacity = 0; }
   if (sonHintT > 0 && run) { sonHintT -= dt; if (sonHintT <= 0) $('sonHint').style.opacity = 0; }
   if (tapesOpen) drawTapes(dt);
@@ -994,13 +1064,15 @@ function frame(now) {
     if (MS.active && (!MS.stage || MS.stage === 'tanks')) { const l = cans.lamp(misIdx(MS.active)); nearCan = Math.hypot(l.x - S.x, l.z - S.z) < REACH && Math.abs(l.y - S.y) < REACH + 4; }
     nearBell = MS.active === 'm5' && MS.stage === 'bell' && V.mode !== 'dive' && Math.hypot(BELL.x - S.x, BELL.z - S.z) < 16 && S.y - floorH(BELL.x, BELL.z) < 18;
     $('camBtn').style.display = hasCam() && started && !CAMV.on && !horchOpen && !tapesOpen && (V.mode === 'out' || V.st === 'seat') ? 'block' : 'none';
-    $('lampBtn').style.display = hasFlood() && started && !CAMV.on && !horchOpen && !tapesOpen && (V.mode === 'out' || V.st === 'seat') ? 'block' : 'none'; $('lampBtn').classList.toggle('on', MS.floodOn); { const cb = $('camBtn'); if (cb.offsetWidth) $('lampBtn').style.left = (cb.offsetLeft + cb.offsetWidth + 8) + 'px'; else $('lampBtn').style.left = ''; }   // direkt hinter den Kamera-Knopf, egal wie breit der ist
-    { const hb = $('helpBtn'), on = started && !!MS.active && !CAMV.on && !horchOpen && !tapesOpen; hb.style.display = on ? 'block' : 'none'; if (on) { let x = 12; for (const id of ['camBtn', 'lampBtn']) { const b = $(id); if (b.offsetWidth) x = Math.max(x, b.offsetLeft + b.offsetWidth + 8); } hb.style.left = x + 'px'; } }   // Hilfeknopf: rechts neben Kamera und Scheinwerfer, sonst an deren Platz
+    $('lampBtn').style.display = hasFlood() && started && !CAMV.on && !horchOpen && !tapesOpen && (V.mode === 'out' || V.st === 'seat') ? 'block' : 'none'; $('lampBtn').classList.toggle('on', MS.floodOn); { const cb = $('camBtn'); if (cb.offsetWidth) $('lampBtn').style.left = (cb.offsetLeft + cb.offsetWidth + 8) + 'px'; else $('lampBtn').style.left = ''; { const lb = $('lampBtn'), pb = $('periBtn'); let x = 12; for (const b of [cb, lb]) if (b.offsetWidth) x = Math.max(x, b.offsetLeft + b.offsetWidth + 8); pb.style.left = x + 'px'; } }   // direkt hinter den Kamera-Knopf, egal wie breit der ist
+    { const hb = $('helpBtn'), on = started && !!MS.active && !CAMV.on && !horchOpen && !tapesOpen; hb.style.display = on ? 'block' : 'none'; if (on) { let x = 12; for (const id of ['camBtn', 'lampBtn', 'periBtn']) { const b = $(id); if (b.offsetWidth) x = Math.max(x, b.offsetLeft + b.offsetWidth + 8); } hb.style.left = x + 'px'; } }   // Hilfeknopf: rechts neben Kamera und Scheinwerfer, sonst an deren Platz
     crashStepText();
+    $('periBtn').style.display = hasPeri() && started && !CAMV.on && !PERI.on && !horchOpen && !tapesOpen && (V.mode === 'out' || V.st === 'seat') ? 'block' : 'none';
+    if (ch2On && started && !M.open && MS.c2.ch !== 2 && MS.done.includes('m8') && !MS.active && !c2Pend) { c2Pend = true; setTimeout(beginCh2, c2Delay * 1000); }
     const al = actLabel(), actL = $('actL'); if (actL.textContent !== al) { actL.textContent = al; actEl.style.display = al ? 'block' : 'none'; } }
   const bT = M.open ? (M.panel === 'boat' ? 0 : M.panel === 'set' ? 0.55 : 1) : 0, b0 = post.blur; post.blur = Math.abs(b0 - bT) < 0.004 ? bT : damp(b0, bT, 6, dt);
   if (run || showOut || M.dirty > 0 || post.blur !== b0) {   // ruht das Spiel hinter dem Menü, wird das Bild nur noch fertig weichgezeichnet und dann stehen gelassen
-    M.dirty--; renderer.info.reset(); const shk = run && !showOut ? shakeOn() : false; if (V.mode === 'in' && !showOut && !CAMV.on) post.render(scene, camera, cabinScene, camIn); else post.render(scene, camera); if (shk) shakeOff();
+    M.dirty--; renderer.info.reset(); const shk = run && !showOut ? shakeOn() : false; if (V.mode === 'in' && !showOut && !CAMV.on && !PERI.on) post.render(scene, camera, cabinScene, camIn); else post.render(scene, camera); if (shk) shakeOff();
     if (shootReq) { shootReq = false; if (CAMV.on) takePhoto(); } }
   fpsT += raw; fpsN++;
   if (fpsT >= 1) {
@@ -1020,14 +1092,14 @@ function start() {
 }
 // ---------- Menü ----------
 const PANELS = { main: 'mMain', boat: 'pBoat', set: 'pSet', help: 'pHelp', mis: 'pMis' };
-function boatVis() { const v = (V.mode !== 'in' && !CAMV.on) || (M.open && M.panel === 'boat'); for (const o of boat.outer) o.visible = v; }
+function boatVis() { const v = (V.mode !== 'in' && !CAMV.on && !PERI.on) || (M.open && M.panel === 'boat'); for (const o of boat.outer) o.visible = v; }
 function showPanel(p) {
   const was = M.panel; M.panel = p; M.dirty = 60;
   for (const k in PANELS) $(PANELS[k]).classList.toggle('show', k === p);
   $('menu').classList.toggle('low', p === 'boat'); $('menu').classList.toggle('wide', p === 'help' || p === 'mis');
   if (p === 'boat') { M.orb = 2.3; if (V.mode === 'in') { C.yaw = S.h; C.oy = C.op = 0; C.dist = 10; C.pos.set(S.x - Math.sin(S.h) * 10, S.y + 3, S.z - Math.cos(S.h) * 10); C.look.set(S.x, S.y + 1, S.z); } fillBoats(); }
   else if (was === 'boat') homeT = 3;
-  if (p === 'help') fillHelp(); if (p === 'mis') fillMis(); if (p === 'set') { syncFov(); syncWhale(); syncPerf(); }
+  if (p === 'help') fillHelp(); if (p === 'mis') { misCh = 0; fillMis(); } if (p === 'set') { syncFov(); syncWhale(); syncPerf(); }
   boatVis();
 }
 function goText() { $('mGo').textContent = started ? t('m_resume') : resumed ? t('m_continue') : t('m_dive'); $('mFoot').textContent = PC ? t('m_foot_pc') : ''; }
@@ -1062,7 +1134,7 @@ $('mGo').addEventListener('pointerup', (e) => { e.preventDefault(); goBtn(); });
 for (const [id, p] of [['mBoat', 'boat'], ['mSet', 'set'], ['mHelp', 'help'], ['mMis', 'mis']]) $(id).addEventListener('pointerdown', (e) => { e.preventDefault(); showPanel(p); });
 for (const b of document.querySelectorAll('.mBack')) b.addEventListener('pointerdown', (e) => { e.preventDefault(); showPanel('main'); });
 $('menu').classList.add('ready');
-window.__sub = { visitNow, get winT() { return winT; }, abortMission, crash, CR, crashDo, crashImpact, beginCurrent, crashBlow, get crashAct() { return crashAct; }, deepLife, hump, syncHump, get humpWatchT() { return humpWatchT; }, set humpWatchT(v) { humpWatchT = v; }, get devHump() { return devHump; }, cave, CAVE, HOLE, get nearTooth() { return nearTooth; }, get nearCan2() { return nearCan2; }, get nearBell() { return nearBell; }, takeSuit, takeTooth, takeCan2, curPage, BOOK, replayMission, fillMis, pageHas, set devDeep(v) { devDeep = v; }, turnPage, toggleDev, buildDev, seen, misTarget, schools, diver, hullGap, suitOut, suitIn, helmetExhale, get nearHatch() { return nearHatch; }, audio, M, MS, cans, whales, syncPod, syncMis, sectors, echoes, CAMV, PHOTOS, openCam, closeCam, shoot, camTargetOk, photoTarget, openHorch, closeHorch, get horchDeg() { return horchDeg; }, set horchDeg(v) { horchDeg = v; }, startMission, takeCan, openPage, openLog, playTape, MISSIONS, openMenu, closeMenu, showPanel, setBoat, post, get boat() { return boat; }, save, load, texts, setLang, renderer, fauna, S, C, I, U, V, nav, setMode, setSt, table, cabin, tea, LOG, ACT, get target() { return target; }, start, ping, world, life, poisNear, floorH, get frames() { return frames; }, tp(x, y, z, h) { world.update(x, z, Infinity); S.x = x; S.y = y; S.z = z; S.h = h; S.vx = S.vy = S.vz = 0; C.yaw = h; C.oy = C.op = 0; C.pos.set(x - Math.sin(h) * 11, y + 3, z - Math.cos(h) * 11); C.look.set(x, y + 1, z); }, marks, info: () => ({ tris: renderer.info.render.triangles, calls: renderer.info.render.calls, PR, MSAA, chunks: world.chunks.size, near: world.near.length, glows: world.glows.length }) };
+window.__sub = { get CH2() { return CH2; }, get c2Act() { return c2Act(); }, devSpot, openPeri, closePeri, periFilter, PERI, beginCh2, chapterCard, startMission, finishMission, isDark, photoTarget, camTargetOk, openCam, takePhoto, actEl, curPage2, pageHas2, openLog, cabin, get ch2On() { return ch2On; }, visitNow, get winT() { return winT; }, abortMission, crash, CR, crashDo, crashImpact, beginCurrent, crashBlow, get crashAct() { return crashAct; }, deepLife, hump, syncHump, get humpWatchT() { return humpWatchT; }, set humpWatchT(v) { humpWatchT = v; }, get devHump() { return devHump; }, cave, CAVE, HOLE, get nearTooth() { return nearTooth; }, get nearCan2() { return nearCan2; }, get nearBell() { return nearBell; }, takeSuit, takeTooth, takeCan2, curPage, BOOK, replayMission, fillMis, pageHas, set devDeep(v) { devDeep = v; }, turnPage, toggleDev, buildDev, seen, misTarget, schools, diver, hullGap, suitOut, suitIn, helmetExhale, get nearHatch() { return nearHatch; }, audio, M, MS, cans, whales, syncPod, syncMis, sectors, echoes, CAMV, PHOTOS, openCam, closeCam, shoot, camTargetOk, photoTarget, openHorch, closeHorch, get horchDeg() { return horchDeg; }, set horchDeg(v) { horchDeg = v; }, startMission, takeCan, openPage, openLog, playTape, MISSIONS, openMenu, closeMenu, showPanel, setBoat, post, get boat() { return boat; }, save, load, texts, setLang, renderer, fauna, S, C, I, U, V, nav, setMode, setSt, table, cabin, tea, LOG, ACT, get target() { return target; }, start, ping, world, life, poisNear, floorH, get frames() { return frames; }, tp(x, y, z, h) { world.update(x, z, Infinity); S.x = x; S.y = y; S.z = z; S.h = h; S.vx = S.vy = S.vz = 0; C.yaw = h; C.oy = C.op = 0; C.pos.set(x - Math.sin(h) * 11, y + 3, z - Math.cos(h) * 11); C.look.set(x, y + 1, z); }, marks, info: () => ({ tris: renderer.info.render.triangles, calls: renderer.info.render.calls, PR, MSAA, chunks: world.chunks.size, near: world.near.length, glows: world.glows.length }) };
 // ---------- Entwicklermenü (unter ⚙, Passwort) ----------
 const DEV_PW = 'Entwicklung', devEl = $('dev'), pw = $('devPw');
 let devOn = false; try { devOn = localStorage.getItem('tiefenlicht.dev') === '1'; } catch (e) { /* egal */ }
@@ -1092,6 +1164,8 @@ function boatLights(dt) { extK += ((cabin.state.lampT > 0.5 ? 1 : 0) - extK) * M
 /** Q oder der Lampenknopf: an und aus, nur am Steuer oder draußen; beim Aufstehen bleibt es, wie es ist */
 function toggleFlood() { if (!hasFlood() || !(V.mode === 'out' || (V.mode === 'in' && V.st === 'seat'))) return; MS.floodOn = !MS.floodOn; audio.click(0.9); lampApply(); note(t(MS.floodOn ? 'flood_on' : 'flood_off')); save(); }
 function humpGo() { const c = hump.center(); if (!c) return; const a = Math.atan2(S.x - c.x, S.z - c.z) || 0.5, x = c.x + Math.sin(a) * 55, z = c.z + Math.cos(a) * 55; if (V.mode === 'in') { V.mode = 'out'; applyMode(); } tpTo(x, -14, z, Math.atan2(c.x - x, c.z - z)); save(); }
+/** Kapitel 2: zu einem Ort springen (draußen, Blick auf das Ziel) */
+function devSpot(k) { const p = CH2.spot(k), l = CH2.look(k); if (!p) return; if (V.mode === 'in') { V.mode = 'out'; applyMode(); } tpTo(p[0], p[1], p[2], Math.atan2(l.x - p[0], l.z - p[2])); toggleDev(false); save(); }
 function goTo(p) { if (!p) return; const a = Math.atan2(S.x - p.x, S.z - p.z), d = p.kind === 'wreck' ? 38 : p.kind === 'bell' ? 14 : 26; devTp(p.x + Math.sin(a) * d, p.z + Math.cos(a) * d, p.x, p.z); }
 function buildDev() {
   const F = fauna; devEl.innerHTML = ''; let cur = devEl;
@@ -1175,6 +1249,28 @@ function buildDev() {
     btn('Foto zählt als gemacht', () => { if (MS.active !== 'm6') return; if (MS.stage === 'listen') { MS.stage = 'watch'; syncMis(); } if (MS.stage === 'watch' && humpWatchT <= 0) humpWatchT = 10; }, r);
     btn('jetzt abtauchen', () => { if (MS.active !== 'm6') { hump.dive(); return; } if (MS.stage === 'listen') { MS.stage = 'watch'; syncMis(); } if (MS.stage === 'watch') humpWatchT = 0.01; }, r);
     const r2 = row(), l = document.createElement('span'); l.style.fontSize = '11px'; l.textContent = MS.active === 'm6' ? 'Stufe: ' + ({ listen: 'suchen', watch: humpWatchT > 0 ? 'Foto gemacht, gleich tauchen sie ab' : 'beobachten, Foto fehlt', follow: 'folgen', end: 'geschafft' }[MS.stage] || MS.stage) : 'Mission läuft nicht'; r2.appendChild(l); }
+  sec('KAPITEL 2');
+  { const r = row(); r.style.flexWrap = 'wrap';
+    const lb = () => (ch2On ? 'Kapitel 2: freigeschaltet (ausschalten)' : 'Kapitel 2 freischalten'), b = btn(lb(), () => { ch2On = !ch2On; try { localStorage.setItem('tiefenlicht.ch2', ch2On ? '1' : '0'); } catch (x) { /* egal */ } c2Pend = false; if (!ch2On && MS.active && isCh2(MS.active)) abortMission(MS.active); syncMis(); save(); b.textContent = lb(); buildDev(); }, r);
+    btn('Kapitel 1 als erledigt markieren', () => { for (const m of CH1) if (!MS.done.includes(m.id)) MS.done.push(m.id); if (MS.active && !isCh2(MS.active)) { MS.active = null; MS.stage = null; } MS.cam = true; MS.suit = true; MS.flood = true; MS.fresh = -1; MS.pageSeen = curPage(); syncMis(); save(); buildDev(); }, r);
+    btn('Kapitelwechsel jetzt zeigen', () => { if (!ch2On) { note('Erst Kapitel 2 freischalten'); return; } if (!MS.done.includes('m8')) { note('Erst Kapitel 1 abschließen'); return; } if (MS.active) { note('Erst die laufende Mission beenden'); return; } MS.c2.ch = 1; c2Pend = true; toggleDev(false); setTimeout(beginCh2, 600); }, r);
+    btn('Kapitel 2 zurücksetzen', () => { if (MS.active && isCh2(MS.active)) abortMission(MS.active); MS.done = MS.done.filter((d) => !isCh2(d)); MS.c2 = Object.assign(MS.c2, { ch: 1, fresh: -1, got: null, fallY: null }); for (let k = LOG.length - 1; k >= 0; k--) if (LOG[k].ch === 2) LOG.splice(k, 1); c2Pend = false; syncMis(); save(); buildDev(); }, r); }
+  h3('MISSIONEN STARTEN (vorige gelten als erledigt, das Boot springt hin)');
+  { const r = row(); r.style.flexWrap = 'wrap';
+    const startC2 = (id, spot) => { if (!ch2On) { ch2On = true; try { localStorage.setItem('tiefenlicht.ch2', '1'); } catch (x) { /* egal */ } } for (const m of CH1) if (!MS.done.includes(m.id)) MS.done.push(m.id); MS.cam = MS.suit = MS.flood = true; MS.fresh = -1; MS.pageSeen = curPage();
+      if (MS.active) { const a = MS.active; MS.active = null; MS.stage = null; if (isCh2(a) && CH2) CH2.reset(a); } MS.c2.ch = 2; const i = CH2M.findIndex((m) => m.id === id); MS.done = MS.done.filter((d) => !isCh2(d)); for (const m of CH2M.slice(0, i)) MS.done.push(m.id);
+      MS.c2.got = null; syncMis(); MS.c2.fresh = -1; startMission(MISSIONS[misIdx(id)]); const go = () => { if (!CH2) { setTimeout(go, 250); return; } if (spot) devSpot(spot); }; go(); buildDev(); };
+    btn('Staatsqualle (vermessen)', () => startC2('m9', 'siph'), r); btn('Riesenkalmar (im Dunkeln)', () => startC2('m10', 'squid'), r); btn('Hängende Gärten (Laternenfische)', () => startC2('m11', 'lant'), r);
+    btn('Toter Buckelwal (Probe)', () => startC2('m12', 'fall'), r); btn('Leviathan (Vampire, Periskop)', () => startC2('m13', 'vamp'), r); }
+  h3('ORTE'); { const r = row(); r.style.flexWrap = 'wrap';
+    for (const [k, n] of [['siph', 'Staatsqualle oben'], ['siphEnd', 'Staatsqualle unten'], ['squid', 'Kalmar-Revier'], ['lant', 'Laternenfische'], ['garden', 'Gärten'], ['fall', 'toter Wal'], ['vamp', 'Vampire'], ['lev', 'Leviathan']]) btn(n, () => { if (!CH2) { note('Kapitel 2 ist noch nicht geladen'); return; } devSpot(k); }, r); }
+  h3('ABKÜRZUNGEN'); { const r = row(); r.style.flexWrap = 'wrap';
+    btn('Licht aus (innen und Scheinwerfer)', () => { cabin.state.lampT = 0.08; MS.floodOn = false; lampApply(); }, r);
+    btn('Kalmar kommt jetzt', () => { if (CH2) CH2.dev.squidNow(); }, r);
+    btn('toter Wal liegt schon', () => { if (CH2) CH2.dev.landWhale(); }, r);
+    btn('Spur gefunden', () => { if (CH2 && MS.active === 'm13') CH2.dev.stage('follow'); }, r);
+    btn('Periskop öffnen', () => { toggleDev(false); setTimeout(openPeri, 200); }, r);
+    const r2 = row(), l = document.createElement('span'); l.style.fontSize = '11px'; l.textContent = 'Kapitel ' + (MS.c2.ch === 2 ? '2 läuft' : '1') + (ch2On ? '' : ' · Kapitel 2 gesperrt') + (CH2 ? ' · geladen' : '') + (MS.active && isCh2(MS.active) ? ' · ' + MS.active + ' Stufe: ' + MS.stage : ''); r2.appendChild(l); }
   sec('AUSRÜSTUNG');
   h3('BOOT'); { const r = row(); r.style.flexWrap = 'wrap'; const lb = () => (devDeep ? 'Tiefengrenze: aufgehoben' : 'Tiefengrenze aufheben'), b = btn(lb(), () => { devDeep = !devDeep; try { localStorage.setItem('tiefenlicht.devdeep', devDeep ? '1' : '0'); } catch (x) { /* egal */ } b.textContent = lb(); }, r); }
   { const r = row(), l = document.createElement('span'), v = document.createElement('span'), s = document.createElement('input'); s.type = 'range'; s.min = 1; s.max = 5; s.step = 0.25; s.value = devLamp; l.textContent = 'Scheinwerfer'; v.textContent = devLamp + '×';
@@ -1215,12 +1311,12 @@ try { const d = JSON.parse(localStorage.getItem('tiefenlicht.devcfg') || 'null')
 
 // ---------- Speichern: automatisch alle paar Sekunden und beim Verlassen ----------
 const SAVE_KEY = 'tiefenlicht.save.v1'; let noSave = false;
-function save() { if (noSave || !started) return; try { localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 1, s: [S.x, S.y, S.z, S.h], log: LOG, seen: [...seen], course: nav.course, lamp: cabin.state.lampT, play: playTime, ms: { a: MS.active, d: MS.done, p: MS.pageSeen, t: cabin.state.tapeIn, h: MS.hint, s: MS.stage, c: MS.cam, w: MS.pod, hu: MS.hump, fl: MS.flood, fo: MS.floodOn, u: MS.suit, o: MS.tooth, k: MS.can2, m: MS.markSeen, x: MS.pmax, g: MS.got, f: MS.fresh }, at: Date.now() })); } catch (e) { /* ohne Speicher */ } }
+function save() { if (noSave || !started) return; try { localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 1, s: [S.x, S.y, S.z, S.h], log: LOG, seen: [...seen], course: nav.course, lamp: cabin.state.lampT, play: playTime, ms: { a: MS.active, d: MS.done, p: MS.pageSeen, t: cabin.state.tapeIn, h: MS.hint, s: MS.stage, c: MS.cam, w: MS.pod, hu: MS.hump, fl: MS.flood, fo: MS.floodOn, u: MS.suit, o: MS.tooth, k: MS.can2, m: MS.markSeen, x: MS.pmax, g: MS.got, f: MS.fresh, c2: MS.c2 }, at: Date.now() })); } catch (e) { /* ohne Speicher */ } }
 function load() {
   try { const d = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); if (!d || d.v !== 1 || !Array.isArray(d.s)) return false;
     [S.x, S.y, S.z, S.h] = d.s; C.yaw = S.h; C.pos.set(S.x - Math.sin(S.h) * 14, S.y + 4, S.z - Math.cos(S.h) * 14); C.look.set(S.x, S.y + 1, S.z);
     for (const e of d.log || []) LOG.push(e); for (const k of d.seen || []) seen.add(k); nav.course = d.course || null; cabin.state.lampT = cabin.state.lamp = d.lamp == null ? 1 : d.lamp; playTime = d.play || 0;
-    if (d.ms) { MS.done = (d.ms.d || []).filter((id) => misIdx(id) >= 0); MS.active = misIdx(d.ms.a) >= 0 && !MS.done.includes(d.ms.a) ? d.ms.a : null; MS.pageSeen = d.ms.p == null ? -1 : d.ms.p; MS.hint = d.ms.h || null; MS.stage = MS.active ? d.ms.s || null : null; MS.cam = !!d.ms.c || MS.done.includes('m3'); MS.suit = !!d.ms.u; MS.pod = d.ms.w || null; MS.hump = d.ms.hu || null; MS.flood = !!d.ms.fl; MS.floodOn = !!d.ms.fo; if (MS.active === 'm6' && (MS.stage === 'follow' || MS.stage === 'end')) MS.stage = 'watch'; MS.tooth = !!d.ms.o || MS.stage === 'tooth'; MS.can2 = !!d.ms.k || MS.stage === 'tooth'; MS.markSeen = d.ms.m !== false; MS.pmax = d.ms.x || 0; MS.got = Array.isArray(d.ms.g) ? d.ms.g : null; MS.fresh = d.ms.f == null ? -2 : d.ms.f; cabin.state.tapeIn = d.ms.t || 0; audio.tapeTrack(cabin.state.tapeIn); }
+    if (d.ms) { MS.done = (d.ms.d || []).filter((id) => misIdx(id) >= 0); MS.active = misIdx(d.ms.a) >= 0 && !MS.done.includes(d.ms.a) ? d.ms.a : null; MS.pageSeen = d.ms.p == null ? -1 : d.ms.p; MS.hint = d.ms.h || null; MS.stage = MS.active ? d.ms.s || null : null; MS.cam = !!d.ms.c || MS.done.includes('m3'); MS.suit = !!d.ms.u; MS.pod = d.ms.w || null; MS.hump = d.ms.hu || null; MS.flood = !!d.ms.fl; MS.floodOn = !!d.ms.fo; if (MS.active === 'm6' && (MS.stage === 'follow' || MS.stage === 'end')) MS.stage = 'watch'; MS.tooth = !!d.ms.o || MS.stage === 'tooth'; MS.can2 = !!d.ms.k || MS.stage === 'tooth'; MS.markSeen = d.ms.m !== false; MS.pmax = d.ms.x || 0; MS.got = Array.isArray(d.ms.g) ? d.ms.g : null; MS.fresh = d.ms.f == null ? -2 : d.ms.f; if (d.ms.c2) Object.assign(MS.c2, d.ms.c2); cabin.state.tapeIn = d.ms.t || 0; audio.tapeTrack(cabin.state.tapeIn); }
     return true; } catch (e) { return false; }
 }
 const resumed = load(); crashLoaded(); if (MS.fresh === -2) { MS.fresh = -1; trackPages(); if (MS.pageSeen < curPage()) MS.fresh = curPage(); } syncMis();   // alte Spielstände: ungelesene neueste Seite bleibt frisch

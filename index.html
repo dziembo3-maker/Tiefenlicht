@@ -141,6 +141,23 @@
   #lampBtn svg { width: 18px; height: 15px; fill: none; stroke: rgba(225, 245, 248, 0.9); stroke-width: 1.6; vertical-align: -3px; }
   #camBtn svg, #camShut svg { width: 18px; height: 15px; fill: none; stroke: rgba(225, 245, 248, 0.9); stroke-width: 1.6; vertical-align: -3px; }
   body.cam #ui > :not(#camUI):not(#banner):not(#note) { display: none !important; }
+  /* Periskop (Kapitel 2): rundes Glas, Messingrand, Peilung oben, Regler, Rotfilter und Schließen unten */
+  #periBtn { position: fixed; left: calc(132px + env(safe-area-inset-left)); top: calc(114px + env(safe-area-inset-top)); padding: 7px 12px; display: none; }
+  #periBtn svg { width: 16px; height: 16px; fill: none; stroke: rgba(225, 245, 248, 0.9); stroke-width: 1.6; vertical-align: -3px; }
+  #peri { position: fixed; inset: 0; display: none; pointer-events: auto; touch-action: none; } body.peri #peri { display: block; }
+  body.peri #ui > :not(#peri):not(#banner):not(#note) { display: none !important; }
+  #periGlass { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(circle at 50% 46%, rgba(0, 0, 0, 0) 0, rgba(0, 0, 0, 0) 36vmin, rgba(70, 48, 18, 0.95) 36.4vmin, rgba(150, 112, 52, 0.95) 37.6vmin, rgba(40, 28, 12, 0.98) 38.8vmin, #050302 41vmin); }
+  #periGlass::before { content: ''; position: absolute; left: 50%; top: calc(46% - 30vmin); height: 60vmin; width: 1px; background: rgba(255, 230, 190, 0.35); }
+  #periGlass::after { content: ''; position: absolute; top: 46%; left: calc(50% - 30vmin); width: 60vmin; height: 1px; background: rgba(255, 230, 190, 0.22); }
+  #periDeg { position: absolute; left: 0; right: 0; top: calc(46% - 35vmin); text-align: center; font: 15px/1 Georgia, serif; letter-spacing: 0.18em; color: rgba(255, 228, 180, 0.95); text-shadow: 0 1px 6px #000; pointer-events: none; }
+  #periBar { position: absolute; left: 0; right: 0; bottom: calc(18px + env(safe-area-inset-bottom)); display: flex; gap: 12px; justify-content: center; align-items: center; flex-wrap: wrap; }
+  #periSl { width: min(60vw, 340px); } #periFil.on { background: rgba(200, 40, 30, 0.45); border-color: rgba(255, 120, 100, 0.8); }
+  body.periRed #c { filter: grayscale(0.6) sepia(1) saturate(4.5) hue-rotate(-38deg) brightness(1.15) contrast(1.25); }
+  /* Kapitelwechsel */
+  #chap { position: fixed; left: 0; right: 0; top: 38%; text-align: center; color: #fff; opacity: 0; transition: opacity 1.6s; pointer-events: none; z-index: 6; text-shadow: 0 2px 24px rgba(0, 10, 20, 0.95), 0 0 4px rgba(0, 10, 20, 0.7); }
+  #chap.show { opacity: 1; } #chap .c1 { display: block; font-size: 14px; letter-spacing: 0.42em; text-transform: uppercase; margin-left: 0.42em; color: rgba(255, 236, 200, 0.85); }
+  #chap .c2 { display: block; margin-top: 12px; font: italic 34px/1.2 Georgia, serif; letter-spacing: 0.06em; }
+  .misCh { display: flex; align-items: center; justify-content: center; gap: 12px; margin: 0 0 12px; } .misCh .pill.off { opacity: 0.3; } .misChT { font: 15px Georgia, serif; letter-spacing: 0.08em; }
   #camUI { position: fixed; inset: 0; display: none; pointer-events: none; } body.cam #camUI { display: block; }
   #camFrame { position: absolute; inset: 9% 12%; } #camFrame i { position: absolute; width: 34px; height: 34px; border: 0 solid rgba(235, 248, 250, 0.75); transition: border-color 0.3s; }
   #camFrame i:nth-child(1) { left: 0; top: 0; border-width: 2px 0 0 2px; } #camFrame i:nth-child(2) { right: 0; top: 0; border-width: 2px 2px 0 0; } #camFrame i:nth-child(3) { left: 0; bottom: 0; border-width: 0 0 2px 2px; } #camFrame i:nth-child(4) { right: 0; bottom: 0; border-width: 0 2px 2px 0; }
@@ -193,6 +210,8 @@
   <div id="mode" class="pill"><span id="modeL"></span><kbd>C</kbd></div>
   <div id="camBtn" class="pill"><svg viewBox="0 0 18 15"><path d="M1.5 4.5h3l1.5-2.5h6l1.5 2.5h3v9h-15z"/><circle cx="9" cy="8.6" r="3"/></svg><kbd>K</kbd></div>
   <div id="helpBtn" class="pill">?<kbd>H</kbd></div>
+  <div id="periBtn" class="pill"><svg viewBox="0 0 16 16"><path d="M6 15V4.5h6.5M6 4.5V2.5h7.5v4H12"/><path d="M4 15h5"/></svg><kbd>P</kbd></div>
+  <div id="peri"><div id="periGlass"></div><div id="periDeg"></div><div id="periBar"><input id="periSl" class="rng" type="range" min="-180" max="180" step="1" value="0"><div id="periFil" class="pill mini" data-t="peri_filter"></div><div id="periClose" class="pill"><span data-t="close"></span><kbd>P</kbd></div></div></div>
   <div id="lampBtn" class="pill"><svg viewBox="0 0 18 15"><path d="M2 4.5h6v6H2z"/><path d="M8 3.5l3-1.5v11l-3-1.5"/><path d="M13 5l3.5-1.5M13 7.5h4M13 10l3.5 1.5"/></svg><kbd>Q</kbd></div>
   <div id="camUI"><div id="camFrame"><i></i><i></i><i></i><i></i><div id="camDot"></div></div><div id="camInfo"></div><img id="camThumb" alt="">
     <div id="camShut"><kbd>Space</kbd></div><div id="camClose" class="pill"><span data-t="close"></span><kbd>Esc</kbd></div><div id="camFlash"></div></div>
@@ -208,6 +227,7 @@
   <div id="table"><canvas id="tableCv" width="760" height="760"></canvas><div id="tableInfo"></div><div id="tableBtns"><div id="tableClear" class="pill" data-t="course_clear"></div><div id="tableClose" class="pill"><span data-t="back"></span><kbd>Esc</kbd></div></div></div>
 </div>
 <div id="murk"></div>
+<div id="chap"><span class="c1"></span><span class="c2"></span></div>
 <div id="fade"></div>
 <div id="menu" class="open"><div class="card">
   <div id="mMain" class="show"><h1>TIEFENLICHT</h1><p class="sub" data-t="title_sub"></p>

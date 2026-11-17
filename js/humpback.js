@@ -149,7 +149,11 @@ export function buildWhale(calf) {
   return g;
 }
 
-const VS = /* glsl */ `attribute vec4 aK; attribute vec4 iP, iR, iA, iB; uniform float uTime; varying vec3 vW, vN, vTa; varying vec4 vK; varying vec2 vI;
+const VS = /* glsl */ `attribute vec4 aK; attribute vec4 iP, iR, iA, iB; uniform float uTime;
+  #ifdef DEAD
+  uniform vec4 uBites[24];
+  #endif
+  varying vec3 vW, vN, vTa, vLp; varying vec4 vK; varying vec2 vI; varying float vT;
   float env(float t, float r){ float e = smoothstep(0.26 - r, 1.18, t); return 0.07 + e * e * 1.05; }
   float wave(float t, float ph, float amp){ float r = clamp(amp / 0.045 - 1.0, 0.0, 1.0) * 0.2; return amp * env(t, r) * sin(ph - t * 3.3); }   // beim Kraftschlag reicht die Welle weiter nach vorn
   void main(){ vec3 p = position, nr = normalize(normal); float part = aK.y, ph = iA.x, amp = iA.w;
@@ -168,15 +172,27 @@ const VS = /* glsl */ `attribute vec4 aK; attribute vec4 iP, iR, iA, iB; uniform
       p.y += fl * pow(w, 1.3) * 0.31 + tw * (pc - 0.35) * 0.03 * (0.3 + w); p.z += fl * 0.25 * w * w * 0.31 + sin(uTime * 0.31 + iA.z * 5.0 + sd) * 0.02 * w; p.x -= sd * abs(fl) * 0.1 * w * w * 0.31; }
     // Drehen auf die Seite: vorn mit den Flossen zuerst, das Hinterteil folgt in einer Welle
     { float tw = iB.z * smoothstep(0.12, 1.1, t), ct = cos(tw), st = sin(tw); p.xy = vec2(ct * p.x - st * p.y, st * p.x + ct * p.y); nr.xy = vec2(ct * nr.x - st * nr.y, st * nr.x + ct * nr.y); }
+    #ifdef DEAD
+      // Biss: an der linken Flanke hinter der Brustflosse fehlt ein halbmondförmiges Stück; der Rand ist ausgefranst (Zahnabdrücke)
+      { float ba = atan(p.y, p.x), da = ba - 3.55, dt2 = (t - 0.6) / 0.11; da = mod(da + 3.14159, 6.28318) - 3.14159; vec2 q = vec2(dt2, da / 0.95); float r = length(q), ed = 1.0 + 0.09 * sin(atan(q.y, q.x) * 13.0);
+        float k = 1.0 - smoothstep(0.5 * ed, 1.0 * ed, r); p.xy *= 1.0 - 0.55 * k;
+        // kleine Fraßstellen der Aasfresser: flache Mulden
+        for (int i = 0; i < 24; i++) { vec4 b = uBites[i]; float ad = mod(ba - b.y + 3.14159, 6.28318) - 3.14159, d = length(vec2(t - b.x, ad * 0.09)) / b.z; p.xy *= 1.0 - 0.08 * b.w * (1.0 - smoothstep(0.4, 1.0, d)); } }
+    #endif
     vK = aK; vTa = vec3(0.0);
     if (part < 0.5) { float a = aK.z * 6.2832; vTa = vec3(-sin(a), cos(a), 0.0); }
+    vLp = p; vT = t;
     p *= iP.w;
     float cy = cos(iR.x), sy = sin(iR.x), cp = cos(iR.y), sp = sin(iR.y), cr = cos(iR.z), sr = sin(iR.z);
     mat3 Rr = mat3(cr, sr, 0.0, -sr, cr, 0.0, 0.0, 0.0, 1.0), Rp = mat3(1.0, 0.0, 0.0, 0.0, cp, -sp, 0.0, sp, cp), Ry = mat3(cy, 0.0, -sy, 0.0, 1.0, 0.0, sy, 0.0, cy);
     mat3 R = Ry * Rp * Rr; vec3 w = R * p + iP.xyz; vN = R * nr; vTa = R * vTa; vW = w; vI = iA.zw;
     gl_Position = projectionMatrix * viewMatrix * vec4(w, 1.0); }`;
 
-const FS = /* glsl */ `precision highp float; ${COMMON} varying vec3 vW, vN, vTa; varying vec4 vK; varying vec2 vI;
+const FS = /* glsl */ `precision highp float; ${COMMON}
+  #ifdef DEAD
+  uniform vec4 uBites[24];
+  #endif
+  varying vec3 vW, vN, vTa, vLp; varying vec4 vK; varying vec2 vI; varying float vT;
   float h21(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
   float nz(vec2 p){ return texture2D(uNoise, p).r; }
   ${MOUTH_GL}
@@ -220,6 +236,9 @@ const FS = /* glsl */ `precision highp float; ${COMMON} varying vec3 vW, vN, vTa
       base = mix(base, pale * 0.9, scr * 0.3);
       // feine helle Punkte auf Rücken und Flanken, wie in der Vorlage
       vec2 cs = vec2(t * 150.0, vv * 64.0), cf = fract(cs) - 0.5; spots = step(0.955, h21(floor(cs) + seed * 13.0)) * (1.0 - smoothstep(0.12, 0.38, length(cf))) * smoothstep(-0.4, 0.4, sa) * smoothstep(0.06, 0.16, t) * (1.0 - smoothstep(0.88, 0.98, t));
+    #ifdef DEAD
+      base = mix(base, vec3(0.55, 0.58, 0.6), 0.35);   // die Haut ist blass geworden
+    #endif
     } else if (part < 3.5) {   // Auge
       base = vv < 0.5 ? vec3(0.02, 0.025, 0.03) : vec3(0.06, 0.07, 0.08);
       base += vec3(0.25, 0.3, 0.32) * pow(max(dot(reflect(-V, N), uSunDir), 0.0), 30.0);
@@ -242,10 +261,30 @@ const FS = /* glsl */ `precision highp float; ${COMMON} varying vec3 vW, vN, vTa
     } else {   // Seepocken: kalkig, rau, oben ein dunkler Krater
       base = mix(vec3(0.86, 0.84, 0.76), vec3(0.68, 0.68, 0.62), h21(floor(vW.xz * 90.0 + vv * 3.0))) * (vv > 1.5 ? 0.3 : vv > 0.75 ? 0.75 : 1.0) * 1.25;
     }
+    #ifdef DEAD
+      float glw = 0.0;
+      vec3 lp = vLp; float ba = atan(lp.y, lp.x), da = mod(ba - 3.55 + 3.14159, 6.28318) - 3.14159, dt2 = (vT - 0.6) / 0.11; vec2 q = vec2(dt2, da / 0.95); float r = length(q), ed = 1.0 + 0.09 * sin(atan(q.y, q.x) * 13.0);
+      float inW = 1.0 - smoothstep(0.62 * ed, 0.7 * ed, r), rim = smoothstep(0.6 * ed, 0.72 * ed, r) * (1.0 - smoothstep(0.78 * ed, 0.95 * ed, r)), bruise = smoothstep(1.3, 0.9, r) * (1.0 - inW);
+      float fl = texture2D(uNoise, vec2(dt2, da) * 0.6 + 0.3).r, fib = 0.5 + 0.5 * sin(dt2 * 30.0 + fl * 6.0);
+      base = mix(base, base * vec3(0.75, 0.62, 0.65), bruise * 0.5);
+      base = mix(base, vec3(0.86, 0.78, 0.72), rim * 0.85);   // Speck am Rand
+      base = mix(base, mix(vec3(0.32, 0.05, 0.06), vec3(0.55, 0.14, 0.13), fib * fl), inW);   // Fleisch
+      ao *= 1.0 - 0.35 * inW;
+      // kleine Fraßstellen: rotes Fleisch, heller Speckrand, drumherum etwas Blut in der Haut
+      if (part < 0.5) for (int i = 0; i < 24; i++) { vec4 b = uBites[i]; float ad = mod(ba - b.y + 3.14159, 6.28318) - 3.14159, d = length(vec2(vT - b.x, ad * 0.09)) / b.z;
+        float an = atan(ad * 0.09, vT - b.x), fn = texture2D(uNoise, vec2(vT * 40.0, ba * 4.0) + float(i) * 0.37).r, wob = texture2D(uNoise, vec2(an * 0.3 + float(i) * 0.21, 0.5)).g;
+        d *= 0.75 + 0.6 * wob; float ed2 = 0.5 + 0.2 * fn;   // ausgefranster, unregelmäßiger Rand
+        base = mix(base, base * vec3(0.8, 0.66, 0.68), (1.0 - smoothstep(0.8, 1.5, d)) * 0.45);
+        base = mix(base, vec3(0.5, 0.42, 0.42), (1.0 - smoothstep(ed2, ed2 + 0.08, d)) * 0.55);
+        base = mix(base, mix(vec3(0.3, 0.04, 0.05), vec3(0.55, 0.13, 0.12), fn), 1.0 - smoothstep(ed2 - 0.15, ed2 - 0.02, d)); }
+    #endif
     vec3 c = lightW(base * ao, N, vW) * 1.15;
     float fr = pow(1.0 - max(dot(N, V), 0.0), 2.6), lk = exp(vW.y * 0.0125);
     c += waterCol(reflect(-V, N)) * fr * 0.3 + vec3(0.5, 0.75, 0.85) * pow(max(dot(reflect(-uSunDir, N), V), 0.0), 18.0) * 0.08 * lk;
     // türkiser Saum an den Rändern und die feinen Punkte: ganz leise, wie Licht, das sich in der Haut fängt
+    #ifdef DEAD
+      spots = 0.0;
+    #endif
     c += vec3(0.1, 0.6, 0.65) * fr * 0.3 * uDeep + vec3(0.4, 0.92, 0.95) * spots * 0.45 * uDeep;
     gl_FragColor = vec4(fog(c, vW), 1.0); }`;
 
@@ -377,4 +416,29 @@ export function createHumpbacks(scene) {
   /** Mitte der sichtbaren Wale (für das Fotoziel und die Mission) */
   H.center = () => { let x = 0, y = 0, z = 0, n = 0; for (const w of H.list) if (!w.gone && w.init) { x += w.x; y += w.y; z += w.z; n++; } return n ? { x: x / n, y: y / n, z: z / n } : null; };
   return H;
+}
+
+/** toter Buckelwal (Kapitel 2): dasselbe Modell, ohne Bewegung, blass, mit einem großen Biss an der linken Flanke und vielen kleinen Fraßstellen der Aasfresser.
+ *  set(x, y, z, Länge, yaw, pitch, roll); surf(t, a, lift) gibt Weltpunkt und Normale auf der Haut (für Tiere, die auf ihm sitzen oder an ihm fressen); bites = die kleinen Fraßstellen [t, a, Größe, Tiefe] */
+export function createDeadHumpback(scene) {
+  const g = buildWhale(false), D = {};
+  for (const k of ['iP', 'iR', 'iA', 'iB']) { D[k] = new Float32Array(4); g.setAttribute(k, new T.InstancedBufferAttribute(D[k], 4)); } g.instanceCount = 0;
+  // kleine Fraßstellen: vor allem auf der oben liegenden linken Flanke und rund um den großen Biss
+  const R = rng(17), bites = []; for (let i = 0; i < 24; i++) { const near = i < 9; bites.push([near ? 0.6 + (R() - 0.5) * 0.3 : 0.2 + R() * 0.6, near ? 3.55 + (R() - 0.5) * 1.4 : 2.4 + R() * 1.6, 0.012 + R() * 0.018, 0.6 + R() * 0.4]); }
+  const BU = bites.map((b) => new T.Vector4(...b));
+  const mat = new T.ShaderMaterial({ uniforms: uni({ uBites: { value: BU } }), side: T.DoubleSide, vertexShader: '#define DEAD\n' + VS, fragmentShader: '#define DEAD\n' + FS }); mat.extensions.derivatives = true;
+  const mesh = new T.Mesh(g, mat); mesh.frustumCulled = false; scene.add(mesh);
+  const tf = { x: 0, y: 0, z: 0, L: 1, m: new T.Matrix3() };
+  /** derselbe Biss wie im Shader: Punkt der Haut einziehen */
+  const dent = (p, t) => { const ba = Math.atan2(p[1], p[0]); let da = ((ba - 3.55 + PI) % (2 * PI) + 2 * PI) % (2 * PI) - PI; const q = [(t - 0.6) / 0.11, da / 0.95], r = Math.hypot(q[0], q[1]), ed = 1 + 0.09 * Math.sin(Math.atan2(q[1], q[0]) * 13);
+    let k = 1 - 0.55 * (1 - smooth(0.5 * ed, ed, r)); for (const b of bites) { const ad = ((ba - b[1] + PI) % (2 * PI) + 2 * PI) % (2 * PI) - PI, d = Math.hypot(t - b[0], ad * 0.09) / b[2]; k *= 1 - 0.08 * b[3] * (1 - smooth(0.4, 1, d)); }
+    return [p[0] * k, p[1] * k, p[2]]; };
+  return { mesh, bites,
+    set(x, y, z, L, yaw = 0, pitch = 0, roll = 0, show = true) { g.instanceCount = show ? 1 : 0; D.iP.set([x, y, z, L]); D.iR.set([yaw, pitch, roll, 0]); D.iA.set([0, 0, 0.3, 0]); D.iB.set([-0.25, 0.05, 0, 0]);
+      for (const k of ['iP', 'iR', 'iA', 'iB']) g.attributes[k].needsUpdate = true;
+      const cy = Math.cos(yaw), sy = Math.sin(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch), cr = Math.cos(roll), sr = Math.sin(roll);
+      const Rr = new T.Matrix3().set(cr, -sr, 0, sr, cr, 0, 0, 0, 1), Rp = new T.Matrix3().set(1, 0, 0, 0, cp, sp, 0, -sp, cp), Ry = new T.Matrix3().set(cy, 0, sy, 0, 1, 0, -sy, 0, cy);
+      tf.m.multiplyMatrices(Ry, Rp).multiply(Rr); Object.assign(tf, { x, y, z, L }); },
+    surf(t, a, lift = 0) { const p = dent(bodyPt(t, a), t), n = bodyN(t, a), w = new T.Vector3(...p).multiplyScalar(tf.L).applyMatrix3(tf.m), nn = new T.Vector3(...n).applyMatrix3(tf.m).normalize();
+      w.x += tf.x + nn.x * lift; w.y += tf.y + nn.y * lift; w.z += tf.z + nn.z * lift; return { p: w, n: nn }; } };
 }

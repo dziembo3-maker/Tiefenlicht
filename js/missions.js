@@ -29,7 +29,16 @@ export const MISSIONS = [
   // ihre Schraube ersetzt die verbogene, hinter ihrer Tür liegen Dose (Seite und Kassette) und Schweißgerät für den Riss im Tank. Danach gilt die Grenze von 450 m.
   // Keine Dose im üblichen Sinn: x/z stehen nur der Ordnung halber bei der Kittiwake
   { id: 'm8', page: 8, tape: 7, crash: true, x: -227.2, z: 552.2, yaw: 0, off: 0 },
+  // ---------- Kapitel 2 „Was unter dem Licht lebt“: keine Dosen, keine Kassetten; jede Mission beginnt an einer eigenen Notiz im neuen Logbuch (page2).
+  // Ablauf und Orte stehen in chapter2.js; x/z hier nur der Ordnung halber
+  { id: 'm9', ch2: true, page2: 0, tape: null, x: 60, z: 700, yaw: 0 },      // Staatsqualle vermessen
+  { id: 'm10', ch2: true, page2: 1, tape: null, x: 150, z: 860, yaw: 0 },    // Riesenkalmar im Dunkeln fotografieren
+  { id: 'm11', ch2: true, page2: 2, tape: null, x: 301, z: 1111, yaw: 0 },   // den Laternenfischen zu den hängenden Gärten folgen
+  { id: 'm12', ch2: true, page2: 3, tape: null, x: -140, z: 1138, yaw: 0 },  // toter Buckelwal: parken, Probe nehmen
+  { id: 'm13', ch2: true, page2: 4, tape: null, x: 20, z: 1180, yaw: 0 },    // Vampirtintenfische, Periskop, rote Spur, der Leviathan
 ];
+/** Kapitel 1 und 2: welche Missionen zu welchem Kapitel gehören */
+export const CH1 = MISSIONS.filter((m) => !m.ch2), CH2M = MISSIONS.filter((m) => m.ch2);
 /** so viele weitere Missionen deutet der Missionen-Reiter nur an */
 export const HINTED = 3;
 /** wie nah das Boot sein muss, um die Dose zu bergen */

@@ -85,6 +85,10 @@ function body(B, rows, o) {
   B.grid(NT, NA, (i, j) => surf(rows, o, tt(i), j / NA * TAU),
     (i, j) => { const sa = Math.sin(j / NA * TAU); return [tt(i), 0, j / NA, Math.sign(sa) * Math.pow(Math.abs(sa), e)]; }, true,
     (i) => { const t = tt(i), [, , yc] = prof(rows, t); return [0, yc, zOf(t)]; });
+  // Spitzen schließen (sonst bleibt vorn und hinten ein winziges Loch)
+  for (const [t, dir] of [[0, 1], [1, -1]]) { const [h, w, yc] = prof(rows, t), L = Math.min(h, w) * 0.5;
+    B.grid(4, NA, (i, j) => { const f = i / 4 * PI / 2, p = surf(rows, o, t, j / NA * TAU); return [p[0] * Math.cos(f), yc + (p[1] - yc) * Math.cos(f), p[2] + dir * L * Math.sin(f)]; },
+      (i, j) => { const sa = Math.sin(j / NA * TAU); return [t, 0, j / NA, Math.sign(sa) * Math.pow(Math.abs(sa), e)]; }, true, () => [0, yc, zOf(t) - dir * L]); }
 }
 /** Flosse: Haut zwischen Wurzellinie root(u) = [x, y, z, t] und Rand; aK = (t der Wurzel, Teil, v Wurzel→Rand, u·Strahlen) */
 function fin(B, nu, root, dir, len, part, rays, nv = 6, curl) {
@@ -93,8 +97,9 @@ function fin(B, nu, root, dir, len, part, rays, nv = 6, curl) {
 }
 /** gewölbtes Auge nach außen (sx = Seite); aK.z: 0 Mitte … 1 Rand */
 function eye(B, c, sx, r, t, bulge) {
-  B.grid(6, 20, (i, j) => { const f = i / 6 * PI / 2, a = j / 20 * TAU; return [c[0] + sx * r * bulge * Math.cos(f), c[1] + r * Math.sin(f) * Math.cos(a), c[2] + r * Math.sin(f) * Math.sin(a)]; },
-    (i, j) => [t, 4, i / 6, j / 20], true, () => [c[0] - sx * r, c[1], c[2]]);
+  // geschlossene Kugel: vorn gewölbt, hinten tief in den Körper (sonst schaut der offene Rand als Loch heraus)
+  B.grid(9, 20, (i, j) => { const f = i <= 6 ? i / 6 * PI / 2 : PI / 2 + (i - 6) / 3 * PI / 2, a = j / 20 * TAU, cf = Math.cos(f); return [c[0] + sx * r * (cf >= 0 ? bulge : 1.2) * cf, c[1] + r * Math.sin(f) * Math.cos(a), c[2] + r * Math.sin(f) * Math.sin(a)]; },
+    (i, j) => [t, 4, i / 6, j / 20], true, () => c);
 }
 
 // ---------- Die Arten ----------

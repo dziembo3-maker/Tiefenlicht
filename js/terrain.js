@@ -15,6 +15,8 @@ export const BELL = { x: -128, z: -174, yaw: 2.2 };
 // das Loch im Boden einer Schlucht südöstlich der Glocke: eine flache Mulde, in der Mitte der Schacht (r = Öffnung, cut = so weit fehlt das Geländegitter)
 /** Plateau an der Abgrundwand: Mitte, Richtung aus der Wand hinaus (dx, dz), Halbachsen a (hinaus) und b (entlang der Wand), Höhe */
 export const PLAT = { x: -234.6, z: 543.5, dx: 0.906, dz: -0.423, a: 19, b: 24, y: -300 };
+/** Kapitel 2: zweiter Absatz an der Westwand der Tiefsee, auf dem der tote Buckelwal zu liegen kommt */
+export const PLAT2 = { x: -153, z: 1130, dx: 0.853, dz: 0.522, a: 26, b: 34, y: -322 };
 export const HOLE = { x: 102, z: -318, r: 2.0, cut: 3.8 };
 const plainR = (x, z) => { const dx = x - PLAIN.x, dz = z - PLAIN.z, a = Math.atan2(dz, dx); return Math.hypot(dx, dz) / (PLAIN.r * (1 + 0.36 * (fbm(Math.cos(a) * 1.4 + 5.3, Math.sin(a) * 1.4 + 2.1, 2) - 0.5))); };
 /** 1 mitten in der Ebene, 0 weit draußen (für Schnee, Bewuchs, Tiefengrenze) */
@@ -61,6 +63,7 @@ export function handDist(x, z) {
   for (const v of VAL) { valDist(v, x, z); if (vd[0] < d) d = vd[0]; }
   return Math.min(d, Math.max(0, Math.hypot(x - PLAIN.x, z - PLAIN.z) - PLAIN.r));
 }
+const LEDGES = [PLAT, PLAT2];
 export function floorH(x, z) {
   const shelf = shelf0(x, z), wob = fbm(x * 0.033 + 11, z * 0.033 + 5, 3) - 0.5;
   // Startschlucht mit Abgrund am Ende
@@ -97,8 +100,8 @@ export function floorH(x, z) {
   }
   let h = shelf - depth + (fbm(x * 0.085, z * 0.085, 3) - 0.5) * 3.4 + (noise(x * 0.31, z * 0.31) - 0.5) * 0.7 - SHIFT;
   // Plateau bei 300 m an der Abgrundwand nahe dem Kristallhain: eine flache Kanzel, die sanft aus der Wand wächst
-  { const px = x - PLAT.x, pz = z - PLAT.z; if (px * px + pz * pz < 1600) { const q = (px * PLAT.dx + pz * PLAT.dz) / PLAT.a, w = (-px * PLAT.dz + pz * PLAT.dx) / PLAT.b, rr = Math.hypot(q, w) * (1 + 0.14 * (noise(x * 0.09 + 4.1, z * 0.09 - 2.7) - 0.5));
-    if (rr < 1) { const top = PLAT.y - 1.2 * Math.max(0, q) + (fbm(x * 0.12, z * 0.12, 2) - 0.5) * 1.4, k = smooth(1, 0.86, rr); if (top > h) h += (top - h) * k; } } }
+  for (const L of LEDGES) { const px = x - L.x, pz = z - L.z, R = Math.max(L.a, L.b) * 1.7; if (px * px + pz * pz < R * R) { const q = (px * L.dx + pz * L.dz) / L.a, w = (-px * L.dz + pz * L.dx) / L.b, rr = Math.hypot(q, w) * (1 + 0.14 * (noise(x * 0.09 + 4.1, z * 0.09 - 2.7) - 0.5));
+    if (rr < 1) { const top = L.y - 1.2 * Math.max(0, q) + (fbm(x * 0.12, z * 0.12, 2) - 0.5) * 1.4, k = smooth(1, 0.86, rr); if (top > h) h += (top - h) * k; } } }
   const hx = x - HOLE.x, hz = z - HOLE.z; if (hx * hx + hz * hz < 400) { const d = Math.sqrt(hx * hx + hz * hz); h -= 3.0 * (1 - smooth(3, 17, d)); }   // Mulde um das Loch
   return h;
 }
