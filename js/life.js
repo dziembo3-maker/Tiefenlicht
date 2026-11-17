@@ -125,7 +125,7 @@ function jellyShape() {
 }
 
 export function createLife(scene) {
-  const L = {}, PX = { value: 600 };
+  const L = { flow: { value: new T.Vector3() }, flowK: { value: 0 } }, PX = { value: 600 };
   const kelp = kelpShape(), crystal = crystalShape(), corals = [antlerShape(11, false), fanShape(3), tubeShape(7), bushShape(13), antlerShape(29, true)], jelly = jellyShape(), pebble = pebbleShape(), grass = grassShape();
   const quadS = { a: { position: [F32([-0.5, -0.5, 0, 0.5, -0.5, 0, 0.5, 0.5, 0, -0.5, 0.5, 0]), 3] }, i: U16([0, 1, 2, 0, 2, 3]) };
 
@@ -255,13 +255,14 @@ export function createLife(scene) {
   // ---------- Schwebeteilchen um die Kamera ----------
   const R = rng(99), rr = (a, b) => a + R() * (b - a);
   {
-    const N = 1300, p = new Float32Array(N * 3), s = new Float32Array(N); for (let i = 0; i < N; i++) { p[i * 3] = R() * 44; p[i * 3 + 1] = R() * 44; p[i * 3 + 2] = R() * 44; s[i] = R(); }
+    // bei Strömung (Probefahrt) treibt der Schnee schnell mit (uFlow = bisher zurückgelegter Weg), und es werden viel mehr Teilchen (uFlowK 0..1)
+    const N = 4200, p = new Float32Array(N * 3), s = new Float32Array(N); for (let i = 0; i < N; i++) { p[i * 3] = R() * 44; p[i * 3 + 1] = R() * 44; p[i * 3 + 2] = R() * 44; s[i] = R(); }
     const g = new T.BufferGeometry(); g.setAttribute('position', new T.BufferAttribute(p, 3)); g.setAttribute('aS', new T.BufferAttribute(s, 1));
-    const m = quadPoints(g, new T.ShaderMaterial({ uniforms: uni({ uPx: PX }), transparent: true, depthWrite: false, blending: T.AdditiveBlending,
-      vertexShader: `attribute float aS; uniform float uTime, uPx; varying float vA;
-        void main(){ vec3 p = position + vec3(sin(uTime * 0.11 + aS * 40.0) * 0.8, uTime * (0.05 + aS * 0.1) * -1.0, uTime * 0.12 + cos(uTime * 0.09 + aS * 31.0) * 0.8);
+    const m = quadPoints(g, new T.ShaderMaterial({ uniforms: uni({ uPx: PX, uFlow: L.flow, uFlowK: L.flowK }), transparent: true, depthWrite: false, blending: T.AdditiveBlending,
+      vertexShader: `attribute float aS; uniform float uTime, uPx, uFlowK; uniform vec3 uFlow; varying float vA;
+        void main(){ vec3 p = uFlow + position + vec3(sin(uTime * 0.11 + aS * 40.0) * 0.8, uTime * (0.05 + aS * 0.1) * -1.0, uTime * 0.12 + cos(uTime * 0.09 + aS * 31.0) * 0.8);
           p = mod(p - cameraPosition, 44.0) - 22.0 + cameraPosition; vec4 mv = viewMatrix * vec4(p, 1.0); float d = -mv.z;
-          vA = (1.0 - smoothstep(13.0, 22.0, d)) * smoothstep(0.6, 3.0, d) * (0.25 + 0.75 * aS); gl_PointSize = max(1.0, (0.035 + 0.05 * aS) * uPx / max(d, 0.5)); gl_Position = projectionMatrix * mv; }`,
+          float on = step(fract(aS * 13.7), 0.31 + 0.69 * uFlowK); vA = (1.0 - smoothstep(13.0, 22.0, d)) * smoothstep(0.6, 3.0, d) * (0.25 + 0.75 * aS) * on * (1.0 + 0.6 * uFlowK); gl_PointSize = max(1.0, (0.035 + 0.05 * aS) * uPx / max(d, 0.5)) * on; gl_Position = projectionMatrix * mv; }`,
       fragmentShader: `precision highp float; varying float vA; void main(){ vec2 q = gl_PointCoord - 0.5; float a = (1.0 - smoothstep(0.1, 0.5, length(q))); gl_FragColor = vec4(vec3(0.45, 0.75, 0.85) * a * vA * 0.55, 1.0); }` }));
     m.frustumCulled = false; m.renderOrder = 6; scene.add(m);
   }

@@ -99,7 +99,7 @@ function bentProp(src) {
   const g = src.geometry.clone(), p = g.attributes.position;
   for (let i = 0; i < p.count; i++) { const x = p.getX(i), y = p.getY(i), r = Math.hypot(x, y); if (r < 0.14) continue; const a = Math.atan2(y, x), k = (r - 0.14) / 0.4;
     const w0 = Math.max(0, Math.cos(a - 0.3)) ** 6, w1 = Math.max(0, Math.cos(a - 2.4)) ** 6;   // ein Blatt stark, eines etwas verbogen
-    p.setZ(i, p.getZ(i) + (k * k * 0.55) * w0 - k * k * 0.18 * w1); const b = k * k * 0.5 * w0; p.setX(i, x * Math.cos(b) - y * Math.sin(b)); p.setY(i, x * Math.sin(b) + y * Math.cos(b)); }
+    p.setZ(i, p.getZ(i) + (k * k * 0.3) * w0 - k * k * 0.12 * w1); const b = k * k * 0.5 * w0; p.setX(i, x * Math.cos(b) - y * Math.sin(b)); p.setY(i, x * Math.sin(b) + y * Math.cos(b)); }
   p.needsUpdate = true; g.computeVertexNormals(); const m = new T.Mesh(g, src.material); m.position.copy(src.position); m.frustumCulled = false; return m;
 }
 function tearMesh(k, seam) {
@@ -123,36 +123,29 @@ export function createCrash(scene, world) {
   const lampSpr = new T.Sprite(new T.SpriteMaterial({ map: gt, color: new T.Color(1.0, 0.72, 0.36), transparent: true, opacity: 0.3, blending: T.AdditiveBlending, depthWrite: false, fog: false })); lampSpr.position.set(toolsW.x, toolsW.y + 0.1, toolsW.z); lampSpr.scale.set(2.6, 2.6, 1); scene.add(lampSpr);
   const weldGlow = { x: 0, y: 0, z: 0, col: [0.75, 0.85, 1.0], power: 0, size: 1.4 };
 
-  // Strömung: helle Schlieren rings um die Kamera, die mit dem Wasser vorbeischießen
-  const SN = 260, sp = new Float32Array(SN * 6), sd = []; for (let i = 0; i < SN; i++) sd.push({ x: rr(-14, 14), y: rr(-10, 10), z: rr(-14, 14), l: rr(0.8, 2.6), v: rr(0.7, 1.3) });
-  const sgeo = new T.BufferGeometry(); sgeo.setAttribute('position', new T.BufferAttribute(sp, 3));
-  const streaks = new T.LineSegments(sgeo, new T.LineBasicMaterial({ color: 0x9fd4e6, transparent: true, opacity: 0, blending: T.AdditiveBlending, depthWrite: false, fog: false })); streaks.frustumCulled = false; streaks.visible = false; scene.add(streaks);
   // Blasen aus dem Riss und Funken beim Schweißen: einfache Punktwolken in Weltkoordinaten
   const pts = (n, col, size) => { const a = new Float32Array(n * 3).fill(-9999), g = new T.BufferGeometry(); g.setAttribute('position', new T.BufferAttribute(a, 3)); const m = new T.Points(g, new T.PointsMaterial({ map: gt, color: col, size, transparent: true, opacity: 0.9, blending: T.AdditiveBlending, depthWrite: false, fog: false })); m.frustumCulled = false; scene.add(m); return { m, a, p: Array.from({ length: n }, () => ({ x: 0, y: -9999, z: 0, vx: 0, vy: 0, vz: 0, l: 0 })) }; };
   const bub = pts(70, 0xbfe6f0, 0.16), spark = pts(60, 0xffd08a, 0.09);
 
-  let boatRef = null, bent = null, tear = null, seam = null, kIdx = 0;
+  let boatRef = null, bent = null, tear = null, seam = null, kIdx = 0, ground = null;
+  // die verbogene Schraube bleibt als Andenken neben der Landestelle im Sand liegen, flach auf der Seite
+  const GP = (() => { const h = LAND.h, sx = Math.cos(h), sz = -Math.sin(h), fx = Math.sin(h), fz = Math.cos(h), x = LAND.x - fx * 3.6 + sx * 3.0, z = LAND.z - fz * 3.6 + sz * 3.0; return { x, z, y: floorH(x, z) + 0.06 }; })();
   const C = { kit, spheres, kitPropW, toolsW, lampGlow, weldGlow, LAND, KIT, FALL0, near: false };
   /** Zustand der Teile: prop = 'bent' | 'off' | 'ok', kitProp = Schraube hängt noch an der Kittiwake, tools = liegen noch an der Tür, tank = 'torn' | 'seam' | 'ok' */
   C.set = (boat, s) => {
     if (boat !== boatRef) { if (bent) bent.parent.remove(bent); if (tear) tear.parent.remove(tear); if (seam) seam.parent.remove(seam); boatRef = boat; kIdx = boat.kind || 0;
-      bent = bentProp(boat.prop); boat.group.add(bent); tear = tearMesh(kIdx, false); seam = tearMesh(kIdx, true); boat.group.add(tear); boat.group.add(seam); }
+      bent = bentProp(boat.prop); boat.group.add(bent); if (ground) scene.remove(ground); ground = bentProp(boat.prop); ground.position.set(GP.x, GP.y, GP.z); ground.rotation.order = 'YXZ'; ground.rotation.set(-PI / 2 + 0.22, LAND.h + 0.7, 0.9); ground.scale.setScalar(1.35); scene.add(ground); tear = tearMesh(kIdx, false); seam = tearMesh(kIdx, true); boat.group.add(tear); boat.group.add(seam); }
     const sh = boat.outer[0].visible;   // in der Kabine ist der Rumpf ausgeblendet, dann auch alles daran
     bent.visible = sh && s.prop === 'bent'; boat.prop.visible = sh && s.prop === 'ok'; tear.visible = sh && s.tank === 'torn'; seam.visible = sh && s.tank === 'seam';
-    kprop.visible = s.kitProp; tools.visible = lampSpr.visible = s.tools; C.leak = s.tank === 'torn';
+    ground.visible = !!s.ground; kprop.visible = s.kitProp; tools.visible = lampSpr.visible = s.tools; C.leak = s.tank === 'torn';
   };
   const tv = new T.Vector3();
   /** Welt-Lage des Risses am eigenen Boot */
   C.tearW = (boat, out = new T.Vector3()) => { const tr = TEAR[boat.kind || 0]; return out.set(tr.p[0] + tr.n[0] * 0.08, tr.p[1] + tr.n[1] * 0.08, tr.p[2]).applyMatrix4(boat.group.matrixWorld); };
   C.sternW = (boat, out = new T.Vector3()) => out.copy(boat.prop.position).applyMatrix4(boat.group.matrixWorld);
-  C.streak = 0; C.weld = 0; C.leak = false;
-  /** jedes Bild: Schlieren um die Kamera (Strömung k 0..1, Richtung dir), Blasen am Riss, Funken an der Naht */
-  C.update = (dt, cam, boat, flow) => {
-    const k = C.streak; streaks.visible = k > 0.01; if (streaks.visible) { const m = streaks.material; m.opacity = 0.55 * k; const c = cam.position;
-      for (let i = 0; i < SN; i++) { const q = sd[i]; q.x += flow.x * q.v * dt; q.y += flow.y * q.v * dt; q.z += flow.z * q.v * dt;
-        for (const a of ['x', 'y', 'z']) { const lim = a === 'y' ? 10 : 14; if (q[a] > lim) q[a] -= 2 * lim; else if (q[a] < -lim) q[a] += 2 * lim; }
-        const fl = Math.hypot(flow.x, flow.y, flow.z) || 1, l = q.l * Math.min(1.6, fl / 9), o = i * 6; sp[o] = c.x + q.x; sp[o + 1] = c.y + q.y; sp[o + 2] = c.z + q.z; sp[o + 3] = sp[o] - flow.x / fl * l; sp[o + 4] = sp[o + 1] - flow.y / fl * l; sp[o + 5] = sp[o + 2] - flow.z / fl * l; }
-      sgeo.attributes.position.needsUpdate = true; }
+  C.weld = 0; C.leak = false;
+  /** jedes Bild: Blasen am Riss, Funken an der Naht */
+  C.update = (dt, boat) => {
     const run = (P, emit, n, fn) => { for (let i = 0; i < P.p.length; i++) { const q = P.p[i]; if (q.l <= 0 && n > 0 && R() < emit * dt / P.p.length * 8) { fn(q); n--; } if (q.l > 0) { q.l -= dt; q.x += q.vx * dt; q.y += q.vy * dt; q.z += q.vz * dt; } if (q.l <= 0) q.y = -9999; P.a[i * 3] = q.x; P.a[i * 3 + 1] = q.y; P.a[i * 3 + 2] = q.z; } P.m.geometry.attributes.position.needsUpdate = true; };
     if (boat && boatRef === boat) C.tearW(boat, tv);
     if (C.leak || bub.p.some((q) => q.l > 0)) { bub.m.visible = true; run(bub, C.leak ? 6 : 0, 2, (q) => { q.x = tv.x + rr(-0.1, 0.1); q.y = tv.y; q.z = tv.z + rr(-0.25, 0.25); q.vx = rr(-0.15, 0.15); q.vy = rr(0.7, 1.3); q.vz = rr(-0.15, 0.15); q.l = rr(2.5, 4.5); }); } else bub.m.visible = false;

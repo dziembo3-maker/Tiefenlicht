@@ -410,29 +410,29 @@ actEl.addEventListener('pointerdown', (e) => { e.preventDefault(); if (V.mode ==
 // ---------- Missionen: beginnen an der Seite auf dem Schreibtisch; gestartet liegt draußen eine Messingdose, die man birgt ----------
 const MS = { active: null, done: [], pageSeen: -1, hint: null, stage: null, cam: false, pod: null, hump: null, flood: false, floodOn: false, suit: false, tooth: false, can2: false, markSeen: false, pmax: 0, got: null, fresh: -1 }, bannerEl = $('banner'); let nearCan = false, nearCan2 = false, bannerT = 0, sonHintT = 0;
 /** einmal pro Mission, beim ersten Mal am Steuer (oder draußen): kleiner Hinweis neben dem Sonar */
-function sonHint() { if (!started || !MS.active || CAMV.on || !(V.mode === 'out' || V.st === 'seat')) return; const bell = MS.active === 'm5' && MS.stage === 'bell', key = MS.active + (bell ? ':bell' : ''); if (MS.hint === key || (MS.active === 'm5' && MS.stage && !bell) || MS.active === 'm8') return; MS.hint = key; const h = $('sonHint'); h.textContent = t(bell ? 'son_hint_bell' : (MISSIONS[misIdx(MS.active)].pod || MISSIONS[misIdx(MS.active)].hump) ? 'son_hint_m4' : 'son_hint'); h.style.opacity = 1; sonHintT = 9; save(); }
+function sonHint() { if (!started || !MS.active || CAMV.on || !(V.mode === 'out' || V.st === 'seat')) return; const bell = MS.active === 'm5' && MS.stage === 'bell', key = MS.active + (bell ? ':bell' : ''); if (MS.hint === key || (MS.active === 'm5' && MS.stage && !bell) || (MS.active === 'm8' && (MS.stage !== 'dive' || overAbyss()))) return; MS.hint = key; const h = $('sonHint'); h.textContent = t(bell ? 'son_hint_bell' : MS.active === 'm8' ? 'son_hint_m8' : (MISSIONS[misIdx(MS.active)].pod || MISSIONS[misIdx(MS.active)].hump) ? 'son_hint_m4' : 'son_hint'); h.style.opacity = 1; sonHintT = 9; save(); }
 const misIdx = (id) => MISSIONS.findIndex((m) => m.id === id), nextMis = () => MISSIONS.find((m) => !MS.done.includes(m.id)) || null;
 // ---------- Probefahrt (Mission 8): bei 150 m packt eine Strömung das Boot, ein Sprung im Trüben, dann in einer Spirale hinab aufs Plateau; Reparatur mit den Teilen der Kittiwake ----------
 const M8 = ['dive', 'current', 'crashed', 'kitProp', 'fitProp', 'tools', 'weld', 'blow', 'lift'];
-const CR = { t: 0, jumped: false, shake: 0, weldT: 0, liftT: 0, fx: 0, fz: 1, flow: new T.Vector3() }, murkEl = $('murk'), stepEl = $('step'), cv3 = new T.Vector3(), shk = new T.Vector3(); let crashAct = null;
-function beginCurrent() { MS.stage = 'current'; CR.t = 0; CR.jumped = false; const a = S.h + 1.2; CR.fx = Math.sin(a); CR.fz = Math.cos(a); closeHorch(); closeTapes(); syncMis(); audio.current(0.3); }
+const CR = { snowK: 0, over: false, stepHold: 0, t: 0, jumped: false, shake: 0, weldT: 0, liftT: 0, fx: 0, fz: 1, flow: new T.Vector3() }, murkEl = $('murk'), stepEl = $('step'), cv3 = new T.Vector3(), shk = new T.Vector3(); let crashAct = null;
+function beginCurrent() { clearGold(); MS.stage = 'current'; CR.t = 0; CR.jumped = false; const a = S.h + 1.2; CR.fx = Math.sin(a); CR.fz = Math.cos(a); closeHorch(); closeTapes(); syncMis(); audio.current(0.3); }
 /** übernimmt das Boot, solange die Probefahrt nicht im freien Tauchen ist: Strömung (Sog, Drehen, Sprung im Trüben, Spirale), dann Liegen auf dem Plateau und zuletzt Anheben */
 function crashDrive(dt) {
   if (MS.active !== 'm8') return; const st = MS.stage;
   if (st === 'dive') { if (S.y < -150 && V.mode !== 'dive' && !CAMV.on) beginCurrent(); return; }
   if (st === 'current') {
-    CR.t += dt; const tt = CR.t, T0 = 3.6, T1 = 12.6;
-    if (tt < T0) { const k = tt / T0, v = 3 + 7 * k;
-      S.x += CR.fx * v * dt; S.z += CR.fz * v * dt; S.y -= (3 + 9 * k) * dt; S.h = wrapPi(S.h + (0.6 + 2.0 * k) * dt);
-      S.roll = Math.sin(tt * 3.1) * 0.3 * k; S.pitch = -0.25 * k + Math.sin(tt * 2.3) * 0.1;
-      CR.flow.set(CR.fx * 16, -6, CR.fz * 16); crash.streak = smooth(0, 1.2, tt); CR.shake = 0.05 + 0.12 * k; murkEl.style.opacity = String(smooth(2.3, 3.5, tt) * 0.96); audio.current(0.35 + 0.65 * k);
+    CR.t += dt; const tt = CR.t, T0 = 6.5, T1 = 15.5;
+    if (tt < T0) { const k = smooth(0, 4.5, tt), v = 1 + 9 * k;   // die Strömung setzt sacht ein und wird in gut vier Sekunden voll
+      S.x += CR.fx * v * dt; S.z += CR.fz * v * dt; S.y -= (1 + 11 * k) * dt; S.h = wrapPi(S.h + (0.15 + 2.4 * k) * dt);
+      S.roll = Math.sin(tt * 3.1) * 0.3 * k; S.pitch = -0.25 * k + Math.sin(tt * 2.3) * 0.1 * k;
+      CR.flow.set(CR.fx * 24, -9, CR.fz * 24); CR.snowK = k; CR.shake = 0.02 + 0.15 * k; murkEl.style.opacity = String(smooth(5.2, 6.4, tt) * 0.96); audio.current(0.15 + 0.85 * k);
     } else {
       if (!CR.jumped) { CR.jumped = true; tpTo(FALL0.x, FALL0.y, FALL0.z, S.h); }   // im Trüben versetzt: über das Plateau
       const u = clamp((tt - T0) / (T1 - T0), 0, 1), ey = u * u * 0.35 + u * 0.65, r = 10 * Math.pow(1 - u, 0.8), an = (tt - T0) * 1.25, w = smooth(0, 0.8, u);
       S.x = FALL0.x + (LAND.x - FALL0.x) * w + Math.sin(an) * r; S.z = FALL0.z + (LAND.z - FALL0.z) * w + Math.cos(an) * r; S.y = FALL0.y + (LAND.y - FALL0.y) * ey;
       S.h = wrapPi(an + Math.PI / 2 + Math.sin(tt * 1.7) * 0.3); S.h = wrapPi(S.h + wrapPi(LAND.h - S.h) * smooth(0.82, 1, u));
       S.roll = (0.2 + 0.3 * Math.sin(tt * 1.3)) * (1 - u); S.pitch = -0.2 - 0.1 * Math.sin(tt * 1.9);
-      CR.flow.set(Math.cos(an) * 6, 9, -Math.sin(an) * 6); crash.streak = 1 - 0.4 * u; CR.shake = 0.09; murkEl.style.opacity = String(0.96 * (1 - smooth(T0 + 0.5, T0 + 2.8, tt))); audio.current(1 - 0.45 * u);
+      CR.flow.set(Math.cos(an) * 10, 16, -Math.sin(an) * 10); CR.snowK = 1 - 0.4 * u; CR.shake = 0.09; murkEl.style.opacity = String(0.96 * (1 - smooth(T0 + 0.5, T0 + 2.8, tt))); audio.current(1 - 0.45 * u);
       if (u >= 1) { crashImpact(); return; }
     }
     S.vx = S.vy = S.vz = 0; S.yawV = 0; S.thrust = 0; return;
@@ -441,7 +441,7 @@ function crashDrive(dt) {
   S.x = LAND.x; S.z = LAND.z; S.y = LAND.y + lift * 6; S.h = LAND.h; S.roll = 0.09 * (1 - lift) + Math.sin(CR.liftT * 1.3) * 0.03 * lift; S.pitch = -0.035 * (1 - lift); S.vx = S.vy = S.vz = 0; S.yawV = 0; S.thrust = 0;
 }
 /** Aufschlag: das Boot sitzt auf dem Plateau, Schraube verbogen, ein Tank gerissen */
-function crashImpact() { MS.stage = 'crashed'; CR.shake = 1.0; crash.streak = 0; murkEl.style.opacity = '0'; audio.current(0); audio.crash(); S.x = LAND.x; S.y = LAND.y; S.z = LAND.z; S.h = LAND.h; S.roll = 0.09; S.pitch = -0.035;
+function crashImpact() { MS.stage = 'crashed'; CR.shake = 1.0; CR.stepHold = U.uTime.value + 3; murkEl.style.opacity = '0'; audio.current(0); audio.crash(); S.x = LAND.x; S.y = LAND.y; S.z = LAND.z; S.h = LAND.h; S.roll = 0.09; S.pitch = -0.035;
   life.emit(LAND.x, LAND.y - 1.4, LAND.z, 0, 0.9, 0, 2400, 0.05); syncMis(); save(); setTimeout(() => banner(t('m8_crash_h'), t('m8_crash')), 1600); }
 /** zu Fuß: was man gerade an Boot und Kittiwake tun kann; das Schweißen läuft, solange man am Riss bleibt */
 function crashDiver(dt) {
@@ -456,26 +456,31 @@ function crashDiver(dt) {
 function crashDo(a) { crashAct = null; audio.hatch();
   if (a === 'propOff') MS.stage = 'kitProp'; else if (a === 'kitProp') MS.stage = 'fitProp'; else if (a === 'propOn') MS.stage = 'tools';
   else if (a === 'weld') { CR.weldT = 0.001; note(t('m8_weld_go')); return; }
-  else if (a === 'tools') { MS.stage = 'weld'; MS.can2 = true; syncMis(); addLog({ kind: 'find', id: 'm8', dist: Math.round(Math.hypot(KIT.x, KIT.z) / 10) * 10, dir: DIR8(KIT.x, KIT.z) }); playTape(7, true); setTimeout(() => note(t('page_new')), 5500); }   // in der Dose: Seite und Kassette
+  else if (a === 'tools') { MS.stage = 'weld'; MS.can2 = true; syncMis(); addLog({ kind: 'find', id: 'm8', dist: Math.round(Math.hypot(KIT.x, KIT.z) / 10) * 10, dir: DIR8(KIT.x, KIT.z) }); setTimeout(() => note(t('page_new')), 5500); }   // in der Dose: Seite und Kassette (die läuft erst, wenn die Mission geschafft ist)
   syncMis(); save(); }
 /** in der Kabine: der Hebel bläst die Tanks an, das Boot hebt sich */
 function crashBlow() { if (MS.active !== 'm8' || MS.stage !== 'blow') return; MS.stage = 'lift'; CR.liftT = 0; cabin.state.blowT = 1; audio.blow(); syncMis(); save(); setTimeout(() => note(t('m8_lift')), 1200); }
-function crashReset() { CR.t = 0; CR.weldT = 0; CR.liftT = 0; CR.shake = 0; crash.streak = 0; murkEl.style.opacity = '0'; audio.current(0); }
+function crashReset() { CR.t = 0; CR.weldT = 0; CR.liftT = 0; CR.shake = 0; CR.snowK = 0; CR.over = false; murkEl.style.opacity = '0'; audio.current(0); }
 /** ein Spielstand mitten im Sturz liegt danach schon auf dem Plateau */
 function crashLoaded() { if (MS.active !== 'm8') return; if (MS.stage === 'current') MS.stage = 'crashed'; if (MS.stage === 'lift') MS.stage = 'blow'; if (MS.stage !== 'dive') tpTo(LAND.x, LAND.y, LAND.z, LAND.h); }
 /** jedes Bild: Teile am Boot und an der Kittiwake, Schlieren, Blasen, Funken, neugierige Tiere */
 function crashFrame(dt) {
   const on = MS.active === 'm8', i = on ? M8.indexOf(MS.stage) : -1, done = MS.done.includes('m8');
-  crash.set(boat, { prop: i === 2 ? 'bent' : i === 3 || i === 4 ? 'off' : 'ok', kitProp: on ? i <= 3 : !done, tools: on ? i <= 5 : !done, tank: i >= 2 && i <= 6 ? 'torn' : i >= 7 || done ? 'seam' : 'ok' });
-  if (!(on && MS.stage === 'current')) { CR.shake *= Math.exp(-1.8 * dt); if (crash.streak > 0) crash.streak = Math.max(0, crash.streak - dt * 0.8); const mo = +murkEl.style.opacity || 0; if (mo > 0) murkEl.style.opacity = String(Math.max(0, mo - dt * 0.8)); }
+  crash.set(boat, { ground: (on && i >= 3) || done, prop: i === 2 ? 'bent' : i === 3 || i === 4 ? 'off' : 'ok', kitProp: on ? i <= 3 : !done, tools: on ? i <= 5 : !done, tank: i >= 2 && i <= 6 ? 'torn' : i >= 7 || done ? 'seam' : 'ok' });
+  if (!(on && MS.stage === 'current')) { CR.shake *= Math.exp(-1.8 * dt); if (CR.snowK > 0) CR.snowK = Math.max(0, CR.snowK - dt * 0.5); const mo = +murkEl.style.opacity || 0; if (mo > 0) murkEl.style.opacity = String(Math.max(0, mo - dt * 0.8)); }
   if (MS.stage !== 'lift') cabin.state.blowT = 0;
-  crash.weld = CR.weldT > 0 ? 1 : 0; crash.update(dt, camera, boat, CR.flow); audio.weld(CR.weldT > 0 ? 0.5 + Math.random() * 0.5 : 0);
+  crash.weld = CR.weldT > 0 ? 1 : 0; crash.update(dt, boat); life.flowK.value = CR.snowK; if (CR.snowK > 0) { const f = life.flow.value; f.addScaledVector(CR.flow, dt * CR.snowK); f.set(f.x % 44, f.y % 44, f.z % 44); }   // der Meeresschnee zieht mit der Strömung audio.weld(CR.weldT > 0 ? 0.5 + Math.random() * 0.5 : 0);
   deepLife.curious = on && i >= 2 ? { x: LAND.x, y: LAND.y + 1, z: LAND.z } : null;   // auf dem Plateau kommen die Tiefseetiere näher heran
   if (on && i >= 2 && V.mode === 'dive' && frames % 30 === 0 && Math.hypot(diver.x - KIT.x, diver.z - KIT.z) < 14 && !LOG.some((e) => e.id === 'm8k')) addLog({ kind: 'find', id: 'm8k', dist: Math.round(Math.hypot(KIT.x, KIT.z) / 10) * 10, dir: DIR8(KIT.x, KIT.z) });
 }
 /** weißer Hinweis oben: was als Nächstes zu tun ist */
-function crashStepText() { let k = ''; if (MS.active === 'm8' && started && !CAMV.on) { const s = MS.stage; if (s !== 'current' && s !== 'lift') k = 'mish_m8_' + s + ((s === 'crashed' || s === 'blow') && V.mode === 'dive' ? 'b' : ''); }
-  const tx = k ? t(k) : ''; if (tx && stepEl.textContent !== tx) stepEl.textContent = tx; stepEl.style.opacity = tx ? '1' : '0'; }
+function crashStepText() { let k = ''; const now = U.uTime.value;
+  if (MS.active === 'm8' && started && !CAMV.on) { const s = MS.stage; if (s === 'dive' && overAbyss()) CR.over = true;
+    if (s !== 'current' && s !== 'lift') k = 'mish_m8_' + s + ((s === 'crashed' || s === 'blow') && V.mode === 'dive' ? 'b' : s === 'dive' && CR.over ? 'c' : ''); }
+  if (bannerT > 0) CR.stepHold = Math.max(CR.stepHold, now + 1.2);   // erst der große Missionstext, dann der Hinweis
+  if (k !== CR.stepKey) { CR.stepKey = k; CR.stepShown = ''; }
+  if (k && !CR.stepShown && now > CR.stepHold) { CR.stepShown = k; stepEl.textContent = t(k); CR.stepUntil = now + 7; }
+  stepEl.style.opacity = k && CR.stepShown === k && now < CR.stepUntil ? '1' : '0'; }
 /** Wackeln beim Sog und beim Aufschlag; in der Kabine nur ein wenig */
 function shakeOn() { if (CR.shake < 0.003) return false; const a = CR.shake * 0.35 * (V.mode === 'in' ? 0.12 : 1), tt = U.uTime.value; shk.set(Math.sin(tt * 37) + Math.sin(tt * 61) * 0.5, Math.sin(tt * 43 + 1) + Math.sin(tt * 71) * 0.5, Math.sin(tt * 53 + 2)).multiplyScalar(a); camera.position.add(shk); camIn.position.add(shk); return true; }
 function shakeOff() { camera.position.sub(shk); camIn.position.sub(shk); }
@@ -539,10 +544,10 @@ function humpStep(dt) {
     const m = MISSIONS[misIdx('m6')]; MS.stage = 'end'; note(t('m6_end')); setTimeout(() => finishMission(m, humpPid), 1200); } }
 }
 const POD_FIXED = [{ x: WHALE.x, z: WHALE.z, kind: 'skeleton' }, { x: cxAt(235), z: 235, kind: 'hole' }];
-function startMission(m = nextMis()) { if (!m || MS.active) return; MS.active = m.id; if (m.tanks) MS.stage = 'lamp'; if (m.crash) { MS.stage = 'dive'; MS.can2 = false; CR.t = 0; CR.weldT = 0; } if (m.pod) { MS.stage = 'photo'; MS.pod = choosePod(S.x, S.z, 400, POD_FIXED); } if (m.hump) { MS.stage = 'listen'; MS.hump = humpSpot(); humpPid = null; } $('log').classList.remove('open'); banner(t('mis_started'), t('mis_' + m.id)); audio.click(0.7); syncMis(); save(); lockMouse(); }
+function startMission(m = nextMis()) { if (!m || MS.active) return; MS.active = m.id; if (m.tanks) MS.stage = 'lamp'; if (m.crash) { MS.stage = 'dive'; MS.can2 = false; CR.t = 0; CR.weldT = 0; CR.over = false; } if (m.pod) { MS.stage = 'photo'; MS.pod = choosePod(S.x, S.z, 400, POD_FIXED); } if (m.hump) { MS.stage = 'listen'; MS.hump = humpSpot(); humpPid = null; } $('log').classList.remove('open'); banner(t('mis_started'), t('mis_' + m.id)); audio.click(0.7); syncMis(); save(); lockMouse(); }
 /** wohin das Sonar bei einer Mission zeigt: Dose, Fotoziel, die Glocke (Anzug) oder nichts (zurück zum Loch findet man nur über den Kurs) */
-const BELL_T = { x: BELL.x, z: BELL.z };
-function misTarget() { if (!MS.active) return null; const i = misIdx(MS.active), m = MISSIONS[i]; if (m.pod || m.hump || m.crash) return null; if (!MS.stage || MS.stage === 'tanks') return cans.lamp(i); if (MS.stage === 'lamp') return LAMP; if (MS.stage === 'lampback') return null; if (MS.stage === 'photo') return photoTarget(); if (MS.stage === 'bell') return BELL_T; return null; }
+const BELL_T = { x: BELL.x, z: BELL.z }, ABYSS_T = { x: FALL0.x, z: FALL0.z }, overAbyss = () => floorH(S.x, S.z) < -400;   // Probefahrt: das Sonar zeigt zum Abgrund neben dem Plateau
+function misTarget() { if (!MS.active) return null; const i = misIdx(MS.active), m = MISSIONS[i]; if (m.pod || m.hump) return null; if (m.crash) return MS.stage === 'dive' && !overAbyss() ? ABYSS_T : null; if (!MS.stage || MS.stage === 'tanks') return cans.lamp(i); if (MS.stage === 'lamp') return LAMP; if (MS.stage === 'lampback') return null; if (MS.stage === 'photo') return photoTarget(); if (MS.stage === 'bell') return BELL_T; return null; }
 function clearGold() { for (let i = marks.length - 1; i >= 0; i--) if (marks[i].gold) marks.splice(i, 1); for (let i = echoes.length - 1; i >= 0; i--) if (echoes[i].gold || echoes[i].sector) echoes.splice(i, 1); sectors.length = 0; }
 /** an der Taucherglocke: der alte Anzug kommt an Bord */
 function takeSuit() {
@@ -575,7 +580,7 @@ function takeCan() {
 }
 function finishMission(m, pid) {
   if (m.id === 'm3') { const p = MISSIONS[misIdx('m3')]; setTimeout(() => addLog({ kind: 'find', id: 'm3k', dist: Math.round(Math.hypot(p.x, p.z) / 10) * 10, dir: DIR8(p.x, p.z) }), 3200); }   // ein kleiner Kristall von der Grotte
-  MS.done.push(m.id); MS.active = null; MS.stage = null; MS.tooth = MS.can2 = false; nearCan = nearCan2 = false; syncMis(); banner(t('mis_done'), t('mis_' + m.id)); if (m.tapeLate) playTape(m.tape, true);
+  MS.done.push(m.id); MS.active = null; MS.stage = null; MS.tooth = MS.can2 = false; nearCan = nearCan2 = false; syncMis(); banner(t('mis_done'), t('mis_' + m.id)); if (m.tapeLate || m.crash) playTape(m.tape, true);
   if (m.pod) { setTimeout(() => addLog({ kind: 'diary', id: m.id, pid }), 2500); setTimeout(() => note(t('env_open')), 6000); }
   else if (m.hump) { setTimeout(() => addLog({ kind: 'diary', id: m.id, pid }), 2500); setTimeout(() => { note(t('env2_open')); playTape(m.tape, true); }, 6500); }   // Buckelwale: der zweite Umschlag mit Seite und Kassette
   else if (m.crash) setTimeout(() => note(t('m8_free')), 5000);   // die Seite kam schon mit der Dose
