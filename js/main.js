@@ -410,7 +410,7 @@ actEl.addEventListener('pointerdown', (e) => { e.preventDefault(); if (V.mode ==
 // ---------- Missionen: beginnen an der Seite auf dem Schreibtisch; gestartet liegt draußen eine Messingdose, die man birgt ----------
 const MS = { active: null, done: [], pageSeen: -1, hint: null, stage: null, cam: false, pod: null, hump: null, flood: false, floodOn: false, suit: false, tooth: false, can2: false, markSeen: false, pmax: 0, got: null, fresh: -1 }, bannerEl = $('banner'); let nearCan = false, nearCan2 = false, bannerT = 0, sonHintT = 0;
 /** einmal pro Mission, beim ersten Mal am Steuer (oder draußen): kleiner Hinweis neben dem Sonar */
-function sonHint() { if (!started || !MS.active || CAMV.on || !(V.mode === 'out' || V.st === 'seat')) return; const bell = MS.active === 'm5' && MS.stage === 'bell', key = MS.active + (bell ? ':bell' : ''); if (MS.hint === key || (MS.active === 'm5' && MS.stage && !bell) || (MS.active === 'm8' && (MS.stage !== 'dive' || overAbyss()))) return; MS.hint = key; const h = $('sonHint'); h.textContent = t(bell ? 'son_hint_bell' : MS.active === 'm8' ? 'son_hint_m8' : (MISSIONS[misIdx(MS.active)].pod || MISSIONS[misIdx(MS.active)].hump) ? 'son_hint_m4' : 'son_hint'); h.style.opacity = 1; sonHintT = 9; save(); }
+function sonHint() { if (!started || !MS.active || CAMV.on || !(V.mode === 'out' || V.st === 'seat')) return; const bell = MS.active === 'm5' && MS.stage === 'bell', key = MS.active + (bell ? ':bell' : ''); if (MS.hint === key || (MS.active === 'm5' && MS.stage && !bell) || (MS.active === 'm8' && (MS.stage !== 'dive' || overAbyss()))) return; MS.hint = key; const h = $('sonHint'); h.textContent = t(bell ? 'son_hint_bell' : MS.active === 'm8' ? 'son_hint_m8' : (MISSIONS[misIdx(MS.active)].pod || MISSIONS[misIdx(MS.active)].hump) ? 'son_hint_m4' : 'son_hint'); h.style.opacity = 1; sonHintT = 9; lastHint = { k: 'son', tx: h.textContent, st: MS.stage }; save(); }
 const misIdx = (id) => MISSIONS.findIndex((m) => m.id === id), nextMis = () => MISSIONS.find((m) => !MS.done.includes(m.id)) || null;
 // ---------- Probefahrt (Mission 8): bei 150 m packt eine Strömung das Boot, ein Sprung im Trüben, dann in einer Spirale hinab aufs Plateau; Reparatur mit den Teilen der Kittiwake ----------
 const M8 = ['dive', 'current', 'crashed', 'kitProp', 'fitProp', 'tools', 'weld', 'blow', 'lift'];
@@ -421,20 +421,22 @@ function crashDrive(dt) {
   if (MS.active !== 'm8') return; const st = MS.stage;
   if (st === 'dive') { if (S.y < -150 && V.mode !== 'dive' && !CAMV.on) beginCurrent(); return; }
   if (st === 'current') {
+    const px = S.x, py = S.y, pz = S.z; let jump = false;
     CR.t += dt; const tt = CR.t, T0 = 6.5, T1 = 15.5;
     if (tt < T0) { const k = smooth(0, 4.5, tt), v = 1 + 9 * k;   // die Strömung setzt sacht ein und wird in gut vier Sekunden voll
       S.x += CR.fx * v * dt; S.z += CR.fz * v * dt; S.y -= (1 + 11 * k) * dt; S.h = wrapPi(S.h + (0.15 + 2.4 * k) * dt);
       S.roll = Math.sin(tt * 3.1) * 0.3 * k; S.pitch = -0.25 * k + Math.sin(tt * 2.3) * 0.1 * k;
-      CR.flow.set(CR.fx * 24, -9, CR.fz * 24); CR.snowK = k; CR.shake = 0.02 + 0.15 * k; murkEl.style.opacity = String(smooth(5.2, 6.4, tt) * 0.96); audio.current(0.15 + 0.85 * k);
+      CR.snowK = k; CR.shake = 0.02 + 0.15 * k; murkEl.style.opacity = String(smooth(5.2, 6.4, tt) * 0.96); audio.current(0.15 + 0.85 * k);
     } else {
-      if (!CR.jumped) { CR.jumped = true; tpTo(FALL0.x, FALL0.y, FALL0.z, S.h); }   // im Trüben versetzt: über das Plateau
+      if (!CR.jumped) { CR.jumped = true; jump = true; tpTo(FALL0.x, FALL0.y, FALL0.z, S.h); }   // im Trüben versetzt: über das Plateau
       const u = clamp((tt - T0) / (T1 - T0), 0, 1), ey = u * u * 0.35 + u * 0.65, r = 10 * Math.pow(1 - u, 0.8), an = (tt - T0) * 1.25, w = smooth(0, 0.8, u);
       S.x = FALL0.x + (LAND.x - FALL0.x) * w + Math.sin(an) * r; S.z = FALL0.z + (LAND.z - FALL0.z) * w + Math.cos(an) * r; S.y = FALL0.y + (LAND.y - FALL0.y) * ey;
       S.h = wrapPi(an + Math.PI / 2 + Math.sin(tt * 1.7) * 0.3); S.h = wrapPi(S.h + wrapPi(LAND.h - S.h) * smooth(0.82, 1, u));
       S.roll = (0.2 + 0.3 * Math.sin(tt * 1.3)) * (1 - u); S.pitch = -0.2 - 0.1 * Math.sin(tt * 1.9);
-      CR.flow.set(Math.cos(an) * 10, 16, -Math.sin(an) * 10); CR.snowK = 1 - 0.4 * u; CR.shake = 0.09; murkEl.style.opacity = String(0.96 * (1 - smooth(T0 + 0.5, T0 + 2.8, tt))); audio.current(1 - 0.45 * u);
+      CR.snowK = 1 - 0.4 * u; CR.shake = 0.09; murkEl.style.opacity = String(0.96 * (1 - smooth(T0 + 0.5, T0 + 2.8, tt))); audio.current(1 - 0.45 * u);
       if (u >= 1) { crashImpact(); return; }
     }
+    if (!jump && dt > 0) { cv3.set((S.x - px) / dt, (S.y - py) / dt, (S.z - pz) / dt).multiplyScalar(1.12); CR.flow.lerp(cv3, Math.min(1, dt * 6)); }   // das Wasser (und mit ihm der Meeresschnee) strömt mit dem Boot, nur ein wenig schneller
     S.vx = S.vy = S.vz = 0; S.yawV = 0; S.thrust = 0; return;
   }
   let lift = 0; if (st === 'lift') { CR.liftT += dt; lift = smooth(0, 5, CR.liftT); if (CR.liftT > 5.5) { finishMission(MISSIONS[misIdx('m8')]); return; } }
@@ -467,9 +469,9 @@ function crashLoaded() { if (MS.active !== 'm8') return; if (MS.stage === 'curre
 function crashFrame(dt) {
   const on = MS.active === 'm8', i = on ? M8.indexOf(MS.stage) : -1, done = MS.done.includes('m8');
   crash.set(boat, { ground: (on && i >= 3) || done, prop: i === 2 ? 'bent' : i === 3 || i === 4 ? 'off' : 'ok', kitProp: on ? i <= 3 : !done, tools: on ? i <= 5 : !done, tank: i >= 2 && i <= 6 ? 'torn' : i >= 7 || done ? 'seam' : 'ok' });
-  if (!(on && MS.stage === 'current')) { CR.shake *= Math.exp(-1.8 * dt); if (CR.snowK > 0) CR.snowK = Math.max(0, CR.snowK - dt * 0.5); const mo = +murkEl.style.opacity || 0; if (mo > 0) murkEl.style.opacity = String(Math.max(0, mo - dt * 0.8)); }
+  if (!(on && MS.stage === 'current')) { CR.shake *= Math.exp(-1.8 * dt); if (CR.snowK > 0) CR.snowK = Math.max(0, CR.snowK - dt * 0.5); CR.flow.multiplyScalar(Math.exp(-1.5 * dt)); const mo = +murkEl.style.opacity || 0; if (mo > 0) murkEl.style.opacity = String(Math.max(0, mo - dt * 0.8)); }
   if (MS.stage !== 'lift') cabin.state.blowT = 0;
-  crash.weld = CR.weldT > 0 ? 1 : 0; crash.update(dt, boat); life.flowK.value = CR.snowK; if (CR.snowK > 0) { const f = life.flow.value; f.addScaledVector(CR.flow, dt * CR.snowK); f.set(f.x % 44, f.y % 44, f.z % 44); }   // der Meeresschnee zieht mit der Strömung audio.weld(CR.weldT > 0 ? 0.5 + Math.random() * 0.5 : 0);
+  crash.weld = CR.weldT > 0 ? 1 : 0; crash.update(dt, boat); life.flowK.value = CR.snowK; if (CR.snowK > 0) { const f = life.flow.value; f.addScaledVector(CR.flow, dt); f.set(f.x % 44, f.y % 44, f.z % 44); }   // der Meeresschnee zieht mit der Strömung audio.weld(CR.weldT > 0 ? 0.5 + Math.random() * 0.5 : 0);
   deepLife.curious = on && i >= 2 ? { x: LAND.x, y: LAND.y + 1, z: LAND.z } : null;   // auf dem Plateau kommen die Tiefseetiere näher heran
   if (on && i >= 2 && V.mode === 'dive' && frames % 30 === 0 && Math.hypot(diver.x - KIT.x, diver.z - KIT.z) < 14 && !LOG.some((e) => e.id === 'm8k')) addLog({ kind: 'find', id: 'm8k', dist: Math.round(Math.hypot(KIT.x, KIT.z) / 10) * 10, dir: DIR8(KIT.x, KIT.z) });
 }
@@ -479,7 +481,7 @@ function crashStepText() { let k = ''; const now = U.uTime.value;
     if (s !== 'current' && s !== 'lift') k = 'mish_m8_' + s + ((s === 'crashed' || s === 'blow') && V.mode === 'dive' ? 'b' : s === 'dive' && CR.over ? 'c' : ''); }
   if (bannerT > 0) CR.stepHold = Math.max(CR.stepHold, now + 1.2);   // erst der große Missionstext, dann der Hinweis
   if (k !== CR.stepKey) { CR.stepKey = k; CR.stepShown = ''; }
-  if (k && !CR.stepShown && now > CR.stepHold) { CR.stepShown = k; stepEl.textContent = t(k); CR.stepUntil = now + 7; }
+  if (k && !CR.stepShown && now > CR.stepHold) { CR.stepShown = k; stepEl.textContent = t(k); CR.stepUntil = now + 7; lastHint = { k: 'step', st: MS.stage }; }
   stepEl.style.opacity = k && CR.stepShown === k && now < CR.stepUntil ? '1' : '0'; }
 /** Wackeln beim Sog und beim Aufschlag; in der Kabine nur ein wenig */
 function shakeOn() { if (CR.shake < 0.003) return false; const a = CR.shake * 0.35 * (V.mode === 'in' ? 0.12 : 1), tt = U.uTime.value; shk.set(Math.sin(tt * 37) + Math.sin(tt * 61) * 0.5, Math.sin(tt * 43 + 1) + Math.sin(tt * 71) * 0.5, Math.sin(tt * 53 + 2)).multiplyScalar(a); camera.position.add(shk); camIn.position.add(shk); return true; }
@@ -492,7 +494,7 @@ const curPage = () => { let n = 0; for (let i = 0; i < PAGE_OWN.length; i++) if 
 /** merkt sich, welche Seiten gerade lesbar sind; eine neu hinzugekommene wird „frisch“ (das Logbuch schimmert und schlägt sie auf) */
 function trackPages() { const now = []; for (let i = 0; i < PAGE_OWN.length && i < t('pages').length; i++) if (pageHas(i)) now.push(i); if (!MS.got) MS.got = MS.pageSeen >= 0 ? now.slice() : [];
   let nw = -1; for (const i of now) if (!MS.got.includes(i)) nw = Math.max(nw, i); if (nw >= 0) MS.fresh = nw; MS.got = now; MS.pmax = Math.max(MS.pmax, now.length ? now[now.length - 1] : 0); }
-function banner(a, b) { bannerEl.children[0].textContent = a; bannerEl.children[1].textContent = b; bannerEl.classList.toggle('long', b.length > 46); bannerEl.style.opacity = 1; bannerT = 5; }   // lange Hinweise kleiner und umbrochen
+function banner(a, b) { if (MS.active && a !== t('mis_started') && a !== t('mis_done')) lastHint = { k: 'banner', a, b, st: MS.stage }; bannerEl.children[0].textContent = a; bannerEl.children[1].textContent = b; bannerEl.classList.toggle('long', b.length > 46); bannerEl.style.opacity = 1; bannerT = 5; }   // lange Hinweise kleiner und umbrochen
 function syncMis() {
   const st = cabin.state; st.own = [true, false, false, false, false, false, false, false]; for (const id of MS.done) { const m = MISSIONS[misIdx(id)]; if (m) st.own[m.tape] = true; } { const am = MS.active && MS.stage ? MISSIONS[misIdx(MS.active)] : null; if (am && am.tape != null && (!(am.tapeLate || am.crash) || MS.can2)) st.own[am.tape] = true; } if (!st.own[st.tapeIn]) st.tapeIn = 0;
   trackPages(); cans.show(MS.active && (!MS.stage || MS.stage === 'tanks') ? misIdx(MS.active) : -1); st.pageNew = MS.fresh >= 0;   // ungelesene Seite: schimmert leicht
@@ -544,7 +546,7 @@ function humpStep(dt) {
     const m = MISSIONS[misIdx('m6')]; MS.stage = 'end'; note(t('m6_end')); setTimeout(() => finishMission(m, humpPid), 1200); } }
 }
 const POD_FIXED = [{ x: WHALE.x, z: WHALE.z, kind: 'skeleton' }, { x: cxAt(235), z: 235, kind: 'hole' }];
-function startMission(m = nextMis()) { if (!m || MS.active) return; MS.active = m.id; if (m.tanks) MS.stage = 'lamp'; if (m.crash) { MS.stage = 'dive'; MS.can2 = false; CR.t = 0; CR.weldT = 0; CR.over = false; } if (m.pod) { MS.stage = 'photo'; MS.pod = choosePod(S.x, S.z, 400, POD_FIXED); } if (m.hump) { MS.stage = 'listen'; MS.hump = humpSpot(); humpPid = null; } $('log').classList.remove('open'); banner(t('mis_started'), t('mis_' + m.id)); audio.click(0.7); syncMis(); save(); lockMouse(); }
+function startMission(m = nextMis()) { if (!m || MS.active) return; MS.active = m.id; lastHint = null; if (m.tanks) MS.stage = 'lamp'; if (m.crash) { MS.stage = 'dive'; MS.can2 = false; CR.t = 0; CR.weldT = 0; CR.over = false; } if (m.pod) { MS.stage = 'photo'; MS.pod = choosePod(S.x, S.z, 400, POD_FIXED); } if (m.hump) { MS.stage = 'listen'; MS.hump = humpSpot(); humpPid = null; } $('log').classList.remove('open'); banner(t('mis_started'), t('mis_' + m.id)); audio.click(0.7); syncMis(); save(); lockMouse(); }
 /** wohin das Sonar bei einer Mission zeigt: Dose, Fotoziel, die Glocke (Anzug) oder nichts (zurück zum Loch findet man nur über den Kurs) */
 const BELL_T = { x: BELL.x, z: BELL.z }, ABYSS_T = { x: FALL0.x, z: FALL0.z }, overAbyss = () => floorH(S.x, S.z) < -400;   // Probefahrt: das Sonar zeigt zum Abgrund neben dem Plateau
 function misTarget() { if (!MS.active) return null; const i = misIdx(MS.active), m = MISSIONS[i]; if (m.pod || m.hump) return null; if (m.crash) return MS.stage === 'dive' && !overAbyss() ? ABYSS_T : null; if (!MS.stage || MS.stage === 'tanks') return cans.lamp(i); if (MS.stage === 'lamp') return LAMP; if (MS.stage === 'lampback') return null; if (MS.stage === 'photo') return photoTarget(); if (MS.stage === 'bell') return BELL_T; return null; }
@@ -646,6 +648,14 @@ function takePhoto() {
 }
 $('camBtn').addEventListener('pointerdown', (e) => { e.preventDefault(); openCam(); });
 $('lampBtn').addEventListener('pointerdown', (e) => { e.preventDefault(); toggleFlood(); });
+/** Hilfeknopf (H): zeigt den letzten Hinweis der laufenden Mission noch einmal; ist der aus einem früheren Abschnitt, steht dort, was jetzt zu tun ist */
+let lastHint = null;
+function showHelp() { if (!started || !MS.active) return; const h = lastHint && lastHint.st === MS.stage ? lastHint : null; audio.click(0.4);
+  if (h && h.k === 'son') { const e = $('sonHint'); e.textContent = h.tx; e.style.opacity = 1; sonHintT = 9; }
+  else if (h && h.k === 'step') { CR.stepShown = ''; CR.stepHold = 0; CR.stepKey = ''; crashStepText(); }
+  else if (h && h.k === 'banner') banner(h.a, h.b);
+  else { const m = MISSIONS[misIdx(MS.active)]; banner(t('mis_' + m.id), misDesc(m)); } }
+$('helpBtn').addEventListener('pointerdown', (e) => { e.preventDefault(); showHelp(); });
 $('camShut').addEventListener('pointerdown', (e) => { e.preventDefault(); shoot(); });
 $('camClose').addEventListener('pointerdown', (e) => { e.preventDefault(); closeCam(); });
 // ---------- Horchgerät: Peilscheibe drehen, Kopfhörer auf. Klicks hört man weit, aber nur aus der Richtung, in die es zeigt ----------
@@ -710,6 +720,8 @@ function drawTapes(dt) {
   w.stroke();
 }
 let misOpen = null, misArm = null;
+/** was gerade bei der laufenden Mission zu tun ist (Text im Missionen-Reiter, auch für den Hilfeknopf) */
+const misDesc = (m) => t(m.id === 'm5' ? 'mish_m5' + (MS.stage ? '_' + MS.stage : '') : m.id === 'm8' ? 'mish_m8_' + (MS.stage === 'current' ? 'dive' : MS.stage === 'lift' ? 'blow' : MS.stage || 'dive') : m.id === 'm7' ? 'mish_m7' + (MS.stage === 'lampback' ? 'b' : MS.stage === 'tanks' ? 'c' : '') : m.id === 'm6' ? 'mish_m6' + (MS.stage === 'watch' ? 'b' : MS.stage === 'follow' || MS.stage === 'end' ? 'c' : '') : 'mish_' + m.id + (MS.stage ? 'b' : ''));
 function fillMis() {
   const box = $('misList'); box.innerHTML = '';
   const add = (cls, name, state, desc, id) => { const d = document.createElement('div'); d.className = 'mis ' + cls; if (name) { const a = document.createElement('div'); a.className = 'mn'; const n = document.createElement('span'); n.textContent = name; const s2 = document.createElement('span'); s2.className = 'ms2'; s2.textContent = state; a.appendChild(n); a.appendChild(s2); d.appendChild(a); const p = document.createElement('div'); p.className = 'md'; p.textContent = desc; d.appendChild(p); } else d.textContent = '· · ·';
@@ -717,15 +729,23 @@ function fillMis() {
       d.classList.add('pick'); d.addEventListener('pointerdown', (e) => { if (e.target.closest('.misRe')) return; e.preventDefault(); misOpen = misOpen === id ? null : id; misArm = null; fillMis(); });
       if (misOpen === id) { const lock = MS.active && MS.active !== id, b = document.createElement('div'); b.className = 'pill mini misRe' + (lock ? ' off' : '') + (misArm === id ? ' arm' : ''); b.textContent = lock ? t('mis_replay_lock') : misArm === id ? t('mis_replay_sure') : t('mis_replay');
         b.addEventListener('pointerdown', (e) => { e.preventDefault(); if (lock) return; if (misArm !== id) { misArm = id; fillMis(); setTimeout(() => { if (misArm === id) { misArm = null; if (M.panel === 'mis') fillMis(); } }, 4000); return; } misArm = null; misOpen = null; if (replayMission(id)) closeMenu(); });
-        d.appendChild(b); } }
+        d.appendChild(b);
+        if (MS.active === id) { const ab = document.createElement('div'), arm = misArm === 'x' + id; ab.className = 'pill mini misRe' + (arm ? ' arm' : ''); ab.textContent = arm ? t('mis_abort_sure') : t('mis_abort');   // abbrechen: wie neu starten, nur läuft danach keine Mission
+          ab.addEventListener('pointerdown', (e) => { e.preventDefault(); if (!arm) { misArm = 'x' + id; fillMis(); setTimeout(() => { if (misArm === 'x' + id) { misArm = null; if (M.panel === 'mis') fillMis(); } }, 4000); return; } misArm = null; misOpen = null; if (abortMission(id)) closeMenu(); });
+          d.appendChild(ab); } } }
     box.appendChild(d); };
-  for (const m of MISSIONS) { if (MS.active === m.id) add('run', t('mis_' + m.id), t('mis_s_run'), t(m.id === 'm5' ? 'mish_m5' + (MS.stage ? '_' + MS.stage : '') : m.id === 'm8' ? 'mish_m8_' + (MS.stage === 'current' ? 'dive' : MS.stage === 'lift' ? 'blow' : MS.stage || 'dive') : m.id === 'm7' ? 'mish_m7' + (MS.stage === 'lampback' ? 'b' : MS.stage === 'tanks' ? 'c' : '') : m.id === 'm6' ? 'mish_m6' + (MS.stage === 'watch' ? 'b' : MS.stage === 'follow' || MS.stage === 'end' ? 'c' : '') : 'mish_' + m.id + (MS.stage ? 'b' : '')), m.id); else if (MS.done.includes(m.id)) add('done', t('mis_' + m.id), '✓ ' + t('mis_s_done'), t('misd_' + m.id), m.id); }
+  for (const m of MISSIONS) { if (MS.active === m.id) add('run', t('mis_' + m.id), t('mis_s_run'), misDesc(m), m.id); else if (MS.done.includes(m.id)) add('done', t('mis_' + m.id), '✓ ' + t('mis_s_done'), t('misd_' + m.id), m.id); }
   const nx = nextMis(); if (!MS.active && nx) add('', '?', t('mis_s_open'), MS.done.length ? t('mis_open') : t('mis_intro'));
   const rest = MISSIONS.length - MS.done.length - (MS.active || nx ? 1 : 0) + HINTED; for (let i = 0; i < Math.min(rest, 4); i++) add('hid');
 }
 /** eine Mission noch einmal spielen: nimmt nur weg, was sie selbst gebracht hat (Seiten bleiben leer stehen). Werkzeuge bleiben, wenn eine spätere Mission sie schon gebraucht hat */
-function replayMission(id) {
-  const i = misIdx(id), m = MISSIONS[i]; if (!m || (MS.active && MS.active !== id)) return false;
+function replayMission(id) { const m = resetMission(id); if (!m) return false; startMission(m); return true; }
+/** eine laufende Mission abbrechen: nimmt weg, was sie gebracht hat, und holt das Boot aus Tiefen, die ohne sie nicht erlaubt sind */
+function abortMission(id) { if (MS.active !== id) return false; const m = resetMission(id); if (!m) return false;
+  const lim = MS.done.includes('m8') ? -450 : deepAt(S.x, S.z); if (!devDeep && S.y < lim) { tpTo(S.x, Math.min(-12, lim + 10), S.z, S.h); }
+  syncMis(); banner(t('mis_aborted'), t('mis_' + id)); save(); return true; }
+function resetMission(id) {
+  const i = misIdx(id), m = MISSIONS[i]; if (!m || (MS.active && MS.active !== id)) return null;
   const later = MISSIONS.slice(i + 1).some((q) => MS.done.includes(q.id)), own = new RegExp('^' + id + '(?![0-9])');
   if (V.mode === 'dive') { diver.exit(); V.mode = 'in'; applyMode(); }
   MS.done = MS.done.filter((d) => d !== id); MS.active = null; MS.stage = null; nearCan = nearCan2 = nearBell = nearTooth = false;
@@ -733,12 +753,12 @@ function replayMission(id) {
   if (m.cave) { if (!later) MS.suit = false; MS.tooth = MS.can2 = false; MS.markSeen = false; }
   if (m.hump) MS.hump = null;   // die Buckelwale ziehen beim Neustart woanders
   if (m.tanks) { MS.flood = false; MS.floodOn = false; }
-  if (m.crash) { MS.can2 = false; crashReset(); }   // Schaden und Werkzeug sind wieder wie vorher, die Kittiwake hat ihre Schraube zurück
+  if (m.crash) { MS.can2 = false; crashReset(); if (S.y < -140) tpTo(S.x, -120, S.z, S.h); }   // Schaden und Werkzeug sind wieder wie vorher, die Kittiwake hat ihre Schraube zurück; vom Plateau geht es wieder nach oben
   if (m.pod) MS.pod = null;   // die alten Pottwale verschwinden, beim Start wird eine neue Gruppe gewürfelt
   if (MS.hint && own.test(MS.hint)) MS.hint = null;
   for (let k = LOG.length - 1; k >= 0; k--) { const e = LOG[k]; if ((e.kind === 'find' || e.kind === 'diary') && e.id && own.test(e.id)) LOG.splice(k, 1); }
-  clearGold(); const tin = cabin.state.tapeIn; syncMis(); if (cabin.state.tapeIn !== tin) { audio.tapeTrack(cabin.state.tapeIn); }
-  startMission(m); return true;
+  clearGold(); lastHint = null; const tin = cabin.state.tapeIn; syncMis(); if (cabin.state.tapeIn !== tin) { audio.tapeTrack(cabin.state.tapeIn); }
+  return m;
 }
 // ---------- Logbuch: füllt sich von selbst, wenn man etwas findet ----------
 const LOG = [], seen = new Set(); let playTime = 0;
@@ -906,6 +926,7 @@ window.addEventListener('keydown', (e) => { if (e.repeat) return;
   if (logOpen() && /^(KeyA|KeyD|ArrowLeft|ArrowRight)$/.test(e.code)) { turnPage(e.code === 'KeyA' || e.code === 'ArrowLeft' ? -1 : 1); return; }   // im Logbuch blättern A / D statt zu gehen
   if (tapesOpen && (e.code === 'Escape' || e.code === 'KeyF')) { closeTapes(e.code === 'Escape'); return; }
   if (horchOpen && (e.code === 'Escape' || e.code === 'KeyF')) { closeHorch(e.code === 'Escape'); return; }
+  if (e.code === 'KeyH' && started && MS.active && !CAMV.on) { showHelp(); return; }
   if (CAMV.on) { if (e.code === 'Space') shoot(); else if (e.code === 'Escape' || e.code === 'KeyK') closeCam(); return; }
   if (V.mode === 'dive') { if (e.code === 'KeyF') actEl.dispatchEvent(new Event('pointerdown')); else if (e.code === 'Escape' && performance.now() - escT > 400 && started) { escT = performance.now(); openMenu(); } return; }
   if (e.code === 'KeyK' && started) { openCam(); return; }
@@ -952,6 +973,7 @@ function frame(now) {
     nearBell = MS.active === 'm5' && MS.stage === 'bell' && V.mode !== 'dive' && Math.hypot(BELL.x - S.x, BELL.z - S.z) < 16 && S.y - floorH(BELL.x, BELL.z) < 18;
     $('camBtn').style.display = hasCam() && started && !CAMV.on && !horchOpen && !tapesOpen && (V.mode === 'out' || V.st === 'seat') ? 'block' : 'none';
     $('lampBtn').style.display = hasFlood() && started && !CAMV.on && !horchOpen && !tapesOpen && (V.mode === 'out' || V.st === 'seat') ? 'block' : 'none'; $('lampBtn').classList.toggle('on', MS.floodOn); { const cb = $('camBtn'); if (cb.offsetWidth) $('lampBtn').style.left = (cb.offsetLeft + cb.offsetWidth + 8) + 'px'; else $('lampBtn').style.left = ''; }   // direkt hinter den Kamera-Knopf, egal wie breit der ist
+    { const hb = $('helpBtn'), on = started && !!MS.active && !CAMV.on && !horchOpen && !tapesOpen; hb.style.display = on ? 'block' : 'none'; if (on) { let x = 12; for (const id of ['camBtn', 'lampBtn']) { const b = $(id); if (b.offsetWidth) x = Math.max(x, b.offsetLeft + b.offsetWidth + 8); } hb.style.left = x + 'px'; } }   // Hilfeknopf: rechts neben Kamera und Scheinwerfer, sonst an deren Platz
     crashStepText();
     const al = actLabel(), actL = $('actL'); if (actL.textContent !== al) { actL.textContent = al; actEl.style.display = al ? 'block' : 'none'; } }
   const bT = M.open ? (M.panel === 'boat' ? 0 : M.panel === 'set' ? 0.55 : 1) : 0, b0 = post.blur; post.blur = Math.abs(b0 - bT) < 0.004 ? bT : damp(b0, bT, 6, dt);
@@ -1018,7 +1040,7 @@ $('mGo').addEventListener('pointerup', (e) => { e.preventDefault(); goBtn(); });
 for (const [id, p] of [['mBoat', 'boat'], ['mSet', 'set'], ['mHelp', 'help'], ['mMis', 'mis']]) $(id).addEventListener('pointerdown', (e) => { e.preventDefault(); showPanel(p); });
 for (const b of document.querySelectorAll('.mBack')) b.addEventListener('pointerdown', (e) => { e.preventDefault(); showPanel('main'); });
 $('menu').classList.add('ready');
-window.__sub = { crash, CR, crashDo, crashImpact, beginCurrent, crashBlow, get crashAct() { return crashAct; }, deepLife, hump, syncHump, get humpWatchT() { return humpWatchT; }, set humpWatchT(v) { humpWatchT = v; }, get devHump() { return devHump; }, cave, CAVE, HOLE, get nearTooth() { return nearTooth; }, get nearCan2() { return nearCan2; }, get nearBell() { return nearBell; }, takeSuit, takeTooth, takeCan2, curPage, BOOK, replayMission, fillMis, pageHas, set devDeep(v) { devDeep = v; }, turnPage, toggleDev, buildDev, seen, misTarget, schools, diver, hullGap, suitOut, suitIn, helmetExhale, get nearHatch() { return nearHatch; }, audio, M, MS, cans, whales, syncPod, syncMis, sectors, echoes, CAMV, PHOTOS, openCam, closeCam, shoot, camTargetOk, photoTarget, openHorch, closeHorch, get horchDeg() { return horchDeg; }, set horchDeg(v) { horchDeg = v; }, startMission, takeCan, openPage, openLog, playTape, MISSIONS, openMenu, closeMenu, showPanel, setBoat, post, get boat() { return boat; }, save, load, texts, setLang, renderer, fauna, S, C, I, U, V, nav, setMode, setSt, table, cabin, tea, LOG, ACT, get target() { return target; }, start, ping, world, life, poisNear, floorH, get frames() { return frames; }, tp(x, y, z, h) { world.update(x, z, Infinity); S.x = x; S.y = y; S.z = z; S.h = h; S.vx = S.vy = S.vz = 0; C.yaw = h; C.oy = C.op = 0; C.pos.set(x - Math.sin(h) * 11, y + 3, z - Math.cos(h) * 11); C.look.set(x, y + 1, z); }, marks, info: () => ({ tris: renderer.info.render.triangles, calls: renderer.info.render.calls, PR, MSAA, chunks: world.chunks.size, near: world.near.length, glows: world.glows.length }) };
+window.__sub = { abortMission, crash, CR, crashDo, crashImpact, beginCurrent, crashBlow, get crashAct() { return crashAct; }, deepLife, hump, syncHump, get humpWatchT() { return humpWatchT; }, set humpWatchT(v) { humpWatchT = v; }, get devHump() { return devHump; }, cave, CAVE, HOLE, get nearTooth() { return nearTooth; }, get nearCan2() { return nearCan2; }, get nearBell() { return nearBell; }, takeSuit, takeTooth, takeCan2, curPage, BOOK, replayMission, fillMis, pageHas, set devDeep(v) { devDeep = v; }, turnPage, toggleDev, buildDev, seen, misTarget, schools, diver, hullGap, suitOut, suitIn, helmetExhale, get nearHatch() { return nearHatch; }, audio, M, MS, cans, whales, syncPod, syncMis, sectors, echoes, CAMV, PHOTOS, openCam, closeCam, shoot, camTargetOk, photoTarget, openHorch, closeHorch, get horchDeg() { return horchDeg; }, set horchDeg(v) { horchDeg = v; }, startMission, takeCan, openPage, openLog, playTape, MISSIONS, openMenu, closeMenu, showPanel, setBoat, post, get boat() { return boat; }, save, load, texts, setLang, renderer, fauna, S, C, I, U, V, nav, setMode, setSt, table, cabin, tea, LOG, ACT, get target() { return target; }, start, ping, world, life, poisNear, floorH, get frames() { return frames; }, tp(x, y, z, h) { world.update(x, z, Infinity); S.x = x; S.y = y; S.z = z; S.h = h; S.vx = S.vy = S.vz = 0; C.yaw = h; C.oy = C.op = 0; C.pos.set(x - Math.sin(h) * 11, y + 3, z - Math.cos(h) * 11); C.look.set(x, y + 1, z); }, marks, info: () => ({ tris: renderer.info.render.triangles, calls: renderer.info.render.calls, PR, MSAA, chunks: world.chunks.size, near: world.near.length, glows: world.glows.length }) };
 // ---------- Entwicklermenü (unter ⚙, Passwort) ----------
 const DEV_PW = 'Entwicklung', devEl = $('dev'), pw = $('devPw');
 let devOn = false; try { devOn = localStorage.getItem('tiefenlicht.dev') === '1'; } catch (e) { /* egal */ }
