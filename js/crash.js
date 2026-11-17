@@ -1,7 +1,6 @@
 // crash.js – die Probefahrt (Mission 8): Strömung, Absturz auf das Plateau an der Abgrundwand, die alte Kittiwake des Kapitäns und die Reparatur.
 // Hier stehen nur Bild und Orte; den Ablauf (Stufen, Steuerung, Texte) führt main.js.
 import { T, glowTexture } from './util.js';
-import { quadPoints } from './gfx.js';
 import { B, propMaterial } from './props.js';
 import { floorH, PLAT } from './terrain.js';
 
@@ -132,11 +131,17 @@ export function createCrash(scene, world) {
   // Der gewöhnliche Meeresschnee bleibt stehen, so sieht man, dass nur dieses Band strömt
   const FN = 1800, fpos = new Float32Array(FN * 3).fill(-9999), falp = new Float32Array(FN), fq = [], PXU = { value: 600 }, fu = new T.Vector3(), fw = new T.Vector3(), fd = new T.Vector3();
   for (let i = 0; i < FN; i++) fq.push({ x: 0, y: -9999, z: 0, age: 0, on: false, s: R(), edge: 1 });
-  const fgeo = new T.BufferGeometry(); fgeo.setAttribute('position', new T.BufferAttribute(fpos, 3)); fgeo.setAttribute('aA', new T.BufferAttribute(falp, 1));
-  const fmesh = quadPoints(fgeo, new T.ShaderMaterial({ uniforms: { uPx: PXU }, transparent: true, depthWrite: false, blending: T.AdditiveBlending,
-    vertexShader: `attribute float aA; uniform float uPx; varying float vA;
-      void main(){ vec4 mv = viewMatrix * vec4(position, 1.0); float d = -mv.z; vA = aA * smoothstep(0.4, 2.2, d) * (1.0 - smoothstep(18.0, 30.0, d)); gl_PointSize = max(1.0, 0.075 * uPx / max(d, 0.5)); gl_Position = projectionMatrix * mv; }`,
-    fragmentShader: `precision highp float; varying float vA; void main(){ vec2 q = gl_PointCoord - 0.5; float a = 1.0 - smoothstep(0.1, 0.5, length(q)); gl_FragColor = vec4(vec3(0.5, 0.8, 0.9) * a * vA * 0.75, 1.0); }` }));
+  // als kurze Striche gezeichnet: jedes Teilchen zieht einen weichen Schweif gegen seine Bewegung (wie Bewegungsunschärfe)
+  const fgeo = new T.InstancedBufferGeometry(); fgeo.setAttribute('aC', new T.BufferAttribute(new Float32Array([-0.5, 0, 0.5, 0, 0.5, 1, -0.5, 1]), 2)); fgeo.setIndex([0, 1, 2, 0, 2, 3]);
+  fgeo.setAttribute('iP', new T.InstancedBufferAttribute(fpos, 3)); fgeo.setAttribute('iA', new T.InstancedBufferAttribute(falp, 1)); fgeo.instanceCount = FN;
+  const UV = { value: new T.Vector3() };
+  const fmesh = new T.Mesh(fgeo, new T.ShaderMaterial({ uniforms: { uPx: PXU, uVel: UV }, side: T.DoubleSide, transparent: true, depthWrite: false, blending: T.AdditiveBlending,
+    vertexShader: `attribute vec2 aC; attribute vec3 iP; attribute float iA; uniform float uPx; uniform vec3 uVel; varying float vA; varying vec2 vC;
+      void main(){ vec4 h = viewMatrix * vec4(iP, 1.0), tl = viewMatrix * vec4(iP - uVel, 1.0); float d = -h.z;
+        float w = max(0.06, 1.5 * d / uPx); vec2 dir = tl.xy / max(-tl.z, 0.1) * d - h.xy; float L = length(dir); dir = L > 0.001 ? dir / L : vec2(0.0, 1.0); L = max(L, w);
+        vec4 mv = h; mv.xy += dir * L * aC.y + vec2(-dir.y, dir.x) * w * aC.x; vC = aC;
+        vA = iA * smoothstep(0.4, 2.2, d) * (1.0 - smoothstep(18.0, 30.0, d)) * min(1.0, w * 2.0 / L + 0.45); gl_Position = projectionMatrix * mv; }`,
+    fragmentShader: `precision highp float; varying float vA; varying vec2 vC; void main(){ float a = (1.0 - smoothstep(0.0, 0.5, abs(vC.x))) * (1.0 - vC.y * 0.85) * smoothstep(0.0, 0.08, vC.y + 0.02); gl_FragColor = vec4(vec3(0.5, 0.8, 0.9) * a * vA * 0.8, 1.0); }` }));
   fmesh.frustumCulled = false; fmesh.renderOrder = 6; fmesh.visible = false; scene.add(fmesh);
   /** b = Boot, v = Geschwindigkeit des Boots, k = Stärke 0..1 */
   const flowStep = (dt, b, v, k, px) => {
@@ -149,7 +154,8 @@ export function createCrash(scene, world) {
       if (!q.on && k > 0.05 && sp > 0.2 && R() < 0.5) { const al = rr(-28, 22), a = R() * PI * 2, r = 6 * Math.pow(R(), 0.75); q.x = b.x + fd.x * al + (fu.x * Math.cos(a) + fw.x * Math.sin(a)) * r; q.y = b.y + fd.y * al + (fu.y * Math.cos(a) + fw.y * Math.sin(a)) * r; q.z = b.z + fd.z * al + (fu.z * Math.cos(a) + fw.z * Math.sin(a)) * r; q.age = 0; q.on = true; q.edge = 1; }
       if (q.on) alive = true;
       fpos[i * 3] = q.x; fpos[i * 3 + 1] = q.on ? q.y : -9999; fpos[i * 3 + 2] = q.z; falp[i] = q.on ? Math.min(1, q.age * 2) * q.edge * (0.35 + 0.65 * q.s) * Math.min(1, k * 1.5) : 0; }
-    fmesh.visible = alive; if (alive) { fgeo.attributes.position.__inst.needsUpdate = true; fgeo.attributes.aA.__inst.needsUpdate = true; }
+    UV.value.set(pvx - v.x, pvy - v.y, pvz - v.z).multiplyScalar(0.05);   // Schweif: so weit, wie das Teilchen in 0,05 s am Boot vorbeizieht
+    fmesh.visible = alive; if (alive) { fgeo.attributes.iP.needsUpdate = true; fgeo.attributes.iA.needsUpdate = true; }
   };
   let boatRef = null, bent = null, tear = null, seam = null, kIdx = 0, ground = null;
   // die verbogene Schraube bleibt als Andenken neben der Landestelle im Sand liegen, flach auf der Seite
