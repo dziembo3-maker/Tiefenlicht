@@ -1,6 +1,7 @@
 // crash.js – die Probefahrt (Mission 8): Strömung, Absturz auf das Plateau an der Abgrundwand, die alte Kittiwake des Kapitäns und die Reparatur.
 // Hier stehen nur Bild und Orte; den Ablauf (Stufen, Steuerung, Texte) führt main.js.
 import { T, glowTexture } from './util.js';
+import { quadPoints } from './gfx.js';
 import { B, propMaterial } from './props.js';
 import { floorH, PLAT } from './terrain.js';
 
@@ -127,10 +128,34 @@ export function createCrash(scene, world) {
   const pts = (n, col, size) => { const a = new Float32Array(n * 3).fill(-9999), g = new T.BufferGeometry(); g.setAttribute('position', new T.BufferAttribute(a, 3)); const m = new T.Points(g, new T.PointsMaterial({ map: gt, color: col, size, transparent: true, opacity: 0.9, blending: T.AdditiveBlending, depthWrite: false, fog: false })); m.frustumCulled = false; scene.add(m); return { m, a, p: Array.from({ length: n }, () => ({ x: 0, y: -9999, z: 0, vx: 0, vy: 0, vz: 0, l: 0 })) }; };
   const bub = pts(70, 0xbfe6f0, 0.16), spark = pts(60, 0xffd08a, 0.09);
 
+  // Strömung: ein Schlauch aus dichtem Meeresschnee um das Boot und seine Bahn; die Teilchen ziehen etwas schneller als das Boot mit.
+  // Der gewöhnliche Meeresschnee bleibt stehen, so sieht man, dass nur dieses Band strömt
+  const FN = 1800, fpos = new Float32Array(FN * 3).fill(-9999), falp = new Float32Array(FN), fq = [], PXU = { value: 600 }, fu = new T.Vector3(), fw = new T.Vector3(), fd = new T.Vector3();
+  for (let i = 0; i < FN; i++) fq.push({ x: 0, y: -9999, z: 0, age: 0, on: false, s: R(), edge: 1 });
+  const fgeo = new T.BufferGeometry(); fgeo.setAttribute('position', new T.BufferAttribute(fpos, 3)); fgeo.setAttribute('aA', new T.BufferAttribute(falp, 1));
+  const fmesh = quadPoints(fgeo, new T.ShaderMaterial({ uniforms: { uPx: PXU }, transparent: true, depthWrite: false, blending: T.AdditiveBlending,
+    vertexShader: `attribute float aA; uniform float uPx; varying float vA;
+      void main(){ vec4 mv = viewMatrix * vec4(position, 1.0); float d = -mv.z; vA = aA * smoothstep(0.4, 2.2, d) * (1.0 - smoothstep(18.0, 30.0, d)); gl_PointSize = max(1.0, 0.075 * uPx / max(d, 0.5)); gl_Position = projectionMatrix * mv; }`,
+    fragmentShader: `precision highp float; varying float vA; void main(){ vec2 q = gl_PointCoord - 0.5; float a = 1.0 - smoothstep(0.1, 0.5, length(q)); gl_FragColor = vec4(vec3(0.5, 0.8, 0.9) * a * vA * 0.75, 1.0); }` }));
+  fmesh.frustumCulled = false; fmesh.renderOrder = 6; fmesh.visible = false; scene.add(fmesh);
+  /** b = Boot, v = Geschwindigkeit des Boots, k = Stärke 0..1 */
+  const flowStep = (dt, b, v, k, px) => {
+    if (k <= 0.05 && !fmesh.visible) return; PXU.value = px; const sp = Math.hypot(v.x, v.y, v.z); let alive = false;
+    if (sp > 0.2) { fd.set(v.x / sp, v.y / sp, v.z / sp); fu.set(0, 1, 0); if (Math.abs(fd.y) > 0.9) fu.set(1, 0, 0); fu.cross(fd).normalize(); fw.crossVectors(fd, fu); }
+    const pvx = v.x * 1.3 + fd.x * 1.5, pvy = v.y * 1.3 + fd.y * 1.5, pvz = v.z * 1.3 + fd.z * 1.5;
+    for (let i = 0; i < FN; i++) { const q = fq[i];
+      if (q.on) { q.x += pvx * dt; q.y += pvy * dt; q.z += pvz * dt; q.age += dt; const rx = q.x - b.x, ry = q.y - b.y, rz = q.z - b.z, al = rx * fd.x + ry * fd.y + rz * fd.z, pp = Math.hypot(rx - fd.x * al, ry - fd.y * al, rz - fd.z * al);
+        if (al > 24 || al < -30 || pp > 9) q.on = false; else { q.edge = 1 - Math.max(0, (pp - 5.5) / 3.5); } }
+      if (!q.on && k > 0.05 && sp > 0.2 && R() < 0.5) { const al = rr(-28, 22), a = R() * PI * 2, r = 6 * Math.pow(R(), 0.75); q.x = b.x + fd.x * al + (fu.x * Math.cos(a) + fw.x * Math.sin(a)) * r; q.y = b.y + fd.y * al + (fu.y * Math.cos(a) + fw.y * Math.sin(a)) * r; q.z = b.z + fd.z * al + (fu.z * Math.cos(a) + fw.z * Math.sin(a)) * r; q.age = 0; q.on = true; q.edge = 1; }
+      if (q.on) alive = true;
+      fpos[i * 3] = q.x; fpos[i * 3 + 1] = q.on ? q.y : -9999; fpos[i * 3 + 2] = q.z; falp[i] = q.on ? Math.min(1, q.age * 2) * q.edge * (0.35 + 0.65 * q.s) * Math.min(1, k * 1.5) : 0; }
+    fmesh.visible = alive; if (alive) { fgeo.attributes.position.__inst.needsUpdate = true; fgeo.attributes.aA.__inst.needsUpdate = true; }
+  };
   let boatRef = null, bent = null, tear = null, seam = null, kIdx = 0, ground = null;
   // die verbogene Schraube bleibt als Andenken neben der Landestelle im Sand liegen, flach auf der Seite
   const GP = (() => { const h = LAND.h, sx = Math.cos(h), sz = -Math.sin(h), fx = Math.sin(h), fz = Math.cos(h), x = LAND.x - fx * 3.6 + sx * 3.0, z = LAND.z - fz * 3.6 + sz * 3.0; return { x, z, y: floorH(x, z) + 0.06 }; })();
   const C = { kit, spheres, kitPropW, toolsW, lampGlow, weldGlow, LAND, KIT, FALL0, near: false };
+  C.flow = flowStep;
   /** Zustand der Teile: prop = 'bent' | 'off' | 'ok', kitProp = Schraube hängt noch an der Kittiwake, tools = liegen noch an der Tür, tank = 'torn' | 'seam' | 'ok' */
   C.set = (boat, s) => {
     if (boat !== boatRef) { if (bent) bent.parent.remove(bent); if (tear) tear.parent.remove(tear); if (seam) seam.parent.remove(seam); boatRef = boat; kIdx = boat.kind || 0;

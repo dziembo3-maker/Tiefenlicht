@@ -436,7 +436,7 @@ function crashDrive(dt) {
       CR.snowK = 1 - 0.4 * u; CR.shake = 0.09; murkEl.style.opacity = String(0.96 * (1 - smooth(T0 + 0.5, T0 + 2.8, tt))); audio.current(1 - 0.45 * u);
       if (u >= 1) { crashImpact(); return; }
     }
-    if (!jump && dt > 0) { cv3.set((S.x - px) / dt, (S.y - py) / dt, (S.z - pz) / dt).multiplyScalar(1.12); CR.flow.lerp(cv3, Math.min(1, dt * 6)); }   // das Wasser (und mit ihm der Meeresschnee) strömt mit dem Boot, nur ein wenig schneller
+    if (!jump && dt > 0) { cv3.set((S.x - px) / dt, (S.y - py) / dt, (S.z - pz) / dt); CR.flow.lerp(cv3, Math.min(1, dt * 6)); }   // Bewegung des Boots: danach richtet sich der Schlauch aus Meeresschnee
     S.vx = S.vy = S.vz = 0; S.yawV = 0; S.thrust = 0; return;
   }
   let lift = 0; if (st === 'lift') { CR.liftT += dt; lift = smooth(0, 5, CR.liftT); if (CR.liftT > 5.5) { finishMission(MISSIONS[misIdx('m8')]); return; } }
@@ -471,7 +471,7 @@ function crashFrame(dt) {
   crash.set(boat, { ground: (on && i >= 3) || done, prop: i === 2 ? 'bent' : i === 3 || i === 4 ? 'off' : 'ok', kitProp: on ? i <= 3 : !done, tools: on ? i <= 5 : !done, tank: i >= 2 && i <= 6 ? 'torn' : i >= 7 || done ? 'seam' : 'ok' });
   if (!(on && MS.stage === 'current')) { CR.shake *= Math.exp(-1.8 * dt); if (CR.snowK > 0) CR.snowK = Math.max(0, CR.snowK - dt * 0.5); CR.flow.multiplyScalar(Math.exp(-1.5 * dt)); const mo = +murkEl.style.opacity || 0; if (mo > 0) murkEl.style.opacity = String(Math.max(0, mo - dt * 0.8)); }
   if (MS.stage !== 'lift') cabin.state.blowT = 0;
-  crash.weld = CR.weldT > 0 ? 1 : 0; crash.update(dt, boat); life.flowK.value = CR.snowK; if (CR.snowK > 0) { const f = life.flow.value; f.addScaledVector(CR.flow, dt); f.set(f.x % 44, f.y % 44, f.z % 44); }   // der Meeresschnee zieht mit der Strömung audio.weld(CR.weldT > 0 ? 0.5 + Math.random() * 0.5 : 0);
+  crash.weld = CR.weldT > 0 ? 1 : 0; crash.update(dt, boat); crash.flow(dt, S, CR.flow, CR.snowK, pxScale);   // dichter Meeresschnee im Schlauch der Strömung audio.weld(CR.weldT > 0 ? 0.5 + Math.random() * 0.5 : 0);
   deepLife.curious = on && i >= 2 ? { x: LAND.x, y: LAND.y + 1, z: LAND.z } : null;   // auf dem Plateau kommen die Tiefseetiere näher heran
   if (on && i >= 2 && V.mode === 'dive' && frames % 30 === 0 && Math.hypot(diver.x - KIT.x, diver.z - KIT.z) < 14 && !LOG.some((e) => e.id === 'm8k')) addLog({ kind: 'find', id: 'm8k', dist: Math.round(Math.hypot(KIT.x, KIT.z) / 10) * 10, dir: DIR8(KIT.x, KIT.z) });
 }
