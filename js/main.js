@@ -198,7 +198,7 @@ const sphBuf = []; function nearSpheres() { const w = whales.list.length && Math
   sphBuf.length = 0; for (const s of world.near) sphBuf.push(s); if (w) for (const s of whales.spheres) sphBuf.push(s); if (hc) for (const s of hump.spheres) sphBuf.push(s); if (kc) for (const s of crash.spheres) sphBuf.push(s); return sphBuf; }
 const nT = { x: 0, y: 0, z: 0 }, CLEAR = 3.9, SOFT = 1.2; let gateT = 0; const tr = (k) => t(k);   // in drive() heißt t die Zeit
 function props(dt) {   // Steuerrad, Tiefenruder, Tee: laufen immer mit, auch wenn man draußen ist
-  cabin.state.suit = suitState(); cabin.state.heading = S.h;
+  cabin.state.suit = suitState(); cabin.state.heading = S.h; cabin.state.depth = -S.y;
   const st = cabin.state; st.wheel += (S.yawV / 0.72 * 1.4 - st.wheel) * Math.min(1, dt * 5); st.lever += (-S.vy / 3.3 * 0.55 - st.lever) * Math.min(1, dt * 5);
   for (const p of boat.planes) p.rotation.x = -S.vy / 3.3 * 0.45 + st.lever * 0;
   if (tea.phase === 'heat') { tea.t += dt; if (tea.t > 22) tea.phase = 'ready'; } else if (tea.phase === 'cool') { tea.t += dt; if (tea.t > 30) { tea.phase = 'cold'; tea.t = 0; } }
@@ -218,6 +218,7 @@ function drive(dt) {
   vf += (S.thrust * 3.9 - vf * 0.55) * dt; vl -= vl * Math.min(1, 1.7 * dt);
   S.vx = fx * vf + fz * vl; S.vz = fz * vf - fx * vl;
   const DEEP = devDeep || MS.active === 'm8' ? -2000 : MS.done.includes('m8') ? -450 : deepAt(S.x, S.z); let vyT = vIn * 3.3; if (S.y < DEEP + 7 && vyT < 0) vyT *= smooth(DEEP, DEEP + 7, S.y);
+  if (BLOW.on) { if (vIn < 0 || S.y > BOUNDS.top - 0.5) blowStop(); else vyT = 6.6; }   // angeblasen: doppelt so schnell nach oben, bis man den Hebel wieder umlegt, abtaucht oder oben ist
   S.vy = damp(S.vy, vyT, 1.5, dt);
   S.x += S.vx * dt; S.y += S.vy * dt; S.z += S.vz * dt;
   // Abstand zum Grund und zu den Wänden: weich federnd, darunter fest
@@ -246,7 +247,7 @@ function drive(dt) {
   const t = U.uTime.value, g = boat.group;
   g.position.set(S.x, S.y + Math.sin(t * 0.7) * 0.07, S.z); g.rotation.set(S.pitch + Math.sin(t * 0.53) * 0.012, S.h, S.roll + Math.sin(t * 0.61) * 0.018);
   S.prop += dt * (1.5 + S.thrust * 22); boat.prop.rotation.z = S.prop;
-  boat.halo.material.opacity = 0.46 + 0.05 * Math.sin(t * 1.7);
+  boat.halo.material.opacity = (0.46 + 0.05 * Math.sin(t * 1.7)) * extK;
   g.updateMatrixWorld(true);
   U.uSubPos.value.set(S.x, S.y, S.z); U.uSubA.value.set(0, 0, boat.body.z0).applyMatrix4(g.matrixWorld); U.uSubB.value.set(0, 0, boat.body.z1).applyMatrix4(g.matrixWorld); U.uLampPos.value.copy(boat.lampLocal).applyMatrix4(g.matrixWorld); U.uWarmPos.value.copy(boat.warmLocal).applyMatrix4(g.matrixWorld);
   U.uLampDir.value.set(0, -0.1, 1).normalize().transformDirection(g.matrixWorld);
@@ -290,10 +291,11 @@ function applyMode() {
   if (inn) { const mm = V.mem; V.mem = null; if (mm) { V.st = mm.st; V.px = V.hx = mm.px; V.pz = V.hz = mm.pz; V.hy = mm.st === 'seat' ? SEAT.y : 1.56; V.yaw = mm.yaw; V.pitch = mm.pitch; } else { V.st = 'walk'; V.px = 0; V.pz = -0.95; V.yaw = 0; V.pitch = 0; V.hx = 0; V.hy = 1.56; V.hz = -0.95; } table.reset(); if (!PC) { hintEl.textContent = t('hint_in_touch'); hintEl.style.opacity = 1; hintT = 6; } }   // zurück, wo man vor dem Hinausschauen war (am Steuer: man fährt einfach weiter)if (!PC) { hintEl.textContent = t('hint_in_touch'); hintEl.style.opacity = 1; hintT = 6; } }
   else if (dive) { hintEl.textContent = t(PC ? 'dive_hint_pc' : 'dive_hint_touch'); hintEl.style.opacity = 1; hintT = 9; }
   else { if (hintEl.textContent === t('hint_in_touch') || hintEl.textContent === t('dive_hint_touch') || hintEl.textContent === t('dive_hint_pc')) { hintEl.style.opacity = 0; hintT = 0; } C.yaw = S.h; C.oy = C.op = 0; C.dist = 14; C.pos.set(S.x - Math.sin(S.h) * 14, S.y + 4, S.z - Math.cos(S.h) * 14); C.look.set(S.x, S.y + 1, S.z); }
-  if (!inn && !dive) sonHint(); audio.setInside(inn); audio.setSuit(dive); U.uLampOn.value = (dive ? 0.5 : 1) * (1 + (devLamp - 1) * 0.35); lampApply(); world.setSmall(!inn); life.setInside(inn); cabin.state.suit = suitState(); ui(); resize(); syncFov(); if (dive) drawHelmet();
+  if (!inn && !dive) sonHint(); audio.setInside(inn); audio.setSuit(dive); U.uLampOn.value = (dive ? 0.5 : 1) * (1 + (devLamp - 1) * 0.35); if (!dive) lampBase = U.uLampOn.value; lampApply(); world.setSmall(!inn); life.setInside(inn); cabin.state.suit = suitState(); ui(); resize(); syncFov(); if (dive) drawHelmet();
 }
 function setMode(m) { closeTapes(); closeHorch(); if (CAMV.on) closeCam(true); if (switching || !started || V.mode === m) return; switching = true; if (V.mode === 'in' && m === 'out') V.mem = { st: V.st === 'table' ? 'walk' : V.st, px: V.st === 'table' ? -0.15 : V.px, pz: V.st === 'table' ? -1.3 : V.pz, yaw: V.yaw, pitch: V.pitch }; fadeEl.style.opacity = 1; setTimeout(() => { V.mode = m; applyMode(); fadeEl.style.opacity = 0; switching = false; }, 330); }
 // ---------- Taucheranzug: durch die Luke hinaus, am Schlauch über den Grund gehen, am Heck wieder hinein ----------
+let lampBase = 1, extK = 1;   // Grundhelligkeit der Bootsscheinwerfer und Faktor des Lichtschalters (siehe boatLights)
 let devDeep = false, devReveal = false, devLamp = 1; try { devDeep = localStorage.getItem('tiefenlicht.devdeep') === '1'; devReveal = localStorage.getItem('tiefenlicht.devreveal') === '1'; devLamp = clamp(+(localStorage.getItem('tiefenlicht.devlamp') || 1) || 1, 1, 5); } catch (e) { /* egal */ }   // Entwicklerschalter: ohne Tiefengrenze
 let devSuit = false, nearHatch = false, nearTooth = false, nearBell = false, nearLampItem = false, tightT = 0; try { devSuit = localStorage.getItem('tiefenlicht.devsuit') === '1'; } catch (e) { /* egal */ }
 const hasSuit = () => !!(MS.suit || devSuit), suitState = () => (!hasSuit() ? 0 : V.mode === 'dive' ? 2 : 1);
@@ -387,15 +389,15 @@ const LABEL = {
   stove: () => (cabin.state.fireT > 1.2 ? '' : t('stove')),
   cupDesk: () => (cabin.state.cup === 'desk' ? t('cup_take') : ''), cupPult: () => (cabin.state.cup === 'pult' ? (cabin.state.cupHeat > 0.05 ? t('cup_drink') : t('cup_away')) : ''),
   hatch: () => (hasSuit() ? t('suit_out') : ''), suit: () => (hasSuit() ? t('suit_out') : ''), deck: () => t('tape_menu'), light: () => (cabin.state.lampT > 0.5 ? t('light_dim') : t('light_on')), log: () => t('log_read'), horch: () => t('horch'),
-  blow: () => (MS.active === 'm8' && MS.stage === 'blow' ? t('m8_act_blow') : ''),
+  blow: () => (MS.active === 'm8' ? (MS.stage === 'blow' ? t('m8_act_blow') : '') : MS.done.includes('m8') ? t(BLOW.on ? 'blow_stop' : 'm8_act_blow') : ''),
 };
 const ACT = {
   seat: () => setSt('seat'), table: () => setSt('table'),
   kettle: () => { if (tea.phase === 'cold') { tea.phase = 'heat'; tea.t = 0; audio.click(0.6); } else if (tea.phase === 'ready') { tea.phase = 'cool'; tea.t = 0; cabin.state.cup = 'desk'; cabin.state.cupHeat = 1; audio.pour(); } },
   stove: () => { cabin.state.fireT = 1.7; setTimeout(() => { cabin.state.fireT = 1; }, 45000); audio.click(0.8); },
   cupDesk: () => { cabin.state.cup = 'pult'; audio.click(0.3); }, cupPult: () => { if (cabin.state.cupHeat > 0.05) { cabin.state.cupHeat = Math.max(0, cabin.state.cupHeat - 0.34); if (cabin.state.cupHeat <= 0.05) note(t('tea_done')); } else cabin.state.cup = 'none'; audio.click(0.25); },
-  hatch: () => suitOut(), suit: () => suitOut(), deck: () => openTapes(), light: () => { cabin.state.lampT = cabin.state.lampT > 0.5 ? 0.12 : 1; audio.click(0.9); }, log: () => openLog(), horch: () => openHorch(),
-  blow: () => crashBlow(),
+  hatch: () => suitOut(), suit: () => suitOut(), deck: () => openTapes(), light: () => { cabin.state.lampT = cabin.state.lampT > 0.5 ? 0.08 : 1; audio.click(0.9); }, log: () => openLog(), horch: () => openHorch(),
+  blow: () => { if (MS.active === 'm8') crashBlow(); else if (MS.done.includes('m8')) { if (BLOW.on) blowStop(); else { BLOW.on = true; audio.blow(); } } },
 };
 function pickTarget() {
   if (V.mode !== 'in' || V.st === 'table') return null;
@@ -414,6 +416,9 @@ function sonHint() { if (!started || !MS.active || CAMV.on || !(V.mode === 'out'
 const misIdx = (id) => MISSIONS.findIndex((m) => m.id === id), nextMis = () => MISSIONS.find((m) => !MS.done.includes(m.id)) || null;
 // ---------- Fensterbesuch: sitzt oder steht man in der Kabine und das Boot ruht, zieht immer wahrscheinlicher ein Fisch oder Schwarm dicht vor dem Bugfenster vorbei ----------
 // Die Chance steigt jede Sekunde (ab 20 s langsam, dann steil); nach 105 s kommt sicher einer. Danach beginnt es von vorn
+/** Anblashebel nach der Probefahrt: hilft beim Auftauchen */
+const BLOW = { on: false };
+function blowStop() { if (!BLOW.on) return; BLOW.on = false; audio.click(0.8); }
 const WIN_FULL = 105; let winT = 0, winC = 1;
 function windowVisit(dt) {
   const still = Math.hypot(S.vx, S.vz) < 0.35 && Math.abs(S.vy) < 0.35 && S.thrust < 0.1;
@@ -487,7 +492,7 @@ function crashFrame(dt) {
   const on = MS.active === 'm8', i = on ? M8.indexOf(MS.stage) : -1, done = MS.done.includes('m8');
   crash.set(boat, { ground: (on && i >= 3) || done, prop: i === 2 ? 'bent' : i === 3 || i === 4 ? 'off' : 'ok', kitProp: on ? i <= 3 : !done, tools: on ? i <= 5 : !done, tank: i >= 2 && i <= 6 ? 'torn' : i >= 7 || done ? 'seam' : 'ok' });
   if (!(on && MS.stage === 'current')) { CR.shake *= Math.exp(-1.8 * dt); if (CR.snowK > 0) CR.snowK = Math.max(0, CR.snowK - dt * 0.5); CR.flow.multiplyScalar(Math.exp(-1.5 * dt)); const mo = +murkEl.style.opacity || 0; if (mo > 0) murkEl.style.opacity = String(Math.max(0, mo - dt * 0.8)); }
-  if (MS.stage !== 'lift') cabin.state.blowT = 0;
+  cabin.state.blowT = (MS.active === 'm8' && MS.stage === 'lift') || BLOW.on ? 1 : 0;
   crash.weld = CR.weldT > 0 ? 1 : 0; crash.update(dt, boat); crash.flow(dt, S, CR.flow, CR.snowK, pxScale);   // dichter Meeresschnee im Schlauch der Strömung audio.weld(CR.weldT > 0 ? 0.5 + Math.random() * 0.5 : 0);
   deepLife.curious = on && i >= 2 ? { x: LAND.x, y: LAND.y + 1, z: LAND.z } : null;   // auf dem Plateau kommen die Tiefseetiere näher heran
   if (on && i >= 2 && V.mode === 'dive' && frames % 30 === 0 && Math.hypot(diver.x - KIT.x, diver.z - KIT.z) < 14 && !LOG.some((e) => e.id === 'm8k')) addLog({ kind: 'find', id: 'm8k', dist: Math.round(Math.hypot(KIT.x, KIT.z) / 10) * 10, dir: DIR8(KIT.x, KIT.z) });
@@ -971,7 +976,7 @@ function frame(now) {
   if (window.__cam) { camera.position.set(...window.__cam[0]); camera.lookAt(...window.__cam[1]); }
   helmEl.style.visibility = showOut ? 'hidden' : '';
   if (run) { camera.getWorldDirection(fwd); S.vh = Math.atan2(fwd.x, fwd.z);   // Blickrichtung: dort tauchen Begegnungen und Schwärme auf
-    life.update(dt, V.mode === 'dive' ? diver : S, pxScale, world.glows); fauna.update(dt, S, U.uTime.value); schools.update(dt, S, V.mode === 'dive' ? { x: diver.x, y: diver.y - 0.8, z: diver.z } : S); cans.update(); whales.update(dt, U.uTime.value, pxScale); hump.update(dt, U.uTime.value, pxScale); deepLife.update(dt, U.uTime.value, pxScale, S); crashFrame(dt); windowVisit(dt); humpStep(dt); }
+    life.update(dt, V.mode === 'dive' ? diver : S, pxScale, world.glows); fauna.update(dt, S, U.uTime.value); schools.update(dt, S, V.mode === 'dive' ? { x: diver.x, y: diver.y - 0.8, z: diver.z } : S); cans.update(); whales.update(dt, U.uTime.value, pxScale); hump.update(dt, U.uTime.value, pxScale); deepLife.update(dt, U.uTime.value, pxScale, S); crashFrame(dt); windowVisit(dt); boatLights(dt); humpStep(dt); }
   if (bannerT > 0 && run) { bannerT -= dt; if (bannerT <= 0) bannerEl.style.opacity = 0; }
   if (sonHintT > 0 && run) { sonHintT -= dt; if (sonHintT <= 0) $('sonHint').style.opacity = 0; }
   if (tapesOpen) drawTapes(dt);
@@ -1080,7 +1085,10 @@ let devFlood = false; try { devFlood = localStorage.getItem('tiefenlicht.devfloo
 const hasFlood = () => MS.flood || MS.done.includes('m7') || devFlood;
 /** wirkt der starke Scheinwerfer gerade? Nur am Boot (nicht für die Helmlampe); der Entwicklerregler kann ihn zusätzlich aufdrehen */
 function lampApply() { const k = V.mode === 'dive' ? devLamp : Math.max(devLamp, hasFlood() && MS.floodOn ? 3 : 1);
-  U.uLampRange.value = Math.pow(k, 1.35); U.uLampFog.value = clamp((k - 1) / 4, 0, 1) * 0.92; if (V.mode !== 'dive') U.uLampOn.value = 1 + (k - 1) * 0.35; upg.fit(boat, hasFlood(), MS.floodOn); }
+  U.uLampRange.value = Math.pow(k, 1.35); U.uLampFog.value = clamp((k - 1) / 4, 0, 1) * 0.92; if (V.mode !== 'dive') { lampBase = 1 + (k - 1) * 0.35; U.uLampOn.value = lampBase * extK; } upg.fit(boat, hasFlood(), MS.floodOn); }
+/** Lichtschalter hinten in der Kabine: ist das Licht aus, leuchtet auch außen nichts mehr (Scheinwerfer, Fenster, warmer Schein); drinnen bleibt ein Rest */
+function boatLights(dt) { extK += ((cabin.state.lampT > 0.5 ? 1 : 0) - extK) * Math.min(1, dt * 6);   // eigene Blende: die Kabine rechnet draußen nicht mit
+  boat.setLights(extK); U.uWarmK.value = extK; if (V.mode !== 'dive') U.uLampOn.value = lampBase * extK; if (boat.__flood) boat.__flood.gl.visible = hasFlood() && MS.floodOn && extK > 0.5; }
 /** Q oder der Lampenknopf: an und aus, nur am Steuer oder draußen; beim Aufstehen bleibt es, wie es ist */
 function toggleFlood() { if (!hasFlood() || !(V.mode === 'out' || (V.mode === 'in' && V.st === 'seat'))) return; MS.floodOn = !MS.floodOn; audio.click(0.9); lampApply(); note(t(MS.floodOn ? 'flood_on' : 'flood_off')); save(); }
 function humpGo() { const c = hump.center(); if (!c) return; const a = Math.atan2(S.x - c.x, S.z - c.z) || 0.5, x = c.x + Math.sin(a) * 55, z = c.z + Math.cos(a) * 55; if (V.mode === 'in') { V.mode = 'out'; applyMode(); } tpTo(x, -14, z, Math.atan2(c.x - x, c.z - z)); save(); }

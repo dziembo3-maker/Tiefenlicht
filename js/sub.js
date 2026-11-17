@@ -139,7 +139,7 @@ export function createSub(scene, kind = 0) {
 
   // weicher Schein um Kuppel und Lampen
   const gt = glowTexture();
-  const outer = [hull, prop]; const spr = (x, y, z, s, col, op) => { const m = new T.Sprite(new T.SpriteMaterial({ map: gt, color: new T.Color(col[0], col[1], col[2]), transparent: true, opacity: op, blending: T.AdditiveBlending, depthWrite: false, fog: false })); m.position.set(x, y, z); m.scale.set(s, s, 1); m.renderOrder = 9; S.add(m); outer.push(m); return m; };
+  const outer = [hull, prop], glows = []; const spr = (x, y, z, s, col, op) => { const m = new T.Sprite(new T.SpriteMaterial({ map: gt, color: new T.Color(col[0], col[1], col[2]), transparent: true, opacity: op, blending: T.AdditiveBlending, depthWrite: false, fog: false })); m.position.set(x, y, z); m.scale.set(s, s, 1); m.renderOrder = 9; m.userData.op = op; glows.push(m); S.add(m); outer.push(m); return m; };
   const halo = spr(0, 0.15, 0.7, 7.5, [1.0, 0.58, 0.26], 0.5);
   for (const l of LAMPS) spr(l[0], l[1], l[2] + 0.25, 1.5, [0.75, 1.0, 0.85], 0.75);
   spr(0, 1.93, -0.36, 0.5, [1.0, 0.45, 0.2], 0.7);
@@ -156,5 +156,7 @@ export function createSub(scene, kind = 0) {
   }
   scene.add(S);
   const dispose = () => { scene.remove(S); S.traverse((o) => { if (o.geometry) o.geometry.dispose(); }); };
-  return { kind: k, dispose, group: S, prop, halo, outer, planes, lampLocal: new T.Vector3(0, -0.6, 1.2), warmLocal: new T.Vector3(0, 0.25, 1.9), hoseLocal, hatchLocal: new T.Vector3(0, rAt(B.rear) * B.SY + 0.05, B.rear), body: { z0: B.ring, z1: 1.55, r: Math.max(...B.HULL.map((h) => h[1])) * Math.max(1, B.SY) } };
+  /** Licht in der Kabine aus (k = 0): Fenster, Lampen und Schein am Rumpf dunkel */
+  const setLights = (k) => { mat.uniforms.uEmK.value = k; mp.uniforms.uEmK.value = k; for (const m of glows) if (m !== halo) { m.material.opacity = m.userData.op * k; m.visible = k > 0.01; } };
+  return { kind: k, dispose, setLights, group: S, prop, halo, outer, planes, lampLocal: new T.Vector3(0, -0.6, 1.2), warmLocal: new T.Vector3(0, 0.25, 1.9), hoseLocal, hatchLocal: new T.Vector3(0, rAt(B.rear) * B.SY + 0.05, B.rear), body: { z0: B.ring, z1: 1.55, r: Math.max(...B.HULL.map((h) => h[1])) * Math.max(1, B.SY) } };
 }
