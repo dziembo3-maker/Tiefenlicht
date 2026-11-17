@@ -14,7 +14,7 @@ const SOLO = { mola: { size: [3.0, 3.6], sp: 0.55, rate: 0.06, ph: 0.42, amp: 1 
 
 export function createDeepLife(scene) {
   const F = createDeepFish(scene), D = createDeepModels(scene, { angler: 3, siphon: 3 });
-  const L = { schools: [], krill: [], solo: [], timer: 2, cfg: { schoolN: 100, schools: 2, krill: 2, mola: 1, angler: 2, eel: 2, siphon: 2 } };
+  const L = { curious: null, schools: [], krill: [], solo: [], timer: 2, cfg: { schoolN: 100, schools: 2, krill: 2, mola: 1, angler: 2, eel: 2, siphon: 2 } };
   /** ein freier Platz um das Boot: in Blickrichtung (Wahrscheinlichkeit ahead) oder ringsum, in der Tiefe des Boots, genug Wasser darunter */
   function spot(sub, d0, d1, ahead, minY = -175) {
     for (let k = 0; k < 16; k++) { const a = R() < ahead ? sub.h + rr(-0.7, 0.7) : R() * 2 * PI, d = rr(d0, d1), x = sub.x + Math.sin(a) * d, z = sub.z + Math.cos(a) * d, y = Math.min(minY, sub.y + rr(-18, 14)), f = floorH(x, z);
@@ -24,7 +24,7 @@ export function createDeepLife(scene) {
   // ---------- Laternenfisch-Schwärme: ein Punkt zieht geradeaus, die Fische schwanken um ihre Plätze in der Wolke ----------
   function addSchool(p, yaw, n) {
     const s = Math.cbrt(n / 100), fish = [];
-    for (let i = 0; i < n; i++) { let x, y, z; do { x = R() * 2 - 1; y = R() * 2 - 1; z = R() * 2 - 1; } while (x * x + y * y + z * z > 1); fish.push({ x: x * 2.2 * s, y: y * 1.1 * s, z: z * 3.6 * s, a: R() * 6.3, b: R() * 6.3, ph: R() * 6.3, sz: 0.27 + R() * 0.08, sd: R() }); }
+    for (let i = 0; i < n; i++) { let x, y, z; do { x = R() * 2 - 1; y = R() * 2 - 1; z = R() * 2 - 1; } while (x * x + y * y + z * z > 1); fish.push({ x: x * 3.2 * s, y: y * 1.6 * s, z: z * 5.2 * s, a: R() * 6.3, b: R() * 6.3, ph: R() * 6.3, sz: 0.4 + R() * 0.1, sd: R() }); }
     L.schools.push({ x: p.x, y: p.y, z: p.z, yaw, sp: rr(1.1, 1.6), t: R() * 100, fish });
   }
   // ---------- Krill: lange, geschwungene Bänder, die langsam treiben ----------
@@ -43,10 +43,10 @@ export function createDeepLife(scene) {
   L.update = (dt, time, px, sub) => {
     const k = deepK(sub.y);
     // auffüllen: nur in der Tiefe, je tiefer, desto eher
-    L.timer -= dt; if (L.timer <= 0 && k > 0) { L.timer = rr(1.5, 3);
+    const cu = L.curious; L.timer -= dt; if (L.timer <= 0 && k > 0) { L.timer = cu ? rr(0.8, 1.6) : rr(1.5, 3);
       if (L.schools.length < L.cfg.schools && R() < 0.3 * k) { const p = spot(sub, 70, 110, 0.6); if (p) addSchool(p, R() * 2 * PI, L.cfg.schoolN); }
       if (L.krill.length < Math.min(L.cfg.krill, D.krill.length) && R() < 0.2 * k) { const p = spot(sub, 80, 130, 0.4); if (p) addKrill(p); }
-      for (const kind of Object.keys(SOLO)) if (count(kind) < L.cfg[kind] && R() < SOLO[kind].rate * k) { const p = spot(sub, 50, 95, 0.55); if (p) addSolo(kind, p); } }
+      for (const kind of Object.keys(SOLO)) if (count(kind) < L.cfg[kind] + (cu && L.cfg[kind] > 0 ? 1 : 0) && R() < SOLO[kind].rate * k * (cu ? 3 : 1)) { const p = spot(sub, cu ? 40 : 50, cu ? 70 : 95, 0.55); if (p) addSolo(kind, p); } }   // neugierig (Probefahrt): öfter, ein Tier mehr je Art, und sie kommen näher
     // Schwärme ziehen geradeaus; vor Hindernissen biegen sie sacht ab
     F.lantern.list.length = 0;
     for (let i = L.schools.length - 1; i >= 0; i--) { const s = L.schools[i]; s.t += dt;
@@ -69,7 +69,9 @@ export function createDeepLife(scene) {
     F.mola.list.length = 0; F.eel.list.length = 0; D.begin();
     for (let i = L.solo.length - 1; i >= 0; i--) { const s = L.solo[i], c = SOLO[s.kind];
       if (Math.hypot(s.x - sub.x, s.z - sub.z) > 150) { L.solo.splice(i, 1); continue; }
-      s.ret -= dt; if (s.ret <= 0 || Math.hypot(s.tx - s.x, s.tz - s.z) < 3) { s.ret = rr(10, 22); const a = s.yaw + rr(-1.2, 1.2), d = rr(15, 35); s.tx = s.x + Math.sin(a) * d; s.tz = s.z + Math.cos(a) * d; s.ty = clamp(s.y + rr(-6, 6), floorH(s.tx, s.tz) + 8, -12); }
+      s.ret -= dt; if (s.ret <= 0 || Math.hypot(s.tx - s.x, s.tz - s.z) < 3) { s.ret = rr(10, 22);
+        if (cu && s.kind !== 'siphon' && R() < 0.75 && Math.hypot(cu.x - s.x, cu.z - s.z) < 140) { const a = R() * 2 * PI, d = rr(5, 10); s.tx = cu.x + Math.sin(a) * d; s.tz = cu.z + Math.cos(a) * d; s.ty = Math.max(cu.y + rr(0, 5), floorH(s.tx, s.tz) + 2.5); s.ret = rr(8, 14); }   // auf 5 bis 10 m heran
+        else { const a = s.yaw + rr(-1.2, 1.2), d = rr(15, 35); s.tx = s.x + Math.sin(a) * d; s.tz = s.z + Math.cos(a) * d; s.ty = clamp(s.y + rr(-6, 6), floorH(s.tx, s.tz) + 8, -12); } }
       let dx = s.tx - s.x, dy = s.ty - s.y, dz = s.tz - s.z; const bx = s.x - sub.x, by = s.y - sub.y, bz = s.z - sub.z, bd = Math.hypot(bx, by, bz), fl = 4 + s.size;
       if (bd < fl) { const w = (fl - bd) / fl * 20; dx += bx / bd * w; dy += by / bd * w * 0.5; dz += bz / bd * w; }
       if (s.kind === 'siphon') { s.x += dx * 0.02 * dt; s.y += dy * 0.02 * dt + Math.sin(time * 0.4 + s.seed * 9) * 0.05 * dt; s.z += dz * 0.02 * dt; s.yaw += 0.04 * dt; s.ph += dt; D.add('siphon', { x: s.x, y: s.y, z: s.z, L: s.size, yaw: s.yaw, ph: s.ph, seed: s.seed, glow: 1 }); continue; }

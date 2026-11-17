@@ -37,6 +37,8 @@
   #tableCv { width: min(92vw, 78vh); height: min(92vw, 78vh); border-radius: 50%; box-shadow: 0 0 0 5px #2a2218, 0 0 0 8px #8a6a34, 0 0 0 11px #1a140c, 0 8px 30px rgba(0, 0, 0, 0.7); touch-action: none; }
   #tableInfo { font: 12px/1 ui-monospace, Menlo, Consolas, monospace; letter-spacing: 0.12em; color: rgba(255, 215, 150, 0.9); height: 12px; }
   #tableBtns { display: flex; gap: 12px; }
+  #murk { position: fixed; inset: 0; background: radial-gradient(circle at 50% 45%, #0a1c22 0%, #03090c 60%, #010304 100%); opacity: 0; pointer-events: none; z-index: 3; }
+  #step { position: fixed; left: 8%; right: 8%; top: calc(13% + env(safe-area-inset-top)); text-align: center; font-size: 16px; line-height: 1.45; letter-spacing: 0.04em; color: #fff; text-shadow: 0 1px 10px rgba(0, 15, 25, 0.95), 0 0 3px rgba(0, 15, 25, 0.8); opacity: 0; transition: opacity 0.8s; pointer-events: none; }
   #fade { position: fixed; inset: 0; background: #020a10; opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 4; }
   #gear { position: fixed; left: calc(12px + env(safe-area-inset-left)); top: calc(70px + env(safe-area-inset-top)); padding: 8px 13px; font-size: 15px; }
   .optRow { display: flex; justify-content: space-between; margin-bottom: 8px; }
@@ -107,7 +109,7 @@
   #logNav > span:not(#logNum) { cursor: pointer; padding: 4px 10px; border-radius: 12px; display: flex; align-items: center; gap: 2px; } #logNav > span:not(#logNum):hover { background: rgba(120, 80, 30, 0.1); }
   #logNav .arr { font-size: 28px; line-height: 22px; } #logNav .off { opacity: 0.22; pointer-events: none; } #logNum { font-style: italic; }
   #logNav kbd { color: #6b4a26; border-color: rgba(107, 74, 38, 0.45); margin: 0 6px; }
-  .capTitle { font-size: 15px; margin: 2px 0 10px; } #ui:has(#log.open) :is(#act, #hint, #sonHint, #banner, #note) { visibility: hidden; }
+  .capTitle { font-size: 15px; margin: 2px 0 10px; } #ui:has(#log.open) :is(#act, #hint, #sonHint, #banner, #note, #step) { visibility: hidden; }
   .logPar { margin-bottom: 0.65em; } .logPar.cont { text-indent: 0; }
   .bookPhoto { display: block; margin: 6px auto 14px; max-width: 86%; object-fit: contain; box-shadow: 0 4px 12px rgba(60, 40, 20, 0.35); cursor: zoom-in; } .bookPhoto.r1 { transform: rotate(-1.5deg); } .bookPhoto.r2 { transform: rotate(1.3deg); }
   .logP { white-space: pre-line; } .logSign { margin-top: 12px; text-align: right; font-style: italic; color: #6b4a26; } .logEntry.sep { padding-bottom: 14px; border-bottom: 1px solid rgba(90, 59, 28, 0.25); }
@@ -122,7 +124,7 @@
   #sonHint { position: absolute; right: 140px; top: 34px; width: 190px; text-align: right; font-size: 13px; line-height: 1.4; font-style: italic; letter-spacing: 0.04em; color: rgba(255, 238, 210, 0.95); text-shadow: 0 1px 8px rgba(0, 20, 35, 0.95); opacity: 0; transition: opacity 1.4s; pointer-events: none; }
   body.pc #sonHint { right: 176px; }
   #tapes { position: fixed; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 12px; pointer-events: auto; z-index: 3; background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.25), rgba(0, 0, 0, 0) 70%); }
-  #tapes.open { display: flex; } #ui:has(#tapes.open) :is(#banner, #hint, #note, #act, #sonHint) { visibility: hidden; }
+  #tapes.open { display: flex; } #ui:has(#tapes.open) :is(#banner, #hint, #note, #act, #sonHint, #step) { visibility: hidden; }
   .tCard { width: min(78vw, 290px); max-height: calc(100% - 70px); overflow-y: auto; box-sizing: border-box; padding: 14px 14px 12px; border-radius: 24px; background: rgba(16, 40, 38, 0.97); border: 1.5px solid rgba(225, 185, 120, 0.5); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 230, 190, 0.12); }
   .tRow { display: flex; align-items: center; gap: 14px; padding: 8px 12px; margin-bottom: 4px; border-radius: 12px; border: 1.5px solid transparent; font-size: 15px; letter-spacing: 0.06em; color: rgba(245, 232, 210, 0.95); cursor: pointer; }
   .tRow svg { width: 28px; height: 20px; flex: none; fill: none; stroke: rgba(225, 195, 140, 0.8); stroke-width: 1.4; }
@@ -185,6 +187,7 @@
   <div id="grab" data-t="grab_mouse"></div>
   <div id="note"></div>
   <div id="banner"><span class="b1"></span><span class="b2"></span></div>
+  <div id="step"></div>
   <div id="fps"></div>
   <div id="mode" class="pill"><span id="modeL"></span><kbd>C</kbd></div>
   <div id="camBtn" class="pill"><svg viewBox="0 0 18 15"><path d="M1.5 4.5h3l1.5-2.5h6l1.5 2.5h3v9h-15z"/><circle cx="9" cy="8.6" r="3"/></svg><kbd>K</kbd></div>
@@ -202,6 +205,7 @@
   <div id="act" class="pill"><span id="actL"></span><kbd>F</kbd></div>
   <div id="table"><canvas id="tableCv" width="760" height="760"></canvas><div id="tableInfo"></div><div id="tableBtns"><div id="tableClear" class="pill" data-t="course_clear"></div><div id="tableClose" class="pill"><span data-t="back"></span><kbd>Esc</kbd></div></div></div>
 </div>
+<div id="murk"></div>
 <div id="fade"></div>
 <div id="menu" class="open"><div class="card">
   <div id="mMain" class="show"><h1>TIEFENLICHT</h1><p class="sub" data-t="title_sub"></p>

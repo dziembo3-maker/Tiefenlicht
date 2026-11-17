@@ -6,7 +6,7 @@ import { buildCanister, propMaterial } from './props.js';
 import { WRECK, WHALE, GROTTO, HOLE } from './terrain.js';
 
 /** Kassetten: 0 liegt von Anfang an im Deck; die anderen findet man. page = Logbuchseite, die mit ihr kommt */
-export const TAPES = [{ id: 0 }, { id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }, { id: 6 }];
+export const TAPES = [{ id: 0 }, { id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }, { id: 6 }, { id: 7 }];
 /** Missionen in ihrer Reihenfolge. page = Seite, an der sie beginnt; tape = was man findet; x/z = Ort der Dose;
  *  off = wo die Dose im Ping-Fächer liegt (-1 linker Rand, 0 Mitte, 1 rechter Rand), fest pro Mission, damit der Fächer nicht springt */
 export const MISSIONS = [
@@ -25,6 +25,10 @@ export const MISSIONS = [
   // Aufrüstung: erst den Scheinwerfer am Wrack zu Fuß holen (Stufe lamp, zurück ins Boot: lampback), dann zur Dose bei den Ballasttanks am Ostrand des Abgrunds (Stufe tanks).
   // Die Dose bringt Seite und Kassette; danach ist die Tiefengrenze aufgehoben
   { id: 'm7', page: 7, tape: 6, tanks: true, x: -284.5, z: 561.5, yaw: 0.9, off: 0.3 },
+  // Probefahrt: über dem Abgrund tiefer tauchen; bei 150 m reißt eine Strömung das Boot auf das Plateau an der Abgrundwand (crash.js). Dort liegt die Kittiwake:
+  // ihre Schraube ersetzt die verbogene, hinter ihrer Tür liegen Dose (Seite und Kassette) und Schweißgerät für den Riss im Tank. Danach gilt die Grenze von 450 m.
+  // Keine Dose im üblichen Sinn: x/z stehen nur der Ordnung halber bei der Kittiwake
+  { id: 'm8', page: 8, tape: 7, crash: true, x: -227.2, z: 552.2, yaw: 0, off: 0 },
 ];
 /** so viele weitere Missionen deutet der Missionen-Reiter nur an */
 export const HINTED = 3;

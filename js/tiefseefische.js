@@ -191,6 +191,7 @@ const FHEAD = /* glsl */ `precision highp float; ${COMMON} varying vec3 vW, vN, 
 const FTAIL = /* glsl */ `
     vec3 c = shade(base, N, vW) * 1.25 + base * 0.03 + waterCol(reflect(-V, N)) * pow(1.0 - max(dot(N, V), 0.0), 3.0) * 0.2 + gloss(N, V, vW, pw) * spec;
     c += glow * (0.85 + 0.3 * gl);
+    c += (base * 0.7 + vec3(0.05, 0.1, 0.15)) * REST * (0.3 + pow(1.0 - max(dot(N, V), 0.0), 2.0) * 1.4);
     gl_FragColor = vec4(fog(c, vW), 1.0); }`;
 
 const FS = {
@@ -264,6 +265,8 @@ const FS = {
 
 // ---------- zusammenbauen ----------
 export function createDeepFish(scene) {
+  /* Restlicht: ein schwaches Eigenleuchten mit hellerem Rand, damit die Form im Dunkeln erkennbar bleibt (schwächer als der Scheinwerfer) */
+  const rest = (fs, k) => '#define REST ' + k.toFixed(2) + '\n' + fs;
   const kind = (geo, mode, fs, M) => {
     const iP = new Float32Array(M * 4), iR = new Float32Array(M * 4), iA = new Float32Array(M * 4);
     geo.setAttribute('iP', new T.InstancedBufferAttribute(iP, 4)); geo.setAttribute('iR', new T.InstancedBufferAttribute(iR, 4)); geo.setAttribute('iA', new T.InstancedBufferAttribute(iA, 4)); geo.instanceCount = 0;
@@ -274,6 +277,6 @@ export function createDeepFish(scene) {
         geo.instanceCount = n; geo.attributes.iP.needsUpdate = geo.attributes.iR.needsUpdate = geo.attributes.iA.needsUpdate = true; } };
   };
   return {
-    mola: kind(buildMola(), 'mola', FS.mola, 4), eel: kind(buildEel(), 'eel', FS.eel, 4), lantern: kind(buildLantern(), 'fish', FS.lantern, 420),
+    mola: kind(buildMola(), 'mola', rest(FS.mola, 0.5), 4), eel: kind(buildEel(), 'eel', rest(FS.eel, 0.0), 4), lantern: kind(buildLantern(), 'fish', rest(FS.lantern, 0.6), 420),
   };
 }

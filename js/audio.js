@@ -147,6 +147,9 @@ export function createAudio() {
       glide: 0.95, bell: { n: 3, skip: 0.55, vol: 0.012 } },
     // 6 = Am Abgrund: e-phrygisch, tief und gleichmäßig wie ein Herzschlag; gedämpfte Töne laufen in ruhigen Schritten abwärts, kaum Hall, kein Gleiten, keine Tropfen
     { ch: [[28, [52, 53, 55, 59, 64]], [29, [53, 57, 60, 64, 65]], [26, [50, 53, 57, 60, 62]], [28, [52, 55, 59, 62, 64]], [24, [52, 55, 60, 64, 67]], [29, [53, 57, 60, 62, 65]]], L: 9, pad: 600, padV: 0.0075, bass: 0.085, n: 8, gap: 1.05, skip: 0.18, type: 'triangle', oct: -12, rel: 0.9, vol: 0.03, send: 0.8 },
+    // 7 = Die Kittiwake: D-mixolydisch, warm und ein wenig wehmütig, wie ein altes Seemannslied ohne Worte; ruhige Wiegeschritte, eine Glocke ganz oben, viel Raum
+    { ch: [[38, [57, 62, 66, 69, 72]], [36, [55, 60, 64, 67, 72]], [43, [55, 59, 62, 67, 71]], [38, [54, 57, 62, 66, 69]], [33, [57, 61, 64, 69, 72]], [36, [55, 60, 64, 67, 69]]], L: 10, pad: 1100, padV: 0.0055, bass: 0.055, n: 7, gap: 1.25, skip: 0.28, type: 'sine', oct: 12, rel: 3.2, vol: 0.021, send: 1.9,
+      bell: { n: 2, skip: 0.45, vol: 0.01 } },
   ];
   let trk = 0;
   const hz = (m) => 440 * Math.pow(2, (m - 69) / 12);
@@ -207,6 +210,22 @@ export function createAudio() {
   A.page = () => { if (!ctx) return; const s = ctx.createBufferSource(); s.buffer = noiseBuf; const g = gain(0), t = ctx.currentTime, f = filt('bandpass', 1800, 0.9), h = filt('highpass', 900, 0.7); f.frequency.setValueAtTime(1500, t); f.frequency.exponentialRampToValueAtTime(3800, t + 0.22);
     g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.03, t + 0.05); g.gain.linearRampToValueAtTime(0.012, t + 0.14); g.gain.exponentialRampToValueAtTime(0.0005, t + 0.3); chain(s, f, h, g, BUS.kabine); s.start(t, Math.random() * 2, 0.35); };
   A.pour = () => { if (!ctx) return; const s = ctx.createBufferSource(); s.buffer = noiseBuf; const g = gain(0), t = ctx.currentTime, f = filt('bandpass', 900, 1.2); f.frequency.setValueAtTime(700, t); f.frequency.linearRampToValueAtTime(1500, t + 2.2); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.05, t + 0.2); g.gain.setValueAtTime(0.05, t + 2.0); g.gain.linearRampToValueAtTime(0, t + 2.4); chain(s, f, g, BUS.kabine); s.start(t, Math.random(), 2.6); };
+  // ---------- Probefahrt: Strömung, Aufschlag, Schweißen, Anblasen ----------
+  let cur = null, wld = null;
+  /** Rauschen und Grollen der Strömung, 0 = still */
+  A.current = (k) => { if (!ctx) return; if (!cur) { if (k <= 0) return; const n1 = noise(0.6), lp = filt('lowpass', 180, 0.8), n2 = noise(1.1), bp = filt('bandpass', 520, 0.7), g = gain(0), g2 = gain(0.35); chain(n1, lp, g); chain(n2, bp, g2, g); g.connect(BUS.grollen); cur = { g, bp }; }
+    const t = ctx.currentTime; cur.g.gain.setTargetAtTime(Math.max(0, k) * 0.55, t, 0.25); cur.bp.frequency.setTargetAtTime(380 + k * 420, t, 0.3); };
+  /** Aufschlag: dumpfer Stoß, dann Metall, das nachschwingt, und Sand */
+  A.crash = () => { if (!ctx) return; const t = ctx.currentTime;
+    { const o = ctx.createOscillator(), g = gain(0); o.type = 'sine'; o.frequency.setValueAtTime(70, t); o.frequency.exponentialRampToValueAtTime(26, t + 0.9); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.5, t + 0.02); g.gain.exponentialRampToValueAtTime(0.001, t + 1.4); chain(o, g, BUS.grollen); o.start(t); o.stop(t + 1.5); }
+    { const n = ctx.createBufferSource(); n.buffer = noiseBuf; const f = filt('lowpass', 900, 0.6), g = gain(0); g.gain.setValueAtTime(0.35, t); g.gain.exponentialRampToValueAtTime(0.001, t + 1.8); chain(n, f, g, BUS.grollen); n.start(t, Math.random(), 2); }
+    for (const [f0, v, d] of [[183, 0.05, 2.6], [241, 0.04, 2.2], [317, 0.03, 1.8], [466, 0.018, 1.4]]) { const o = ctx.createOscillator(), g = gain(0), bp = filt('bandpass', f0, 6); o.type = 'triangle'; o.frequency.setValueAtTime(f0 * 1.02, t + 0.03); o.frequency.linearRampToValueAtTime(f0 * 0.97, t + d); g.gain.setValueAtTime(0, t + 0.03); g.gain.linearRampToValueAtTime(v, t + 0.05); g.gain.exponentialRampToValueAtTime(0.0005, t + d); chain(o, bp, g, BUS.kabine); o.start(t + 0.03); o.stop(t + d + 0.1); }
+    click(1.6); };
+  /** Schweißflamme: knisterndes Zischen, k schwankt von Bild zu Bild */
+  A.weld = (k) => { if (!ctx) return; if (!wld) { if (k <= 0) return; const n = noise(1.4), hp = filt('highpass', 2200, 0.6), bp = filt('bandpass', 4200, 0.9), g = gain(0); chain(n, hp, bp, g, BUS.blasen); wld = { g }; } wld.g.gain.setTargetAtTime(k * 0.09, ctx.currentTime, 0.02); };
+  /** Anblasen: Druckluft zischt in die Tanks, Wasser wird hinausgedrückt */
+  A.blow = () => { if (!ctx) return; const t = ctx.currentTime, n = ctx.createBufferSource(); n.buffer = noiseBuf; const f = filt('bandpass', 900, 0.8), g = gain(0); f.frequency.setValueAtTime(600, t); f.frequency.linearRampToValueAtTime(1600, t + 3.5);
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.09, t + 0.3); g.gain.setValueAtTime(0.09, t + 2.6); g.gain.linearRampToValueAtTime(0, t + 4); chain(n, f, g, BUS.kabine); n.start(t, Math.random(), 4.2); click(1.2); };
   /** Kessel: 0 = kalt, steigt beim Erhitzen; ab 0.85 brodelt und pfeift er leise */
   A.kettle = (b) => {
     if (!ctx) return; const t = ctx.currentTime;
