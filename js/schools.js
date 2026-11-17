@@ -183,6 +183,13 @@ export function createSchools(scene) {
     }
     return false;
   };
+  /** Fensterbesuch: ein Schwarm zieht dicht vor dem Bugfenster quer vorbei */
+  S.passWindow = (ref) => {
+    const free = types.filter((s) => !s.on); if (!free.length) return false; const s = free[Math.floor(R() * free.length)], ty = s.ty, h = ref.h || 0, fx = Math.sin(h), fz = Math.cos(h), sx = Math.cos(h), sz = -Math.sin(h), side = R() < 0.5 ? 1 : -1, D = 11 + ty.rad * 0.7, W = 42;
+    const cx = ref.x + fx * D, cz = ref.z + fz * D, x = cx - sx * W * side, z = cz - sz * W * side, y = wantY(ty, x, z, ref.y);
+    if (y - ty.rad * 0.7 < floorH(x, z) + 1 || y > -5 || floorH(cx, cz) > y - ty.rad * 0.7) return false;
+    Object.assign(s, { on: true, out: false, x, y, z, yaw: Math.atan2(sx * side, sz * side), turn: 0, fade: 0, life: 0, run: W * 2 + 20, sw: 0, swT: 0, swNext: 1e9, swCool: 60 }); s.m.visible = true; return true;
+  };
   S.clear = () => { for (const s of types) { s.on = false; s.m.visible = false; } };
   /** Entwicklermenü: alle Kometen- und Saphirschwärme kreisen jetzt eine Weile */
   S.swirl = () => { for (const s of types) if (s.on && s.ty.form < 2) { s.swT = rr(10, 17); s.swCool = 70; s.swNext = 1e9; } };

@@ -260,6 +260,19 @@ export function createFauna(scene) {
     }
     return false;
   };
+  /** Fensterbesuch: ein Fisch (bei den Gleitern eine kleine Gruppe) zieht dicht vor dem Bugfenster quer vorbei, von einer Seite zur anderen */
+  F.passWindow = (sub, si) => {
+    const k = kinds[si], c = CFG[si], h = sub.h || 0, fx = Math.sin(h), fz = Math.cos(h), sx = Math.cos(h), sz = -Math.sin(h), side = R() < 0.5 ? 1 : -1, D = rr(10, 12), W = 20;
+    const cx = sub.x + fx * D, cz = sub.z + fz * D, x = cx - sx * W * side, z = cz - sz * W * side, y = Math.min(-9, Math.max(floorH(x, z) + 2, floorH(cx, cz) + 2, sub.y + rr(-0.4, 0.9)));
+    if (!valid(x, y, z) || !valid(cx, y, cz)) return false;
+    const grp = si === 2 ? 4 : 1, sp = c.speed * (si < 2 ? 1.8 : 1.1), yaw = Math.atan2(sx * side, sz * side);
+    while (k.list.length && k.list.length + grp > k.M) { let fi = 0, fd = -1; for (let i = 0; i < k.list.length; i++) { const dd = Math.hypot(k.list[i].x - sub.x, k.list[i].z - sub.z); if (dd > fd) { fd = dd; fi = i; } } const f = k.list[fi]; for (const o of k.list) if (o.leader === f) o.leader = null; k.list.splice(fi, 1); }
+    let lead = null;
+    for (let g = 0; g < grp; g++) { const f = { x: x + (g ? rr(-2.5, 2.5) : 0), y: y + (g ? rr(-1, 1) : 0), z: z + (g ? rr(-2.5, 2.5) : 0), yaw, pitch: 0, roll: 0, sp: sp * rr(0.9, 1.1), size: rr(c.size[0], c.size[1]), ph: R() * 6, tx: cx + sx * side * 70, ty: y, tz: cz + sz * side * 70, retarget: 100 / sp, beat: 0, glow: R(), life: 1e9, leader: lead, off: lead ? [rr(-2.5, 2.5), rr(-1, 1), rr(-2.5, 2.5)] : null };
+      if (!lead) lead = f; k.list.push(f); }
+    if (c.n < k.list.length) c.n = Math.min(k.M, k.list.length);
+    return true;
+  };
   /** wie viele Tiere gerade im Umkreis r sind */
   F.countNear = (x, z, r) => { let c = 0; for (const k of kinds) for (const f of k.list) if (Math.hypot(f.x - x, f.z - z) < r) c++; return c; };
   /** für Testbilder: ein Tier jeder Art vor die Kamera stellen */

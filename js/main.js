@@ -412,6 +412,23 @@ const MS = { active: null, done: [], pageSeen: -1, hint: null, stage: null, cam:
 /** einmal pro Mission, beim ersten Mal am Steuer (oder draußen): kleiner Hinweis neben dem Sonar */
 function sonHint() { if (!started || !MS.active || CAMV.on || !(V.mode === 'out' || V.st === 'seat')) return; const bell = MS.active === 'm5' && MS.stage === 'bell', key = MS.active + (bell ? ':bell' : ''); if (MS.hint === key || (MS.active === 'm5' && MS.stage && !bell) || (MS.active === 'm8' && (MS.stage !== 'dive' || overAbyss()))) return; MS.hint = key; const h = $('sonHint'); h.textContent = t(bell ? 'son_hint_bell' : MS.active === 'm8' ? 'son_hint_m8' : (MISSIONS[misIdx(MS.active)].pod || MISSIONS[misIdx(MS.active)].hump) ? 'son_hint_m4' : 'son_hint'); h.style.opacity = 1; sonHintT = 9; lastHint = { k: 'son', tx: h.textContent, st: MS.stage }; save(); }
 const misIdx = (id) => MISSIONS.findIndex((m) => m.id === id), nextMis = () => MISSIONS.find((m) => !MS.done.includes(m.id)) || null;
+// ---------- Fensterbesuch: sitzt oder steht man in der Kabine und das Boot ruht, zieht immer wahrscheinlicher ein Fisch oder Schwarm dicht vor dem Bugfenster vorbei ----------
+// Die Chance steigt jede Sekunde (ab 20 s langsam, dann steil); nach 105 s kommt sicher einer. Danach beginnt es von vorn
+const WIN_FULL = 105; let winT = 0, winC = 1;
+function windowVisit(dt) {
+  const still = Math.hypot(S.vx, S.vz) < 0.35 && Math.abs(S.vy) < 0.35 && S.thrust < 0.1;
+  if (!started || V.mode !== 'in' || CAMV.on || !still || (MS.active === 'm8' && MS.stage === 'current')) { winT = 0; return; }
+  winT += dt; winC -= dt; if (winC > 0) return; winC = 1;
+  const p = winT >= WIN_FULL ? 1 : Math.pow(Math.max(0, winT - 20) / (WIN_FULL - 20), 3);
+  if (Math.random() < p && visitNow()) winT = 0;
+}
+/** in der Tiefe Laternenfisch-Schwarm, Mondfisch oder Schlammstachel, weiter oben ein Fisch, ein paar Gleiter oder ein Schwarm */
+function visitNow() {
+  const opts = S.y < -200 ? [() => deepLife.passWindow(S, 'school'), () => deepLife.passWindow(S, 'mola'), () => deepLife.passWindow(S, 'eel')]
+    : [() => fauna.passWindow(S, 0), () => fauna.passWindow(S, 1), () => fauna.passWindow(S, 2), () => schools.passWindow(S), () => schools.passWindow(S)];
+  for (let n = opts.length; n > 0; n--) { const i = Math.floor(Math.random() * n), f = opts[i]; opts.splice(i, 1); if (f()) return true; }
+  return false;
+}
 // ---------- Probefahrt (Mission 8): bei 150 m packt eine Strömung das Boot, ein Sprung im Trüben, dann in einer Spirale hinab aufs Plateau; Reparatur mit den Teilen der Kittiwake ----------
 const M8 = ['dive', 'current', 'crashed', 'kitProp', 'fitProp', 'tools', 'weld', 'blow', 'lift'];
 const CR = { snowK: 0, over: false, stepHold: 0, t: 0, jumped: false, shake: 0, weldT: 0, liftT: 0, fx: 0, fz: 1, flow: new T.Vector3() }, murkEl = $('murk'), stepEl = $('step'), cv3 = new T.Vector3(), shk = new T.Vector3(); let crashAct = null;
@@ -695,7 +712,7 @@ function fillTapes() {
   for (let k = 0; k < st.own.length; k++) {
     const d = document.createElement('div'), own = st.own[k]; d.className = 'tRow' + (own ? '' : ' hid') + (own && k === st.tapeIn ? ' on' : '');
     d.innerHTML = ICON_CAS; const n = document.createElement('span'); n.textContent = own ? t('tape_n')[k] : '· · ·'; d.appendChild(n);
-    if (own) d.addEventListener('pointerdown', (e) => { e.preventDefault(); playTape(k, true); fillTapes(); });
+    if (own) devTap(d, () => { playTape(k, true); fillTapes(); });   // erst beim Loslassen, damit Scrollen nichts auslöst
     box.appendChild(d);
   }
   $('tName').textContent = t('tape_n')[st.tapeIn] || ''; for (const b of document.querySelectorAll('#tBtns span')) b.classList.toggle('on', b.dataset.a === (st.tape ? 'play' : 'pause'));
@@ -726,12 +743,12 @@ function fillMis() {
   const box = $('misList'); box.innerHTML = '';
   const add = (cls, name, state, desc, id) => { const d = document.createElement('div'); d.className = 'mis ' + cls; if (name) { const a = document.createElement('div'); a.className = 'mn'; const n = document.createElement('span'); n.textContent = name; const s2 = document.createElement('span'); s2.className = 'ms2'; s2.textContent = state; a.appendChild(n); a.appendChild(s2); d.appendChild(a); const p = document.createElement('div'); p.className = 'md'; p.textContent = desc; d.appendChild(p); } else d.textContent = '· · ·';
     if (id) {   // eine gespielte (oder laufende) Mission antippen: darunter erscheint „erneut spielen“
-      d.classList.add('pick'); d.addEventListener('pointerdown', (e) => { if (e.target.closest('.misRe')) return; e.preventDefault(); misOpen = misOpen === id ? null : id; misArm = null; fillMis(); });
+      d.classList.add('pick'); devTap(d, (e) => { if (e.target.closest('.misRe')) return; misOpen = misOpen === id ? null : id; misArm = null; fillMis(); });
       if (misOpen === id) { const lock = MS.active && MS.active !== id, b = document.createElement('div'); b.className = 'pill mini misRe' + (lock ? ' off' : '') + (misArm === id ? ' arm' : ''); b.textContent = lock ? t('mis_replay_lock') : misArm === id ? t('mis_replay_sure') : t('mis_replay');
-        b.addEventListener('pointerdown', (e) => { e.preventDefault(); if (lock) return; if (misArm !== id) { misArm = id; fillMis(); setTimeout(() => { if (misArm === id) { misArm = null; if (M.panel === 'mis') fillMis(); } }, 4000); return; } misArm = null; misOpen = null; if (replayMission(id)) closeMenu(); });
+        devTap(b, () => { if (lock) return; if (misArm !== id) { misArm = id; fillMis(); setTimeout(() => { if (misArm === id) { misArm = null; if (M.panel === 'mis') fillMis(); } }, 4000); return; } misArm = null; misOpen = null; if (replayMission(id)) closeMenu(); });
         d.appendChild(b);
         if (MS.active === id) { const ab = document.createElement('div'), arm = misArm === 'x' + id; ab.className = 'pill mini misRe' + (arm ? ' arm' : ''); ab.textContent = arm ? t('mis_abort_sure') : t('mis_abort');   // abbrechen: wie neu starten, nur läuft danach keine Mission
-          ab.addEventListener('pointerdown', (e) => { e.preventDefault(); if (!arm) { misArm = 'x' + id; fillMis(); setTimeout(() => { if (misArm === 'x' + id) { misArm = null; if (M.panel === 'mis') fillMis(); } }, 4000); return; } misArm = null; misOpen = null; if (abortMission(id)) closeMenu(); });
+          devTap(ab, () => { if (!arm) { misArm = 'x' + id; fillMis(); setTimeout(() => { if (misArm === 'x' + id) { misArm = null; if (M.panel === 'mis') fillMis(); } }, 4000); return; } misArm = null; misOpen = null; if (abortMission(id)) closeMenu(); });
           d.appendChild(ab); } } }
     box.appendChild(d); };
   for (const m of MISSIONS) { if (MS.active === m.id) add('run', t('mis_' + m.id), t('mis_s_run'), misDesc(m), m.id); else if (MS.done.includes(m.id)) add('done', t('mis_' + m.id), '✓ ' + t('mis_s_done'), t('misd_' + m.id), m.id); }
@@ -954,7 +971,7 @@ function frame(now) {
   if (window.__cam) { camera.position.set(...window.__cam[0]); camera.lookAt(...window.__cam[1]); }
   helmEl.style.visibility = showOut ? 'hidden' : '';
   if (run) { camera.getWorldDirection(fwd); S.vh = Math.atan2(fwd.x, fwd.z);   // Blickrichtung: dort tauchen Begegnungen und Schwärme auf
-    life.update(dt, V.mode === 'dive' ? diver : S, pxScale, world.glows); fauna.update(dt, S, U.uTime.value); schools.update(dt, S, V.mode === 'dive' ? { x: diver.x, y: diver.y - 0.8, z: diver.z } : S); cans.update(); whales.update(dt, U.uTime.value, pxScale); hump.update(dt, U.uTime.value, pxScale); deepLife.update(dt, U.uTime.value, pxScale, S); crashFrame(dt); humpStep(dt); }
+    life.update(dt, V.mode === 'dive' ? diver : S, pxScale, world.glows); fauna.update(dt, S, U.uTime.value); schools.update(dt, S, V.mode === 'dive' ? { x: diver.x, y: diver.y - 0.8, z: diver.z } : S); cans.update(); whales.update(dt, U.uTime.value, pxScale); hump.update(dt, U.uTime.value, pxScale); deepLife.update(dt, U.uTime.value, pxScale, S); crashFrame(dt); windowVisit(dt); humpStep(dt); }
   if (bannerT > 0 && run) { bannerT -= dt; if (bannerT <= 0) bannerEl.style.opacity = 0; }
   if (sonHintT > 0 && run) { sonHintT -= dt; if (sonHintT <= 0) $('sonHint').style.opacity = 0; }
   if (tapesOpen) drawTapes(dt);
@@ -1025,7 +1042,7 @@ function fillBoats() {
   BOATS.forEach((b, i) => { const d = document.createElement('div'); d.className = 'boatCard' + (i === boatKind ? ' on' : '');
     const sw = document.createElement('span'); sw.className = 'sw'; sw.style.background = `linear-gradient(135deg, ${b.swatch[0]} 56%, ${b.swatch[1]} 56%)`;
     const n = document.createElement('span'); n.className = 'bn'; n.textContent = t('boat_' + b.id); const ds = document.createElement('span'); ds.className = 'bd'; ds.textContent = t('boatd_' + b.id);
-    d.appendChild(sw); d.appendChild(n); d.appendChild(ds); d.addEventListener('pointerdown', (e) => { e.preventDefault(); setBoat(i); fillBoats(); }); box.appendChild(d); });
+    d.appendChild(sw); d.appendChild(n); d.appendChild(ds); devTap(d, () => { setBoat(i); fillBoats(); }); box.appendChild(d); });
 }
 function setBoat(i) {
   if (i === boatKind) return; boatKind = i; try { localStorage.setItem('tiefenlicht.boat', String(i)); } catch (x) { /* egal */ }
@@ -1040,7 +1057,7 @@ $('mGo').addEventListener('pointerup', (e) => { e.preventDefault(); goBtn(); });
 for (const [id, p] of [['mBoat', 'boat'], ['mSet', 'set'], ['mHelp', 'help'], ['mMis', 'mis']]) $(id).addEventListener('pointerdown', (e) => { e.preventDefault(); showPanel(p); });
 for (const b of document.querySelectorAll('.mBack')) b.addEventListener('pointerdown', (e) => { e.preventDefault(); showPanel('main'); });
 $('menu').classList.add('ready');
-window.__sub = { abortMission, crash, CR, crashDo, crashImpact, beginCurrent, crashBlow, get crashAct() { return crashAct; }, deepLife, hump, syncHump, get humpWatchT() { return humpWatchT; }, set humpWatchT(v) { humpWatchT = v; }, get devHump() { return devHump; }, cave, CAVE, HOLE, get nearTooth() { return nearTooth; }, get nearCan2() { return nearCan2; }, get nearBell() { return nearBell; }, takeSuit, takeTooth, takeCan2, curPage, BOOK, replayMission, fillMis, pageHas, set devDeep(v) { devDeep = v; }, turnPage, toggleDev, buildDev, seen, misTarget, schools, diver, hullGap, suitOut, suitIn, helmetExhale, get nearHatch() { return nearHatch; }, audio, M, MS, cans, whales, syncPod, syncMis, sectors, echoes, CAMV, PHOTOS, openCam, closeCam, shoot, camTargetOk, photoTarget, openHorch, closeHorch, get horchDeg() { return horchDeg; }, set horchDeg(v) { horchDeg = v; }, startMission, takeCan, openPage, openLog, playTape, MISSIONS, openMenu, closeMenu, showPanel, setBoat, post, get boat() { return boat; }, save, load, texts, setLang, renderer, fauna, S, C, I, U, V, nav, setMode, setSt, table, cabin, tea, LOG, ACT, get target() { return target; }, start, ping, world, life, poisNear, floorH, get frames() { return frames; }, tp(x, y, z, h) { world.update(x, z, Infinity); S.x = x; S.y = y; S.z = z; S.h = h; S.vx = S.vy = S.vz = 0; C.yaw = h; C.oy = C.op = 0; C.pos.set(x - Math.sin(h) * 11, y + 3, z - Math.cos(h) * 11); C.look.set(x, y + 1, z); }, marks, info: () => ({ tris: renderer.info.render.triangles, calls: renderer.info.render.calls, PR, MSAA, chunks: world.chunks.size, near: world.near.length, glows: world.glows.length }) };
+window.__sub = { visitNow, get winT() { return winT; }, abortMission, crash, CR, crashDo, crashImpact, beginCurrent, crashBlow, get crashAct() { return crashAct; }, deepLife, hump, syncHump, get humpWatchT() { return humpWatchT; }, set humpWatchT(v) { humpWatchT = v; }, get devHump() { return devHump; }, cave, CAVE, HOLE, get nearTooth() { return nearTooth; }, get nearCan2() { return nearCan2; }, get nearBell() { return nearBell; }, takeSuit, takeTooth, takeCan2, curPage, BOOK, replayMission, fillMis, pageHas, set devDeep(v) { devDeep = v; }, turnPage, toggleDev, buildDev, seen, misTarget, schools, diver, hullGap, suitOut, suitIn, helmetExhale, get nearHatch() { return nearHatch; }, audio, M, MS, cans, whales, syncPod, syncMis, sectors, echoes, CAMV, PHOTOS, openCam, closeCam, shoot, camTargetOk, photoTarget, openHorch, closeHorch, get horchDeg() { return horchDeg; }, set horchDeg(v) { horchDeg = v; }, startMission, takeCan, openPage, openLog, playTape, MISSIONS, openMenu, closeMenu, showPanel, setBoat, post, get boat() { return boat; }, save, load, texts, setLang, renderer, fauna, S, C, I, U, V, nav, setMode, setSt, table, cabin, tea, LOG, ACT, get target() { return target; }, start, ping, world, life, poisNear, floorH, get frames() { return frames; }, tp(x, y, z, h) { world.update(x, z, Infinity); S.x = x; S.y = y; S.z = z; S.h = h; S.vx = S.vy = S.vz = 0; C.yaw = h; C.oy = C.op = 0; C.pos.set(x - Math.sin(h) * 11, y + 3, z - Math.cos(h) * 11); C.look.set(x, y + 1, z); }, marks, info: () => ({ tris: renderer.info.render.triangles, calls: renderer.info.render.calls, PR, MSAA, chunks: world.chunks.size, near: world.near.length, glows: world.glows.length }) };
 // ---------- Entwicklermenü (unter ⚙, Passwort) ----------
 const DEV_PW = 'Entwicklung', devEl = $('dev'), pw = $('devPw');
 let devOn = false; try { devOn = localStorage.getItem('tiefenlicht.dev') === '1'; } catch (e) { /* egal */ }
@@ -1049,7 +1066,7 @@ const devSecs = new Set(); try { for (const k of JSON.parse(localStorage.getItem
 function devOpen() { return devEl.classList.contains('open'); }
 function toggleDev(on = !devOpen()) { if (on) { devEl.classList.add('open'); buildDev(); unlock(); } else { devEl.classList.remove('open'); lockMouse(); } }
 /** Knopf im Dev-Menü: löst erst beim Loslassen aus und nur, wenn der Finger kaum bewegt wurde (sonst war es Scrollen) */
-function devTap(el, fn) { let sx = 0, sy = 0, on = false; el.addEventListener('pointerdown', (e) => { on = true; sx = e.clientX; sy = e.clientY; }); el.addEventListener('pointermove', (e) => { if (on && Math.hypot(e.clientX - sx, e.clientY - sy) > 10) on = false; }); el.addEventListener('pointercancel', () => { on = false; }); el.addEventListener('pointerup', (e) => { if (!on) return; on = false; if (Math.hypot(e.clientX - sx, e.clientY - sy) > 10) return; e.preventDefault(); fn(); }); }
+function devTap(el, fn) { let sx = 0, sy = 0, on = false; el.addEventListener('pointerdown', (e) => { on = true; sx = e.clientX; sy = e.clientY; }); el.addEventListener('pointermove', (e) => { if (on && Math.hypot(e.clientX - sx, e.clientY - sy) > 10) on = false; }); el.addEventListener('pointercancel', () => { on = false; }); el.addEventListener('pointerup', (e) => { if (!on) return; on = false; if (Math.hypot(e.clientX - sx, e.clientY - sy) > 10) return; e.preventDefault(); fn(e); }); }
 $('devBtn').addEventListener('pointerdown', (e) => { e.preventDefault(); if (devOn) { devEl.classList.add('open'); buildDev(); closeMenu(); } else { pw.style.display = pw.style.display === 'inline-block' ? 'none' : 'inline-block'; pw.focus(); } });
 pw.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') { if (pw.value === DEV_PW) { devOn = true; try { localStorage.setItem('tiefenlicht.dev', '1'); } catch (x) { /* egal */ } pw.style.display = 'none'; pw.value = ''; devEl.classList.add('open'); buildDev(); closeMenu(); } else { pw.value = ''; pw.placeholder = '✗'; } } });
 const MIX0 = Object.assign({}, audio.mix);
@@ -1088,7 +1105,7 @@ function buildDev() {
   h3('HAI'); sl('Hai kommt vorbei alle', 20, 300, 5, () => fauna.sharkGap, (x) => { fauna.sharkGap = x; fauna.sharkT = Math.min(fauna.sharkT, x); });
   { const r = row(); r.style.flexWrap = 'wrap'; btn('Hai jetzt vorbei', () => fauna.sharkPass(S), r); const lb = () => (F.attract ? 'Haie: kommen auf mich zu' : 'Haie auf mich zukommen lassen'), b = btn(lb(), () => { F.attract = !F.attract; b.textContent = lb(); devSave(); }, r); }
   h3('BEGEGNUNGEN'); sl('Begegnung alle', 8, 120, 1, () => fauna.encGap, (x) => { fauna.encGap = x; fauna.encT = Math.min(fauna.encT, x); });
-  { const r = row(); btn('Begegnung jetzt', () => { if (!fauna.encounter(S)) note('Keine Begegnung möglich (zu flach)'); }, r); }
+  { const r = row(); btn('Begegnung jetzt', () => { if (!fauna.encounter(S)) note('Keine Begegnung möglich (zu flach)'); }, r); btn('Fisch vor dem Fenster jetzt', () => { if (!visitNow()) note('Vor dem Fenster ist kein Platz'); }, r); }
   h3('SCHWÄRME'); sl('Schwarm alle', 15, 300, 5, () => schools.gap, (x) => { schools.gap = x; schools.timer = Math.min(schools.timer, x); });
   { const r = row(); r.style.flexWrap = 'wrap';
     ['Kometenschwarm', 'Saphir-Plättchen', 'Neon-Säbelfische'].forEach((n, ti) => btn(n + ' jetzt', () => { const t = schools.types[ti]; t.on = false; t.m.visible = false; if (!schools.spawn(ti, S, true)) note('Hier ist kein Platz für den Schwarm (zu flach)'); devLive(); }, r));
