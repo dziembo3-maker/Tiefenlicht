@@ -7,6 +7,7 @@ import { buildWhale, buildBell, propMaterial } from './props.js';
 import { wreckFrame, buildWreck } from './wreck.js';
 import { atlK, rockSDF, rock2D, rockTop, forestK, pathK, tileHasRock, VENTS } from './atlantis.js';
 import { createAtlRocks, atlTerrainMaterial, atlKelpMesh, atlGrassMesh } from './atlrocks.js';
+import { makeAtlCol } from './atlcol.js';
 import './atldev.js';
 
 export const CS = 64, NQ = 40, STEP = CS / NQ, SITE = 320, LOAD = 188, DROP = 236;
@@ -82,6 +83,8 @@ function placer(R) {
 
 // ---------- Atlantis-Biom: Tangwälder, Seegras, Korallen am Fuß der Felsen, Fische ----------
 const ATLPAL = [[1.0, 0.32, 0.22], [1.0, 0.58, 0.2], [1.0, 0.84, 0.3], [0.25, 0.85, 0.78], [0.62, 0.42, 1.0], [1.0, 0.45, 0.55]];
+/** Kerne der Tangwälder, in denen der Tang zum Dickicht wird (0..1) */
+export function denseK(x, z) { const f = forestK(x, z); if (f < 0.8) return 0; return smooth(0.8, 0.97, f) * smooth(0.5, 0.6, noise(x * 0.026 + 1.3, z * 0.026 - 4.4)); }
 function atlLife(it, P, x0, z0) {
   const { R, rr } = P; let mx = 0; for (const [a, b] of [[0, 0], [1, 0], [0, 1], [1, 1], [0.5, 0.5]]) mx = Math.max(mx, atlK(x0 + a * CS, z0 + b * CS)); if (mx < 0.25) return;
   const ok = (x, z) => atlK(x, z) >= 0.25;
@@ -92,9 +95,16 @@ function atlLife(it, P, x0, z0) {
     const h = Math.min(fk > 0.2 ? rr(16, 34) * (0.5 + 0.5 * fk) : rr(7, 18), -9 - y); if (h < 3) continue;
     it.kelpA.push(x, y - 0.3, z, h, R() * 6.3, R() * 6.3, R() < 0.16 ? rr(0.6, 1) : rr(0, 0.25));
   }
-  // Seegraswiesen auf den Dünen: feine, lange Halme, in Wiesen dicht, dazwischen locker
-  for (let i = 0; i < 900; i++) {
-    const x = x0 + R() * CS, z = z0 + R() * CS, mk = smooth(0.42, 0.6, noise(x * 0.018 + 3.7, z * 0.018 - 8.1) * 0.6 + noise(x * 0.07, z * 0.07) * 0.4); if (R() > 0.2 + 0.8 * mk || !ok(x, z)) continue;
+  // Tangdickicht: in manchen Kernen der Wälder steht der Tang so eng, dass man nur noch wenige Meter weit sieht
+  for (let i = 0; i < 520; i++) {
+    const x = x0 + R() * CS, z = z0 + R() * CS, dk = denseK(x, z); if (R() > dk || !ok(x, z)) continue;
+    const y = floorH(x, z); if (y < -112 || steep(x, z) > 5 || rockSDF(x, y + 1.5, z) < 1.2) continue;
+    const h = Math.min(rr(18, 36), -9 - y); if (h < 4) continue;
+    it.kelpA.push(x, y - 0.3, z, h, R() * 6.3, R() * 6.3, R() < 0.16 ? rr(0.6, 1) : rr(0, 0.25));
+  }
+  // Seegraswiesen auf den Dünen: feine, lange Halme, in den Wiesen sehr dicht, dazwischen nur vereinzelt
+  for (let i = 0; i < 2400; i++) {
+    const x = x0 + R() * CS, z = z0 + R() * CS, mk = smooth(0.42, 0.6, noise(x * 0.018 + 3.7, z * 0.018 - 8.1) * 0.6 + noise(x * 0.07, z * 0.07) * 0.4); if (R() > 0.03 + 0.97 * mk * mk || !ok(x, z)) continue;
     const y = floorH(x, z); if (y < -110 || steep(x, z) > 3.4 || rock2D(x, z) < 0.6) continue; it.sgrass.push(x, y - 0.08, z, rr(0.9, 1.9), R() * 6.3, R() * 6.3);
   }
   // Korallen und Schwämme am Fuß der Felsen, wie Blumenbeete
@@ -348,26 +358,9 @@ export function createWorld(scene, life) {
     }
     ch.stage++; if (ch.stage === 3) W.built++;
   }
-  // Atlantis-Felsen für Boot, Kamera und Taucher: kleine Kugeln, die die Felsfläche von innen berühren. Sie liegen auf einem festen
-  // 2-m-Raster in 4-m-Höhenstufen und werden einmal berechnet und behalten, damit sich beim Fahren nichts verschiebt (sonst ruckelt es)
-  const nearBase = [], dyn = [], dynAt = { x: 1e9, y: 1e9, z: 1e9 }, colC = new Map(); W.near = nearBase;
-  function colBand(qx, qz, band) {
-    const out = []; if (rock2D(qx, qz) > 7) return out;
-    for (const qy of [band * 4 + 1, band * 4 + 3]) {
-      const d = rockSDF(qx, qy, qz); if (d > 4.5 || d < -3) continue;
-      const e = 0.5; let nx = rockSDF(qx + e, qy, qz) - rockSDF(qx - e, qy, qz), ny = rockSDF(qx, qy + e, qz) - rockSDF(qx, qy - e, qz), nz = rockSDF(qx, qy, qz + e) - rockSDF(qx, qy, qz - e); const l = Math.hypot(nx, ny, nz) || 1; nx /= l; ny /= l; nz /= l;
-      const px = qx - nx * d, py = qy - ny * d, pz = qz - nz * d; if (py < floorH(px, pz) + 0.4) continue;   // unter dem Sand: zählt nicht
-      out.push({ x: px - nx * 3, y: py - ny * 3, z: pz - nz * 3, r: 3 });
-    }
-    return out;
-  }
-  function atlSpheres(x, y, z) {
-    dynAt.x = x; dynAt.y = y; dynAt.z = z; dyn.length = 0; const RR = 17, b0 = Math.floor((y - 15) / 4), b1 = Math.floor((y + 15) / 4);
-    for (let i = Math.floor((x - RR) / 2); i <= Math.floor((x + RR) / 2); i++) for (let j = Math.floor((z - RR) / 2); j <= Math.floor((z + RR) / 2); j++) {
-      const qx = i * 2, qz = j * 2; if ((qx - x) ** 2 + (qz - z) ** 2 > RR * RR) continue;
-      for (let b = b0; b <= b1; b++) { const key = i * 1e7 + j * 1e3 + b; let L = colC.get(key); if (!L) { L = colBand(qx, qz, b); colC.set(key, L); if (colC.size > 60000) colC.clear(); } for (const s of L) dyn.push(s); }
-    }
-  }
+  let fogD = 0; const nearBase = [], dyn = [], dynAt = { x: 1e9, y: 1e9, z: 1e9 }, atlCol = makeAtlCol(rockSDF, rock2D, floorH); W.near = nearBase;
+  // Felskollision: kleine Kugeln auf festem Raster an der Felsoberfläche (atlcol.js), nur das Vorzeichen des Felsfeldes zählt
+  function atlSpheres(x, y, z) { dynAt.x = x; dynAt.y = y; dynAt.z = z; dyn.length = 0; for (const s of atlCol.around(x, y, z, 15, 10)) dyn.push(s); }
   function drop(ch) { atl.cancel(ch.key); for (const m of ch.meshes) { scene.remove(m); m.geometry.dispose(); } W.chunks.delete(ch.key); dirty = true; }
   W.small = true; W.setSmall = (v) => { W.small = v; for (const ch of W.chunks.values()) for (const m of ch.meshes) if (m.userData.small) m.visible = v; };
 
@@ -383,10 +376,14 @@ export function createWorld(scene, life) {
     for (const ch of W.chunks.values()) if (Math.hypot((ch.ix + 0.5) * CS - x, (ch.iz + 0.5) * CS - z) > DROP) drop(ch);
     atl.pump(x, z);
     // Atlantis-Felsen: für Boot, Kamera und Taucher als Kugeln an den nächsten Felsflächen rund um das Boot (alle paar Bilder neu)
-    if (x < -360) { const y = U.uSubPos.value.y; if (Math.hypot(x - dynAt.x, z - dynAt.z) > 1 || Math.abs(y - dynAt.y) > 2) atlSpheres(x, y, z); W.near = dyn.length ? nearBase.concat(dyn) : nearBase; }
+    if (x < -360 || fogD > 0.001) {   // im Tangdickicht wird das Wasser trüber, zusammen mit dem engen Tang sieht man nur noch wenige Meter
+      let d = 0; if (x < -360) { for (const [a, b] of [[0, 0], [9, 0], [-9, 0], [0, 9], [0, -9]]) d += denseK(x + a, z + b); d /= 5; }
+      fogD += (d - fogD) * 0.03; U.uFogK.value = 0.021 + 0.05 * fogD;
+    }
+    if (x < -360) { const y = U.uSubPos.value.y; if (Math.hypot(x - dynAt.x, z - dynAt.z) > 1 || Math.abs(y - dynAt.y) > 1) atlSpheres(x, y, z); W.near = dyn.length ? nearBase.concat(dyn) : nearBase; }
     else { dyn.length = 0; W.near = nearBase; }
     // Seegras nur in der Nähe zeichnen (weiter weg schrumpft es ohnehin auf nichts)
-    for (const ch of W.chunks.values()) for (const m of ch.meshes) if (m.userData.sg) m.visible = W.small && Math.hypot((ch.ix + 0.5) * CS - x, (ch.iz + 0.5) * CS - z) < 125;
+    for (const ch of W.chunks.values()) for (const m of ch.meshes) if (m.userData.sg) m.visible = W.small && Math.hypot((ch.ix + 0.5) * CS - x, (ch.iz + 0.5) * CS - z) < 100;
     const k = key(cx, cz);
     if (dirty || k !== lastKey) {
       lastKey = k; dirty = false; nearBase.length = 0; W.glows.length = 0; W.tris = 0;
