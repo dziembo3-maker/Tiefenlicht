@@ -33,18 +33,15 @@ export function atlTerrainMaterial() {
       flo = mix(flo, vec3(0.13, 0.26, 0.30), smoothstep(0.6, 0.75, texture2D(uNoise, vW.xz * 0.021 - 5.1).r) * 0.45 * (1.0 - gravel));
       base = mix(base, flo, fl * 0.85);
       #ifdef TERR
-      if (vA > 0.002) {   // Atlantis: heller, warmer Sand mit Riffeln quer zur Strömung, Algenflecken; steile Hänge aus geschichtetem Gestein
+      if (vA > 0.002) {   // Atlantis: heller, warmer Sand (ohne feine Riffel, die sahen aus wie ein Acker), Algenflecken; steile Hänge aus geschichtetem Gestein
         float n2 = texture2D(uNoise, vW.xz * 0.09 + 2.1).g, n4 = texture2D(uNoise, vW.xz * 0.006 + 0.3).r;
         vec3 sandA = vec3(0.80, 0.72, 0.57) * (0.9 + 0.16 * n);
         sandA = mix(sandA, vec3(0.50, 0.56, 0.40), smoothstep(0.58, 0.76, n2) * 0.35);
         sandA *= 1.0 - 0.2 * smoothstep(0.86, 0.97, sp);
-        float rq = dot(vW.xz, vec2(0.34, 0.94)) * 3.3 + n * 12.0 + n2 * 5.0, rp = sin(rq), rp2 = sin(rq * 0.5 + n4 * 20.0);
-        sandA *= 0.93 + 0.07 * rp;
         float wb = texture2D(uNoise, vec2((vW.y + (n4 - 0.5) * 7.0) * 0.029, 0.21)).r;
         vec3 rockA = mix(vec3(0.46, 0.22, 0.14), vec3(0.80, 0.50, 0.28), smoothstep(0.32, 0.62, wb)) * (0.85 + 0.3 * n);
         vec3 bA = mix(rockA, sandA, smoothstep(0.55, 0.85, N.y));
         base = mix(base, bA, vA);
-        N = normalize(N + vec3(rp * 0.12 + rp2 * 0.05, 0.0, rp * 0.036) * vA * smoothstep(0.6, 0.95, N.y));
         vec3 lit = shade(base, N, vW) + sunA(base, N, vW) * vA * 1.6;
         lit *= 1.0 - 0.78 * vO;
         gl_FragColor = vec4(fog(lit, vW), 1.0); return;
@@ -188,20 +185,20 @@ export function atlKelpMesh(arr, cx, cz) {
 }
 
 // ---------- feines Seegras (Wiesen auf den Dünen) ----------
-// ein Büschel aus sieben schmalen, langen Halmen; weit weg schrumpft es auf nichts, damit die Wiesen bezahlbar bleiben
+// ein Büschel aus sechs schmalen, langen Halmen mit je zwei Gliedern; weit weg schrumpft es auf nichts, damit die dichten Wiesen bezahlbar bleiben
 function seagrassShape() {
   const p = [], tip = [], ix = []; let n = 0; let sd = 7; const R = () => ((sd = (sd * 16807) % 2147483647) / 2147483647);
-  for (let k = 0; k < 7; k++) {
+  for (let k = 0; k < 6; k++) {
     const a = R() * 6.3, d = R() * 0.45, bx = Math.cos(a) * d, bz = Math.sin(a) * d, h = 0.6 + R() * 0.55, lean = 0.12 + R() * 0.3, w = 0.022 + R() * 0.012, ra = a + 1.57, b = n;
-    for (let j = 0; j <= 3; j++) { const u = j / 3, y = h * u, o = lean * u * u, ww = w * (1 - u * 0.85); for (const s of [-1, 1]) { p.push(bx + Math.cos(a) * o + Math.cos(ra) * ww * s, y, bz + Math.sin(a) * o + Math.sin(ra) * ww * s); tip.push(u); n++; } }
-    for (let j = 0; j < 3; j++) { const q = b + j * 2; ix.push(q, q + 1, q + 2, q + 1, q + 3, q + 2); }
+    for (let j = 0; j <= 2; j++) { const u = j / 2, y = h * u, o = lean * u * u, ww = w * (1 - u * 0.85); for (const s of [-1, 1]) { p.push(bx + Math.cos(a) * o + Math.cos(ra) * ww * s, y, bz + Math.sin(a) * o + Math.sin(ra) * ww * s); tip.push(u); n++; } }
+    for (let j = 0; j < 2; j++) { const q = b + j * 2; ix.push(q, q + 1, q + 2, q + 1, q + 3, q + 2); }
   }
   return { a: { position: [F32(p), 3], aTip: [F32(tip), 1] }, i: U16(ix) };
 }
 const mSeagrass = () => new T.ShaderMaterial({ uniforms: uni(), side: T.DoubleSide,
   vertexShader: /* glsl */ `attribute float aTip; attribute vec4 iP; attribute vec2 iR; uniform float uTime; uniform vec3 uSubA, uSubB; varying vec3 vW; varying float vT; ${ROTY}
     vec3 subOff(vec3 p){ vec3 ab = uSubB - uSubA; float t = clamp(dot(p - uSubA, ab) / max(dot(ab, ab), 0.001), 0.0, 1.0); return p - (uSubA + ab * t); }
-    void main(){ float far = 1.0 - smoothstep(55.0, 80.0, distance(iP.xyz, cameraPosition));
+    void main(){ float far = 1.0 - smoothstep(48.0, 72.0, distance(iP.xyz, cameraPosition));
       vec3 p = rotY(position * iP.w * far, iR.x); float sw = aTip * aTip * iP.w * 0.3;
       p.x += sin(uTime * 0.7 + iR.y + iP.x * 0.15) * sw; p.z += cos(uTime * 0.55 + iR.y + iP.z * 0.12) * sw * 0.7; p += iP.xyz;
       vec3 d0 = subOff(iP.xyz); vec2 dir = length(d0.xz) > 0.05 ? normalize(d0.xz) : vec2(1.0, 0.0); p.xz += dir * (1.0 - smoothstep(1.6, 5.0, length(subOff(p)))) * aTip * 1.2;
