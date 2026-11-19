@@ -2,7 +2,7 @@
 // die Umrisse von Schluchten und Becken; Fundstellen erscheinen nur als unbestimmte Flecken. Antippen setzt einen Kurs.
 import { wrapPi } from './util.js';
 const smoothA = (a, b, x) => { const k = Math.min(1, Math.max(0, (x - a) / (b - a))); return k * k * (3 - 2 * k); };
-import { floorH, deepAt } from './terrain.js';
+import { floorH, solidH, deepAt } from './terrain.js';
 import { poisNear } from './world.js';
 
 export function createTable(S, nav, cv, sector = () => null, extra = () => [], label = () => null, dirs = () => ['N', 'O', 'S', 'W']) {   // dirs: Himmelsrichtungen in der Sprache des Spiels   // label(p): Kurzname eines Flecks, sobald er im Logbuch steht (sonst null)
@@ -16,9 +16,9 @@ export function createTable(S, nav, cv, sector = () => null, extra = () => [], l
     TB.fadeT += dt; if (TB.fadeT > 0.07) { TB.fadeT = 0; px.fillStyle = 'rgba(0,5,2,0.045)'; px.fillRect(0, 0, N, N); }
     const a0 = TB.a, a1 = a0 + dt * 1.2, n = Math.max(1, Math.ceil((a1 - a0) / 0.011)), yRef = Math.min(S.y, -44);
     for (let i = 1; i <= n; i++) {
-      const t = a0 + (a1 - a0) * i / n, wa = S.h - t, dx = Math.sin(wa), dz = Math.cos(wa), sx = Math.sin(t), sy = -Math.cos(t); let prev = floorH(S.x + dx * 6, S.z + dz * 6) > yRef;
+      const t = a0 + (a1 - a0) * i / n, wa = S.h - t, dx = Math.sin(wa), dz = Math.cos(wa), sx = Math.sin(t), sy = -Math.cos(t); let prev = solidH(S.x + dx * 6, S.z + dz * 6) > yRef;
       for (let d = 12; d <= TR; d += 5) {
-        const h = floorH(S.x + dx * d, S.z + dz * d), solid = h > yRef, w = Math.max(2.4, d * k * 0.015);
+        const h = solidH(S.x + dx * d, S.z + dz * d), solid = h > yRef, w = Math.max(2.4, d * k * 0.015);
         if (solid !== prev) { px.fillStyle = 'rgba(130,255,170,0.95)'; px.fillRect(c + sx * d * k - w / 2, c + sy * d * k - w / 2, w, w); }
         else if (solid) { px.fillStyle = 'rgba(40,160,85,0.2)'; px.fillRect(c + sx * d * k - w / 2, c + sy * d * k - w / 2, w, w); }
         else if (h < deepAt(S.x + dx * d, S.z + dz * d) - 4 && ((d / 5) & 1)) { px.fillStyle = 'rgba(20,70,60,0.16)'; px.fillRect(c + sx * d * k - 1, c + sy * d * k - 1, 2, 2); }

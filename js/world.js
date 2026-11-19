@@ -5,12 +5,14 @@ import { floorH, shelfH, handDist, steep, cxAt, halfW, GROTTO, WRECK, PLAIN, WHA
 import { CAVE } from './cave.js';
 import { buildWhale, buildBell, propMaterial } from './props.js';
 import { wreckFrame, buildWreck } from './wreck.js';
+import { atlK, rockSDF, rock2D, rockTop, forestK, pathK, tileHasRock, VENTS } from './atlantis.js';
+import { createAtlRocks, atlTerrainMaterial, atlKelpMesh } from './atlrocks.js';
 
 export const CS = 64, NQ = 40, STEP = CS / NQ, SITE = 320, LOAD = 188, DROP = 236;
 export const PAL = { cyan: [0.25, 0.9, 1.0], blue: [0.3, 0.56, 1.0], violet: [0.62, 0.42, 1.0], lilac: [0.86, 0.52, 0.96], turq: [0.2, 1.0, 0.8], peach: [1.0, 0.56, 0.4], orange: [1.0, 0.42, 0.14] };
 const COOL = [PAL.cyan, PAL.cyan, PAL.blue, PAL.violet], DUSK = [PAL.violet, PAL.violet, PAL.blue, PAL.lilac], REEF = [PAL.turq, PAL.lilac, PAL.peach, PAL.violet, PAL.turq], WARM = [[1.0, 0.36, 0.08], PAL.peach, PAL.orange];
 const cell = (v) => Math.floor(v / CS), key = (ix, iz) => ix + ',' + iz, h2 = (a, b) => ((Math.imul(a, 73856093) ^ Math.imul(b, 19349663)) >>> 0) || 1;
-const newItems = () => ({ rocks: [], kelp: [], cry: [], coral: [[], [], [], [], []], peb: [], grass: [], jelly: [], fish: [], bub: [], dots: [], glows: [], spheres: [], wreck: null, props: [] });
+const newItems = () => ({ rocks: [], kelp: [], kelpA: [], cry: [], coral: [[], [], [], [], []], peb: [], grass: [], jelly: [], fish: [], bub: [], dots: [], glows: [], spheres: [], wreck: null, props: [] });
 const mainDist = (x, z) => (z > -185 && z < 172 ? Math.abs(x - cxAt(z)) : 999);
 
 // ---------- Bausteine: schreiben in die Liste einer Kachel ----------
@@ -69,7 +71,44 @@ function placer(R) {
     P.tuft(it, x, z, 17, 3, 14 * scale, WARM, 6, 0.6); P.coral(it, x, z, 12, 1.0, 2.4, [PAL.peach, PAL.orange, PAL.lilac], 11 * scale);
     P.dots(it, x, floorH(x, z) + 2, z, 46, 9 * scale, WARM); for (let i = 0; i < 2; i++) P.bubbles(it, x + rr(-4, 4), z + rr(-4, 4), 34);
   };
+  // warmer Spalt im Atlantis-Biom: die dunklen Nadeln stehen schon im Fels (atlantis.js), hier nur Glut, Korallen, Lichtpunkte, Blasen
+  P.ventA = (it, x, z) => {
+    P.tuft(it, x, z, 17, 3, 14, WARM, 6, 0.6); P.coral(it, x, z, 12, 1.0, 2.4, [PAL.peach, PAL.orange, PAL.lilac], 11);
+    P.dots(it, x, floorH(x, z) + 2, z, 46, 9, WARM); for (let i = 0; i < 2; i++) P.bubbles(it, x + rr(-4, 4), z + rr(-4, 4), 34);
+  };
   return P;
+}
+
+// ---------- Atlantis-Biom: Tangwälder, Seegras, Korallen am Fuß der Felsen, Fische ----------
+const ATLPAL = [[1.0, 0.32, 0.22], [1.0, 0.58, 0.2], [1.0, 0.84, 0.3], [0.25, 0.85, 0.78], [0.62, 0.42, 1.0], [1.0, 0.45, 0.55]];
+function atlLife(it, P, x0, z0) {
+  const { R, rr } = P; let mx = 0; for (const [a, b] of [[0, 0], [1, 0], [0, 1], [1, 1], [0.5, 0.5]]) mx = Math.max(mx, atlK(x0 + a * CS, z0 + b * CS)); if (mx < 0.25) return;
+  const ok = (x, z) => atlK(x, z) >= 0.25;
+  // Riesentang: dicht in den Wäldern (mit schmalen Sandwegen), einzeln überall sonst
+  for (let i = 0; i < 140; i++) {
+    const x = x0 + R() * CS, z = z0 + R() * CS, fk = forestK(x, z); if (R() > 0.035 + 0.965 * fk || !ok(x, z) || (fk > 0.2 && pathK(x, z) > 0.5)) continue;
+    const y = floorH(x, z); if (y < -112 || steep(x, z) > 4.5 || rockSDF(x, y + 1.5, z) < 1.8) continue;
+    const h = Math.min(fk > 0.2 ? rr(13, 27) * (0.5 + 0.5 * fk) : rr(6, 15), -9 - y); if (h < 3) continue;
+    it.kelpA.push(x, y - 0.3, z, h, R() * 6.3, R() * 6.3, R() < 0.16 ? rr(0.6, 1) : rr(0, 0.25));
+  }
+  // Seegraswiesen auf den Dünen
+  for (let i = 0; i < 8; i++) { const cx = x0 + R() * CS, cz = z0 + R() * CS; if (!ok(cx, cz) || forestK(cx, cz) > 0.5 || steep(cx, cz) > 2.4 || floorH(cx, cz) < -105 || rock2D(cx, cz) < 1.5) continue; const cnt = 5 + Math.floor(R() * 10); for (let k = 0; k < cnt; k++) { const a = R() * 6.3, d = Math.sqrt(R()) * 3.4, x = cx + Math.cos(a) * d, z = cz + Math.sin(a) * d; it.grass.push(x, floorH(x, z) - 0.05, z, rr(0.6, 1.6), R() * 6.3, R() * 6.3); } }
+  // Korallen und Schwämme am Fuß der Felsen, wie Blumenbeete
+  for (let i = 0; i < 14; i++) { const x = x0 + R() * CS, z = z0 + R() * CS, r = rock2D(x, z); if (r < 0.4 || r > 5.5 || !ok(x, z) || floorH(x, z) < -105) continue; P.coral(it, x, z, 2 + Math.floor(R() * 3), 0.6, 2.0, ATLPAL, 2.6); }
+  // Fische und Quallen im freien Wasser
+  for (let i = 0; i < 2; i++) { const x = x0 + R() * CS, z = z0 + R() * CS; if (!ok(x, z) || R() > 0.7) continue; const h = floorH(x, z), y = Math.max(-96, Math.min(-13, Math.max(h, -100) + rr(9, 24))); if (rockSDF(x, y, z) < 6) continue; P.school(it, x, y, z, rr(4, 7), rr(10, 19), 50 + Math.floor(R() * 70), R() * 6.3); }
+  { const x = x0 + R() * CS, z = z0 + R() * CS; if (ok(x, z) && R() < 0.5) { const y = Math.max(-90, floorH(x, z)) + rr(10, 26); if (y < -14 && rockSDF(x, y, z) > 5) P.jelly(it, x, y, z, rr(0.55, 1.4)); } }
+}
+/** Bewuchs auf Köpfen und Absätzen der Atlantis-Felsen (Stellen aus atlmesh.js): Seegras, kleiner Tang, Korallen */
+function atlSpots(spots, seed) {
+  const it = newItems(), R = rng(seed), P = placer(R), rr = P.rr;
+  for (let i = 0; i < spots.length; i += 4) {
+    const x = spots[i], y = spots[i + 1], z = spots[i + 2], q = R();
+    if (q < 0.45) { const cnt = 2 + Math.floor(R() * 4); for (let k = 0; k < cnt; k++) { const a = R() * 6.3, d = Math.sqrt(R()) * 1.2; it.grass.push(x + Math.cos(a) * d, y - 0.15, z + Math.sin(a) * d, rr(0.5, 1.3), R() * 6.3, R() * 6.3); } }
+    else if (q < 0.72) { const h = Math.min(rr(3, 9), -9 - y); if (h > 2) it.kelpA.push(x, y - 0.3, z, h, R() * 6.3, R() * 6.3, R() < 0.25 ? rr(0.6, 1) : rr(0, 0.25)); }
+    else P.coral(it, x, z, 1 + Math.floor(R() * 2), 0.5, 1.5, ATLPAL, 0.9, y - 0.1);
+  }
+  return it;
 }
 
 // ---------- Fundstellen im weiten Netz (das Sonar findet sie aus der Ferne) ----------
@@ -78,9 +117,10 @@ export function siteAt(cx, cz) {
   const k = key(cx, cz); if (siteCache.has(k)) return siteCache.get(k);
   const R = rng(h2(cx * 7 + 3, cz * 13 + 1)); let s = null;
   if (R() > 0.18) for (let i = 0; i < 10 && !s; i++) {
-    const x = (cx + 0.08 + R() * 0.84) * SITE, z = (cz + 0.08 + R() * 0.84) * SITE; if (handDist(x, z) < 170) continue;
+    const x = (cx + 0.08 + R() * 0.84) * SITE, z = (cz + 0.08 + R() * 0.84) * SITE; if (handDist(x, z) < 170 || atlK(x, z) > 0.02) continue;
     const h = floorH(x, z); if (shelfH(x, z) - h > 26 && h > -92 && steep(x, z) < 5) { const q = R(); s = { x, y: h, z, kind: q < 0.38 ? 'grove' : q < 0.72 ? 'garden' : 'vent', seed: h2(cx, cz) }; }
   }
+  for (const v of VENTS) if (Math.floor(v.x / SITE) === cx && Math.floor(v.z / SITE) === cz) s = { x: v.x, y: floorH(v.x, v.z), z: v.z, kind: 'vent', seed: h2(cx, cz) };   // Atlantis: nur die warmen Spalte
   siteCache.set(k, s); return s;
 }
 const STATIC = [{ x: GROTTO.x + 5, y: -48, z: GROTTO.z + 3, kind: 'grove', short: 'grotto' }, { x: WRECK.x, y: -62, z: WRECK.z, kind: 'wreck' },
@@ -182,7 +222,7 @@ function handmade() {
 function procedural(ix, iz, it) {
   const R = rng(h2(ix, iz)), P = placer(R), rr = P.rr, x0 = ix * CS, z0 = iz * CS;
   const free = (x, z) => mainDist(x, z) > 48 && Math.hypot(x - GROTTO.x, z - GROTTO.z) > 36 && Math.hypot(x - WRECK.x, z - WRECK.z) > 52 && Math.hypot(x - HOLE.x, z - HOLE.z) > 24;
-  const pt = () => { const x = x0 + R() * CS, z = z0 + R() * CS, h = floorH(x, z); return { x, z, h, c: shelfH(x, z) - h, ok: free(x, z) && plainK(x, z) < 0.15 && Math.hypot(x - BELL.x, z - BELL.z) > 16 }; };
+  const pt = () => { const x = x0 + R() * CS, z = z0 + R() * CS, h = floorH(x, z); return { x, z, h, c: shelfH(x, z) - h, ok: free(x, z) && plainK(x, z) < 0.15 && Math.hypot(x - BELL.x, z - BELL.z) > 16 && atlK(x, z) < 0.25 }; };
   for (let i = 0; i < 3; i++) { const p = pt(); if (p.ok && p.c > 18 && p.h > -115) P.spire(it, p.x, p.z, rr(9, 27), rr(2.2, 4.8), rr(0.02, 0.2), R() * 40); }
   for (let i = 0; i < 7; i++) { const p = pt(); if (p.ok && p.h > -120) P.boulder(it, p.x, p.z, Math.pow(R(), 2) * 4.2 + 1.1); }
   for (let i = 0; i < 10; i++) { const p = pt(); if (p.ok && (p.c > 8 || R() < 0.45)) P.kelpPatch(it, p.x, p.z, 8 + Math.floor(R() * 16), p.h < -50 ? 1.35 : 1); }
@@ -196,10 +236,11 @@ function procedural(ix, iz, it) {
     const gx = floorH(p.x + 4, p.z) - floorH(p.x - 4, p.z), gz = floorH(p.x, p.z + 4) - floorH(p.x, p.z - 4);
     P.school(it, p.x, Math.max(-96, Math.min(-13, Math.max(p.h, -100) + rr(9, 22))), p.z, rr(4, 7), rr(10, 19), 50 + Math.floor(R() * 70), Math.atan2(gx, gz) + Math.PI / 2);
   }
+  if (x0 < -330) atlLife(it, P, x0, z0);
   // Fundstelle, falls eine in dieser Kachel liegt
   const s = siteAt(Math.floor(x0 / SITE), Math.floor(z0 / SITE));
   if (s && cell(s.x) === ix && cell(s.z) === iz) {
-    if (s.kind === 'vent') P.vent(it, s.x, s.z, 1);
+    if (s.kind === 'vent') { if (atlK(s.x, s.z) > 0.2) P.ventA(it, s.x, s.z); else P.vent(it, s.x, s.z, 1); }
     else if (s.kind === 'grove') {
       P.tuft(it, s.x, s.z, 22, 2, rr(9, 13), DUSK, 3.2); for (let i = 0; i < 2; i++) { const a = R() * 6.3; P.tuft(it, s.x + Math.cos(a) * 9, s.z + Math.sin(a) * 9, 12, 1.5, rr(5, 8), R() < 0.5 ? COOL : [PAL.lilac, PAL.violet], 2.0); }
       for (let i = 0; i < 6; i++) { const a = R() * 6.3, d = rr(8, 20); P.tuft(it, s.x + Math.cos(a) * d, s.z + Math.sin(a) * d, 6, 0.5, rr(1.4, 3), DUSK, 0.9); }
@@ -253,7 +294,15 @@ export function createWorld(scene, life) {
   const W = { chunks: new Map(), near: [], glows: [], extra: [], tris: 0, built: 0 };
   /** zusätzliche Lichter, die nicht zu einer Kachel gehören (z. B. die Lampe einer Messingdose) */
   W.setExtra = (list) => { W.extra = list; dirty = true; };
-  const HAND = handmade(), matT = rockMaterial(false), matR = rockMaterial(true);
+  const HAND = handmade(), matT = atlTerrainMaterial(), matR = rockMaterial(true), atl = createAtlRocks(); W.atl = atl;
+  /** fertige Atlantis-Kachel einsetzen: Felsoberfläche, Schatten auf dem Sand, Bewuchs auf den Köpfen */
+  function atlAttach(ch, r) {
+    if (!r || W.chunks.get(ch.key) !== ch) return;
+    const m = atl.mesh(r); if (m) { scene.add(m); ch.meshes.push(m); ch.tris += m.userData.tris; }
+    if (r.occ && ch.terr) { const a = ch.terr.getAttribute('aOcc'); a.array.set(r.occ); a.needsUpdate = true; }
+    if (r.spots.length) { const it = atlSpots(r.spots, h2(ch.ix + 77, ch.iz - 51)); for (const mm of [...life.build(it, ch.ix * CS + CS / 2, ch.iz * CS + CS / 2), atlKelpMesh(it.kelpA, ch.ix * CS + CS / 2, ch.iz * CS + CS / 2)]) if (mm) { scene.add(mm); ch.meshes.push(mm); } }
+    ch.atlDone = true;
+  }
   const hh = new Float32Array((NQ + 3) * (NQ + 3)), M = NQ + 3;
   let dirty = true, lastKey = '';
 
@@ -276,10 +325,13 @@ export function createWorld(scene, life) {
         if (Math.abs(pos[a * 3 + 1] - pos[d * 3 + 1]) < Math.abs(pos[b * 3 + 1] - pos[c * 3 + 1])) { idx[q++] = a; idx[q++] = c; idx[q++] = d; idx[q++] = a; idx[q++] = d; idx[q++] = b; } else { idx[q++] = a; idx[q++] = c; idx[q++] = b; idx[q++] = b; idx[q++] = c; idx[q++] = d; }
       }
       const g = new T.BufferGeometry(); g.setAttribute('position', new T.BufferAttribute(pos, 3)); g.setAttribute('normal', new T.BufferAttribute(nor, 3)); g.setIndex(new T.BufferAttribute(idx, 1));
+      { const ak = new Float32Array(n * n); let any = false; if (x0 < -330) for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) { const v = atlK(pos[(j * n + i) * 3], pos[(j * n + i) * 3 + 2]); ak[j * n + i] = v; if (v > 0) any = true; }
+        g.setAttribute('aAtl', new T.BufferAttribute(ak, 1)); g.setAttribute('aOcc', new T.BufferAttribute(new Float32Array(n * n), 1)); ch.terr = g;
+        if (any && tileHasRock(ch.ix, ch.iz)) atl.request(ch.key, ch.ix, ch.iz, (r) => atlAttach(ch, r)); }
       g.boundingSphere = new T.Sphere(new T.Vector3(x0 + CS / 2, (lo + hi) / 2, z0 + CS / 2), Math.hypot(CS * 0.71, (hi - lo) / 2) + 1);
       const m = new T.Mesh(g, matT); scene.add(m); ch.meshes.push(m); ch.tris += idx.length / 3;
     } else if (ch.stage === 1) {                                 // was hier steht, dann die Felsen
-      const it = HAND.get(ch.key) || newItems(); if (!it.done) { procedural(ch.ix, ch.iz, it); placer(rng(h2(ch.ix + 911, ch.iz - 377))).ground(it, ch.ix * CS, ch.iz * CS, CS, 260, 15); it.done = true; } ch.items = it;
+      const it = HAND.get(ch.key) || newItems(); if (!it.done) { procedural(ch.ix, ch.iz, it); { const ak = atlK(ch.ix * CS + CS / 2, ch.iz * CS + CS / 2); placer(rng(h2(ch.ix + 911, ch.iz - 377))).ground(it, ch.ix * CS, ch.iz * CS, CS, Math.round(260 * (1 - 0.8 * ak)), 15); } it.done = true; } ch.items = it;
       ch.spheres = it.spheres.slice();
       const g = buildRocks(it.rocks, ch.spheres); if (g) { const m = new T.Mesh(g, matR); scene.add(m); ch.meshes.push(m); ch.tris += g.index.count / 3; }
       if (it.wreck) for (const m of buildWreck(it.wreck)) { scene.add(m); ch.meshes.push(m); ch.tris += m.geometry.index.count / 3; }
@@ -287,11 +339,26 @@ export function createWorld(scene, life) {
       ch.glows = it.glows;
     } else {                                                     // Leben
       for (const m of life.build(ch.items, ch.ix * CS + CS / 2, ch.iz * CS + CS / 2)) { scene.add(m); ch.meshes.push(m); }
+      { const m = atlKelpMesh(ch.items.kelpA, ch.ix * CS + CS / 2, ch.iz * CS + CS / 2); if (m) { scene.add(m); ch.meshes.push(m); } }   // Riesentang im Atlantis-Biom
       dirty = true;
     }
     ch.stage++; if (ch.stage === 3) W.built++;
   }
-  function drop(ch) { for (const m of ch.meshes) { scene.remove(m); m.geometry.dispose(); } W.chunks.delete(ch.key); dirty = true; }
+  const nearBase = [], dyn = [], dynAt = { x: 1e9, z: 1e9, n: 0 }; W.near = nearBase;
+  function atlSpheres(x, z) {
+    dynAt.x = x; dynAt.z = z; dynAt.n = 0; dyn.length = 0; const seen = new Set(), R0 = 5, e = 0.45;
+    for (let a = -16; a <= 16; a += 4) for (let b = -16; b <= 16; b += 4) {
+      const qx = x + a, qz = z + b; if (rock2D(qx, qz) > 9) continue;
+      const fl = floorH(qx, qz), top = Math.min(-6, Math.max(fl + 2, rockTop(qx, qz) + 3));
+      for (let qy = fl + 1.5; qy <= top; qy += 2.5) {
+        const d = rockSDF(qx, qy, qz); if (d > 6.5) { qy += Math.max(0, d - 6.5); continue; }
+        let nx = rockSDF(qx + e, qy, qz) - d, ny = rockSDF(qx, qy + e, qz) - d, nz = rockSDF(qx, qy, qz + e) - d; const l = Math.hypot(nx, ny, nz) || 1; nx /= l; ny /= l; nz /= l;
+        const cx = qx - nx * (d - 0.9 + R0), cy = qy - ny * (d - 0.9 + R0), cz = qz - nz * (d - 0.9 + R0), key = Math.round(cx / 1.5) + ',' + Math.round(cy / 1.5) + ',' + Math.round(cz / 1.5);
+        if (seen.has(key)) continue; seen.add(key); dyn.push({ x: cx, y: cy, z: cz, r: R0 });
+      }
+    }
+  }
+  function drop(ch) { atl.cancel(ch.key); for (const m of ch.meshes) { scene.remove(m); m.geometry.dispose(); } W.chunks.delete(ch.key); dirty = true; }
   W.setSmall = (v) => { for (const ch of W.chunks.values()) for (const m of ch.meshes) if (m.userData.small) m.visible = v; };
 
   /** hält die Kacheln um (x,z) aktuell; steps = wie viele Bauschritte in diesem Bild erlaubt sind (Infinity beim Start) */
@@ -304,10 +371,14 @@ export function createWorld(scene, life) {
     }
     if (todo.length) { todo.sort((p, q) => p.d - q.d); let i = 0; while (steps > 0 && i < todo.length) { stage(todo[i]); steps--; if (todo[i].stage === 3) i++; } }
     for (const ch of W.chunks.values()) if (Math.hypot((ch.ix + 0.5) * CS - x, (ch.iz + 0.5) * CS - z) > DROP) drop(ch);
+    atl.pump(x, z);
+    // Atlantis-Felsen: für Boot, Kamera und Taucher als Kugeln an den nächsten Felsflächen rund um das Boot (alle paar Bilder neu)
+    if (x < -360) { if (Math.hypot(x - dynAt.x, z - dynAt.z) > 0.9 || ++dynAt.n > 15) atlSpheres(x, z); W.near = dyn.length ? nearBase.concat(dyn) : nearBase; }
+    else { dyn.length = 0; W.near = nearBase; }
     const k = key(cx, cz);
     if (dirty || k !== lastKey) {
-      lastKey = k; dirty = false; W.near.length = 0; W.glows.length = 0; W.tris = 0;
-      for (const ch of W.chunks.values()) { W.tris += ch.tris; if (ch.stage < 2) continue; for (const g of ch.glows) W.glows.push(g); if (Math.abs(ch.ix - cx) <= 1 && Math.abs(ch.iz - cz) <= 1) for (const s of ch.spheres) W.near.push(s); }
+      lastKey = k; dirty = false; nearBase.length = 0; W.glows.length = 0; W.tris = 0;
+      for (const ch of W.chunks.values()) { W.tris += ch.tris; if (ch.stage < 2) continue; for (const g of ch.glows) W.glows.push(g); if (Math.abs(ch.ix - cx) <= 1 && Math.abs(ch.iz - cz) <= 1) for (const s of ch.spheres) nearBase.push(s); }
       for (const g of W.extra) W.glows.push(g);
     }
     return todo.length;

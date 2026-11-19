@@ -1,5 +1,6 @@
 // terrain.js – die Höhenfunktion der ganzen Welt (ohne Grafik, damit sie überall nutzbar ist)
 import { clamp, smooth, fbm, noise } from './util.js';
+import { atlK, atlFloor, atlSetOld, rockTop } from './atlantis.js';
 
 export const cxAt = (z) => Math.sin(z * 0.017) * 36 + Math.sin(z * 0.041 + 1.3) * 9;   // Mittellinie der Startschlucht
 export const halfW = (z) => 27 + 7 * Math.sin(z * 0.031 + 2.0);
@@ -64,7 +65,7 @@ export function handDist(x, z) {
   return Math.min(d, Math.max(0, Math.hypot(x - PLAIN.x, z - PLAIN.z) - PLAIN.r));
 }
 const LEDGES = [PLAT, PLAT2];
-export function floorH(x, z) {
+function floorOld(x, z) {
   const shelf = shelf0(x, z), wob = fbm(x * 0.033 + 11, z * 0.033 + 5, 3) - 0.5;
   // Startschlucht mit Abgrund am Ende
   const zc = clamp(z, -260, 460), open = smooth(-170, -116, zc) * (1 - smooth(330, 430, zc)), dM = Math.abs(x - cxAt(zc));
@@ -105,6 +106,15 @@ export function floorH(x, z) {
   const hx = x - HOLE.x, hz = z - HOLE.z; if (hx * hx + hz * hz < 400) { const d = Math.sqrt(hx * hx + hz * hz); h -= 3.0 * (1 - smooth(3, 17, d)); }   // Mulde um das Loch
   return h;
 }
+atlSetOld(floorOld);
+/** Höhe des Meeresgrunds; im Westen geht die Welt in das Atlantis-Biom über (atlantis.js) */
+export function floorH(x, z) {
+  const k = atlK(x, z); if (k <= 0) return floorOld(x, z);
+  const a = atlFloor(x, z); if (k >= 1) return a;
+  const o = floorOld(x, z); return o + (a - o) * k;
+}
+/** Grund oder Oberkante des Felses darüber (für den Sonartisch: was ist fest?) */
+export function solidH(x, z) { const h = floorH(x, z), t = rockTop(x, z); return t > h ? t : h; }
 export function floorN(x, z, out) {
   const e = 1.2, dx = floorH(x + e, z) - floorH(x - e, z), dz = floorH(x, z + e) - floorH(x, z - e), l = Math.hypot(dx, 2 * e, dz);
   out.x = -dx / l; out.y = 2 * e / l; out.z = -dz / l; return out;
