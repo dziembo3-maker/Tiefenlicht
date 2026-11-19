@@ -3,6 +3,7 @@
 // Falten, Narben und Hautzeichnung macht der Shader. Ab und zu steigen Blasen aus dem Blasloch.
 import { T, rng, clamp, smooth } from './util.js';
 import { uni, COMMON, quadPoints } from './gfx.js';
+import { atlK } from './atlantis.js';
 import { floorH } from './terrain.js';
 
 const PI = Math.PI;
@@ -159,7 +160,7 @@ const FS = /* glsl */ `precision highp float; ${COMMON} varying vec3 vW, vN, vL;
 
 /** sucht einen Ort für die schlafende Gruppe: über dem Walskelett, über einem Becken oder über dem tiefen Loch am Ende der Schlucht, mindestens minD vom Boot */
 export function choosePod(sx, sz, minD, fixed, rand = Math.random) {
-  const deepOK = (x, z) => { for (let k = 0; k < 7; k++) { const a = k / 7 * 2 * PI, r = k ? 20 : 0; if (floorH(x + Math.cos(a) * r, z + Math.sin(a) * r) > -58) return false; } return Math.hypot(x, z) < 1300; };
+  const deepOK = (x, z) => { if (atlK(x, z) > 0) return false; for (let k = 0; k < 7; k++) { const a = k / 7 * 2 * PI, r = k ? 20 : 0; if (floorH(x + Math.cos(a) * r, z + Math.sin(a) * r) > -58) return false; } return Math.hypot(x, z) < 1300; };
   const far = (x, z) => Math.hypot(x - sx, z - sz) >= minD, opts = [];
   for (const f of fixed) if (deepOK(f.x, f.z) && far(f.x, f.z)) opts.push({ x: f.x, z: f.z, kind: f.kind });
   // freie Becken: Zufallspunkte, die tief genug liegen
