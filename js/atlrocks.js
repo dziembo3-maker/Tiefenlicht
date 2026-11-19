@@ -186,3 +186,35 @@ export function atlKelpMesh(arr, cx, cz) {
   const ib = new T.InstancedInterleavedBuffer(F32(arr), 7, 1); g.setAttribute('iP', new T.InterleavedBufferAttribute(ib, 4, 0)); g.setAttribute('iR', new T.InterleavedBufferAttribute(ib, 2, 4)); g.setAttribute('iG', new T.InterleavedBufferAttribute(ib, 1, 6));
   g.instanceCount = arr.length / 7; g.boundingSphere = new T.Sphere(new T.Vector3(cx, -48, cz), 125); const m = new T.Mesh(g, KELP.mat); m.userData.tris = (sh.i.length / 3) * g.instanceCount; return m;
 }
+
+// ---------- feines Seegras (Wiesen auf den Dünen) ----------
+// ein Büschel aus sieben schmalen, langen Halmen; weit weg schrumpft es auf nichts, damit die Wiesen bezahlbar bleiben
+function seagrassShape() {
+  const p = [], tip = [], ix = []; let n = 0; let sd = 7; const R = () => ((sd = (sd * 16807) % 2147483647) / 2147483647);
+  for (let k = 0; k < 7; k++) {
+    const a = R() * 6.3, d = R() * 0.45, bx = Math.cos(a) * d, bz = Math.sin(a) * d, h = 0.6 + R() * 0.55, lean = 0.12 + R() * 0.3, w = 0.022 + R() * 0.012, ra = a + 1.57, b = n;
+    for (let j = 0; j <= 3; j++) { const u = j / 3, y = h * u, o = lean * u * u, ww = w * (1 - u * 0.85); for (const s of [-1, 1]) { p.push(bx + Math.cos(a) * o + Math.cos(ra) * ww * s, y, bz + Math.sin(a) * o + Math.sin(ra) * ww * s); tip.push(u); n++; } }
+    for (let j = 0; j < 3; j++) { const q = b + j * 2; ix.push(q, q + 1, q + 2, q + 1, q + 3, q + 2); }
+  }
+  return { a: { position: [F32(p), 3], aTip: [F32(tip), 1] }, i: U16(ix) };
+}
+const mSeagrass = () => new T.ShaderMaterial({ uniforms: uni(), side: T.DoubleSide,
+  vertexShader: /* glsl */ `attribute float aTip; attribute vec4 iP; attribute vec2 iR; uniform float uTime; uniform vec3 uSubA, uSubB; varying vec3 vW; varying float vT; ${ROTY}
+    vec3 subOff(vec3 p){ vec3 ab = uSubB - uSubA; float t = clamp(dot(p - uSubA, ab) / max(dot(ab, ab), 0.001), 0.0, 1.0); return p - (uSubA + ab * t); }
+    void main(){ float far = 1.0 - smoothstep(55.0, 80.0, distance(iP.xyz, cameraPosition));
+      vec3 p = rotY(position * iP.w * far, iR.x); float sw = aTip * aTip * iP.w * 0.3;
+      p.x += sin(uTime * 0.7 + iR.y + iP.x * 0.15) * sw; p.z += cos(uTime * 0.55 + iR.y + iP.z * 0.12) * sw * 0.7; p += iP.xyz;
+      vec3 d0 = subOff(iP.xyz); vec2 dir = length(d0.xz) > 0.05 ? normalize(d0.xz) : vec2(1.0, 0.0); p.xz += dir * (1.0 - smoothstep(1.6, 5.0, length(subOff(p)))) * aTip * 1.2;
+      vW = p; vT = aTip; gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0); }`,
+  fragmentShader: /* glsl */ `precision highp float; ${COMMON} ${ATL_LIGHT} varying vec3 vW; varying float vT;
+    void main(){ float n = texture2D(uNoise, vW.xz * 0.05).r; vec3 base = mix(vec3(0.10, 0.17, 0.08), mix(vec3(0.34, 0.50, 0.20), vec3(0.52, 0.52, 0.22), n), vT);
+      vec3 N = vec3(0.0, 1.0, 0.0); gl_FragColor = vec4(fog(shade(base, N, vW) * 0.7 + sunA(base, N, vW) * 1.5, vW), 1.0); }` });
+let SG = null;
+/** Seegras einer Kachel als ein Mesh: arr = je 6 Werte (x, y, z, Größe, Drehung, Phase) */
+export function atlGrassMesh(arr, cx, cz) {
+  if (!arr || !arr.length) return null;
+  if (!SG) SG = { shape: seagrassShape(), mat: mSeagrass() };
+  const g = new T.InstancedBufferGeometry(), sh = SG.shape; for (const k in sh.a) g.setAttribute(k, new T.BufferAttribute(sh.a[k][0], sh.a[k][1])); g.setIndex(new T.BufferAttribute(sh.i, 1));
+  const ib = new T.InstancedInterleavedBuffer(F32(arr), 6, 1); g.setAttribute('iP', new T.InterleavedBufferAttribute(ib, 4, 0)); g.setAttribute('iR', new T.InterleavedBufferAttribute(ib, 2, 4));
+  g.instanceCount = arr.length / 6; g.boundingSphere = new T.Sphere(new T.Vector3(cx, -60, cz), 125); const m = new T.Mesh(g, SG.mat); m.userData.tris = (sh.i.length / 3) * g.instanceCount; m.userData.small = true; m.userData.sg = true; return m;
+}
