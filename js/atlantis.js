@@ -39,9 +39,8 @@ function dunes(x, z) {
   const ang = 0.6 + (fbm(x * 0.0017 + 2.2, z * 0.0017 - 1.4, 2) - 0.5) * 1.6, ca = Math.cos(ang), sa = Math.sin(ang), u = x * ca + z * sa, v = -x * sa + z * ca;
   const warp = fbm(x * 0.012 + 3, z * 0.012 - 1, 3) * 34 + v * 0.06, lam = 26 + 18 * fbm(x * 0.005 + 9, z * 0.005, 2);
   const f = fract((u + warp) / lam), prof = f < 0.72 ? smooth(0, 1, f / 0.72) : 1 - smooth(0, 1, (f - 0.72) / 0.28);
-  const f2 = fract((u * 0.6 - v * 0.8 + warp * 0.6) / 9.5), prof2 = f2 < 0.65 ? smooth(0, 1, f2 / 0.65) : 1 - smooth(0, 1, (f2 - 0.65) / 0.35);
   const A = 1.0 + 5.2 * smooth(0.3, 0.78, fbm(x * 0.0055 - 4, z * 0.0055 + 6, 3));
-  return A * prof + A * 0.22 * prof2;
+  return A * prof;
 }
 /** Abstand (in Radien) zur Mitte des Abbruchs, mit unruhigem Rand */
 export const abyE = (x, z) => Math.hypot((x - ABY.x) / ABY.rx, (z - ABY.z) / ABY.rz) + (fbm(x * 0.01 + 4.4, z * 0.01 - 2.2, 2) - 0.5) * 0.22;
@@ -49,7 +48,7 @@ export const abyE = (x, z) => Math.hypot((x - ABY.x) / ABY.rx, (z - ABY.z) / ABY
 export function atlBase(x, z) {
   let h = -84 + (fbm(x * 0.0025 + 3, z * 0.0025 - 7, 3) - 0.5) * 12;
   const dc = Math.hypot(x - CITY.x, z - CITY.z) - CITY.r, flat = 1 - smooth(-10, 60, dc);
-  h += dunes(x, z) * (1 - 0.8 * flat) - 4 * flat + (fbm(x * 0.07, z * 0.07, 3) - 0.5) * (1.0 - 0.6 * flat);
+  h += dunes(x, z) * (1 - 0.8 * flat) - 4 * flat + (fbm(x * 0.045, z * 0.045, 2) - 0.5) * (1.2 - 0.7 * flat);
   const e = abyE(x, z);
   if (e < 1.25) { const k = 1 - smooth(0.8, 1.02, e), kt = k * 0.35 + 0.65 * terr(k, 4), fl = ABY.floor + (fbm(x * 0.012 - 3, z * 0.012 + 8, 3) - 0.5) * 18; h += (fl - h) * kt; }
   return h;
