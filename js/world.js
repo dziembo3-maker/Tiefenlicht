@@ -10,6 +10,10 @@ import { createAtlRocks, atlTerrainMaterial, atlKelpMesh, atlGrassMesh } from '.
 import { makeAtlCol } from './atlcol.js';
 import './atldev.js';
 import { reverseStep } from './reverse.js';
+import { createSurface } from './surface.js';
+import { borderStep } from './border.js';
+import { obsEnsure, obsActive, OBS_SPHERES, obsSDF, TUBE_HIT } from './obs.js';
+import { OBSV } from './atlantis.js';
 
 export const CS = 64, NQ = 40, STEP = CS / NQ, SITE = 320, LOAD = 188, DROP = 236;
 export const PAL = { cyan: [0.25, 0.9, 1.0], blue: [0.3, 0.56, 1.0], violet: [0.62, 0.42, 1.0], lilac: [0.86, 0.52, 0.96], turq: [0.2, 1.0, 0.8], peach: [1.0, 0.56, 0.4], orange: [1.0, 0.42, 0.14] };
@@ -310,6 +314,7 @@ export function createWorld(scene, life) {
   /** zusätzliche Lichter, die nicht zu einer Kachel gehören (z. B. die Lampe einer Messingdose) */
   W.setExtra = (list) => { W.extra = list; dirty = true; };
   const HAND = handmade(), matT = atlTerrainMaterial(), matR = rockMaterial(true), atl = createAtlRocks(); W.atl = atl;
+  W.surface = createSurface(scene, TUBE_HIT);   // Wasseroberfläche überall, mit Wellenringen am Teleskop des Observatoriums
   /** fertige Atlantis-Kachel einsetzen: Felsoberfläche, Schatten auf dem Sand, Bewuchs auf den Köpfen */
   function atlAttach(ch, r) {
     if (!r || W.chunks.get(ch.key) !== ch) return;
@@ -370,7 +375,8 @@ export function createWorld(scene, life) {
     const freeAt = (op) => {
       const pit = Math.min(1.25, Math.max(-1, 0.27 + op)), cp = Math.cos(pit), dx = Math.sin(yaw) * cp, dy = -Math.sin(pit), dz = Math.cos(yaw) * cp;
       const tx = S.x + dx * 2.4, ty = S.y + 1, tz = S.z + dz * 2.4;
-      for (let t = 0.8; t <= D + 1; t += 0.8) if (rockSDF(tx - dx * t, ty - dy * t, tz - dz * t) < 0.6) return t - 1.2;
+      const obs = obsActive() && Math.hypot(S.x - OBSV.x, S.z - OBSV.z) < 90, sdf = obs ? (x, y, z) => Math.min(rockSDF(x, y, z), obsSDF(x, y, z)) : rockSDF;
+      for (let t = 0.8; t <= D + 1; t += 0.8) if (sdf(tx - dx * t, ty - dy * t, tz - dz * t) < 0.6) return t - 1.2;
       return D;
     };
     let best = freeAt(C.op), bop = C.op;
@@ -391,11 +397,18 @@ export function createWorld(scene, life) {
     if (todo.length) { todo.sort((p, q) => p.d - q.d); let i = 0; while (steps > 0 && i < todo.length) { stage(todo[i]); steps--; if (todo[i].stage === 3) i++; } }
     for (const ch of W.chunks.values()) if (Math.hypot((ch.ix + 0.5) * CS - x, (ch.iz + 0.5) * CS - z) > DROP) drop(ch);
     atl.pump(x, z);
-    reverseStep();
+    reverseStep(); borderStep(x, z);
     // Atlantis-Felsen: für Boot, Kamera und Taucher als Kugeln an den nächsten Felsflächen rund um das Boot (alle paar Bilder neu)
     if (x < -360) { const y = U.uSubPos.value.y; if (Math.hypot(x - dynAt.x, z - dynAt.z) > 1 || Math.abs(y - dynAt.y) > 1) atlSpheres(x, y, z);
       // Notausgang: steckt das Boot schon im Fels (z. B. nach einem Sprung), halten die Kugeln es nicht fest, man fährt einfach hinaus
-      W.near = dyn.length && rockSDF(x, y, z) > -0.3 ? nearBase.concat(dyn) : nearBase; }
+      W.near = dyn.length && rockSDF(x, y, z) > -0.3 ? nearBase.concat(dyn) : nearBase;
+      // Observatorium: das Boot stößt an Kugeln rund um den Bau; der Taucher hat dort seine eigene Begehung (obs.js), darum für ihn
+      // weder diese Kugeln noch die Felskugeln auf dem Plateau (sonst schieben sie ihn über den Boden)
+      const od = Math.hypot(x - OBSV.x, z - OBSV.z);
+      if (od < 420) W.obs = obsEnsure(scene);
+      if (W.obs) { const v = od < 280; if (W.obs.visible !== v) { W.obs.visible = v; for (const m of W.obs.userData.rays) m.visible = v; } }
+      if (od < 110) { const dive = typeof window !== 'undefined' && window.__sub && window.__sub.V && window.__sub.V.mode === 'dive';
+        W.near = dive ? W.near.filter((s) => Math.hypot(s.x - OBSV.x, s.z - OBSV.z) > OBSV.r + 8 || s.y < OBSV.top - 4) : W.near.concat(OBS_SPHERES); } }
     else { dyn.length = 0; W.near = nearBase; }
     if (x < -360 && typeof window !== 'undefined' && window.__sub && window.__sub.C) camRock(window.__sub.S, window.__sub.C);
     // Seegras nur in der Nähe zeichnen (weiter weg schrumpft es ohnehin auf nichts)
