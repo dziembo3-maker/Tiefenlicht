@@ -9,6 +9,7 @@ import { atlK, rockSDF, rock2D, rockTop, forestK, pathK, tileHasRock, VENTS } fr
 import { createAtlRocks, atlTerrainMaterial, atlKelpMesh, atlGrassMesh } from './atlrocks.js';
 import { makeAtlCol } from './atlcol.js';
 import './atldev.js';
+import { reverseStep } from './reverse.js';
 
 export const CS = 64, NQ = 40, STEP = CS / NQ, SITE = 320, LOAD = 188, DROP = 236;
 export const PAL = { cyan: [0.25, 0.9, 1.0], blue: [0.3, 0.56, 1.0], violet: [0.62, 0.42, 1.0], lilac: [0.86, 0.52, 0.96], turq: [0.2, 1.0, 0.8], peach: [1.0, 0.56, 0.4], orange: [1.0, 0.42, 0.14] };
@@ -390,8 +391,11 @@ export function createWorld(scene, life) {
     if (todo.length) { todo.sort((p, q) => p.d - q.d); let i = 0; while (steps > 0 && i < todo.length) { stage(todo[i]); steps--; if (todo[i].stage === 3) i++; } }
     for (const ch of W.chunks.values()) if (Math.hypot((ch.ix + 0.5) * CS - x, (ch.iz + 0.5) * CS - z) > DROP) drop(ch);
     atl.pump(x, z);
+    reverseStep();
     // Atlantis-Felsen: für Boot, Kamera und Taucher als Kugeln an den nächsten Felsflächen rund um das Boot (alle paar Bilder neu)
-    if (x < -360) { const y = U.uSubPos.value.y; if (Math.hypot(x - dynAt.x, z - dynAt.z) > 1 || Math.abs(y - dynAt.y) > 1) atlSpheres(x, y, z); W.near = dyn.length ? nearBase.concat(dyn) : nearBase; }
+    if (x < -360) { const y = U.uSubPos.value.y; if (Math.hypot(x - dynAt.x, z - dynAt.z) > 1 || Math.abs(y - dynAt.y) > 1) atlSpheres(x, y, z);
+      // Notausgang: steckt das Boot schon im Fels (z. B. nach einem Sprung), halten die Kugeln es nicht fest, man fährt einfach hinaus
+      W.near = dyn.length && rockSDF(x, y, z) > -0.3 ? nearBase.concat(dyn) : nearBase; }
     else { dyn.length = 0; W.near = nearBase; }
     if (x < -360 && typeof window !== 'undefined' && window.__sub && window.__sub.C) camRock(window.__sub.S, window.__sub.C);
     // Seegras nur in der Nähe zeichnen (weiter weg schrumpft es ohnehin auf nichts)
