@@ -8,8 +8,8 @@ const PLACES = [
   ['Atlantis: Felstor oben', -1185, -21, 137, -1.55],
   ['Atlantis: Bogen unten', -1404, -72, -415, 2.11],
   ['Atlantis: Höhle', -1477, -73, 555, 1.85],
-  ['Atlantis: Tangwald', -930, -72, 90, 0],
-  ['Atlantis: Tangdickicht', -1172, -70, -102, 1.57],
+  ['Atlantis: Tangwald', -1236, -72, 382, 0],
+  ['Atlantis: Tangdickicht', -834, -74, 598, 1.57],
   ['Atlantis: Dünen mit Seegras', -1240, -76, -10, 0.5],
   ['Atlantis: Abbruch Süd', -905, -60, -600, 3.14],
 ];

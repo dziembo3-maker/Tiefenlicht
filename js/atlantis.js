@@ -35,10 +35,17 @@ export function atlK(x, z) {
 }
 
 // ---------- Sandboden ----------
+// Ein Dünenfeld mit fester Richtung und fester Wellenlänge; geschwungen nur durch die Verwirbelung.
+// (Früher drehte sich die Richtung und änderte sich die Wellenlänge je nach Ort. Weil die Karte weit vom Nullpunkt liegt,
+// rückten die Kämme dadurch an vielen Stellen auf wenige Meter zusammen: das waren die Furchen wie auf einem Acker.)
+function duneField(x, z, ang, lam, o) {
+  const ca = Math.cos(ang), sa = Math.sin(ang), u = x * ca + z * sa, v = -x * sa + z * ca;
+  const warp = fbm(x * 0.012 + 3 + o, z * 0.012 - 1 - o, 3) * 34 + fbm(x * 0.004 - o, z * 0.004 + 2, 2) * 40 + v * 0.06;
+  const f = fract((u + warp) / lam); return f < 0.72 ? smooth(0, 1, f / 0.72) : 1 - smooth(0, 1, (f - 0.72) / 0.28);
+}
 function dunes(x, z) {
-  const ang = 0.6 + (fbm(x * 0.0017 + 2.2, z * 0.0017 - 1.4, 2) - 0.5) * 1.6, ca = Math.cos(ang), sa = Math.sin(ang), u = x * ca + z * sa, v = -x * sa + z * ca;
-  const warp = fbm(x * 0.012 + 3, z * 0.012 - 1, 3) * 34 + v * 0.06, lam = 26 + 18 * fbm(x * 0.005 + 9, z * 0.005, 2);
-  const f = fract((u + warp) / lam), prof = f < 0.72 ? smooth(0, 1, f / 0.72) : 1 - smooth(0, 1, (f - 0.72) / 0.28);
+  const w = smooth(0.38, 0.62, fbm(x * 0.0017 + 2.2, z * 0.0017 - 1.4, 2));   // zwei Felder mit verschiedener Richtung, die ineinander übergehen
+  const prof = (1 - w) * duneField(x, z, 0.6, 34, 0) + w * duneField(x, z, 1.9, 28, 17.3);
   const A = 1.0 + 5.2 * smooth(0.3, 0.78, fbm(x * 0.0055 - 4, z * 0.0055 + 6, 3));
   return A * prof;
 }
@@ -240,7 +247,20 @@ function cells5(x, z, fn) { const ci = Math.floor(x / CELL), cj = Math.floor(z /
 export function rock2DL(L, x, z) { let d = 99; for (const b of listAt(L, x, z)) d = d2D(b, x, z, d); return d; }
 /** grobe Oberkante des Felses (für den Sonartisch), -1e9 wenn hier keiner steht */
 export function topL(L, x, z) { let t = -1e9; for (const b of listAt(L, x, z)) t = t2D(b, x, z, t); return t; }
-function tunnelK(x, z) { let m = 1; cells5(x, z, (c) => { for (const tn of c.T) { const dd = Math.hypot(x - tn.x, z - tn.z); if (dd < tn.a * 3 + 8) m = Math.min(m, smooth(tn.a * 0.8, tn.a * 2.6 + 4, dd)); } }); return m; }
+// Öffnungen (Bögen, Höhlen): auf ihrer ganzen Länge keine Sandrampe, und der Sand liegt nicht höher als ihr Boden.
+// Sonst hob der Boden das Boot in der Höhle gegen die Decke, und man kam nicht mehr heraus.
+function tunnelFloor(x, z, g, h) {
+  let k = 0, lim = 1e9;
+  const one = (tn) => {
+    const dx = x - tn.x, dz = z - tn.z, al = dx * tn.ux + dz * tn.uz, lat = Math.abs(-dx * tn.uz + dz * tn.ux);
+    const a0 = tn.cave ? -4 : -tn.len, a1 = tn.len, out = al < a0 ? a0 - al : al > a1 ? al - a1 : 0; if (out > 8) return;
+    const wdt = tn.cave ? tn.a * (1 - Math.max(0, Math.min(1, al / tn.len)) * 0.55) : tn.a * 1.28;
+    if (lat > wdt + 7) return; const kk = (1 - smooth(wdt + 1, wdt + 7, lat)) * (1 - smooth(1, 8, out)); if (kk > k) k = kk;
+    if (kk > 0.001) lim = Math.min(lim, tn.yb + 0.6 + (1 - kk) * 30);
+  };
+  const L = peek(x, z); if (L) { for (const tn of L.T) one(tn); } else cells5(x, z, (c) => { for (const tn of c.T) one(tn); });
+  return Math.min(g + h * (1 - k), lim);
+}
 
 // ---------- Abfragen von überall (mit kleinem Zwischenspeicher je 64-m-Kachel) ----------
 const TS = 64, TC = new Map();
@@ -259,13 +279,16 @@ export function rockTop(x, z) { if (x > -360) return -1e9; const L = peek(x, z);
 export function atlFloor(x, z) {
   const g = atlBase(x, z); if (x > -360) return g;
   let h = 0; const L = peek(x, z); if (L) { for (const b of rlistAt(L, x, z)) h = rampB(b, x, z, h); } else cells5(x, z, (c) => { for (const b of c.B) h = rampB(b, x, z, h); });
-  return h > 0.001 ? g + h * tunnelK(x, z) : g;
+  return tunnelFloor(x, z, g, h);
 }
 /** hat diese 64-m-Kachel Fels? */
 export function tileHasRock(ix, iz) { if (ix * TS > -360) return false; return tileSet(ix, iz).B.length > 0; }
 
 // ---------- Bewuchs: wo Tangwälder stehen ----------
-/** 0 bis 1: Dichte des Tangwalds */
-export function forestK(x, z) { return smooth(0.52, 0.64, fbm(x * 0.0065 + 5.1, z * 0.0065 - 2.3, 3)) * (1 - smooth(-20, 10, CITY.r - Math.hypot(x - CITY.x, z - CITY.z)) * 0.85); }
+/** 0 bis 1: Dichte des Tangwalds. Vor allem auf offenen Flächen; im engen Felsland zwischen den Säulenwänden nur selten */
+export function forestK(x, z) {
+  const open = 1 - smooth(0.4, 0.52, massAt(x, z)), f = fbm(x * 0.0065 + 5.1, z * 0.0065 - 2.3, 3);
+  return smooth(0.5 - 0.08 * open, 0.62 - 0.08 * open, f) * (0.15 + 0.85 * open) * (1 - smooth(-20, 10, CITY.r - Math.hypot(x - CITY.x, z - CITY.z)) * 0.85);
+}
 /** schmale Sandwege durch den Wald */
 export function pathK(x, z) { return 1 - smooth(0.012, 0.03, Math.abs(fbm(x * 0.011 + 9.3, z * 0.011 - 0.7, 2) - 0.5)); }
