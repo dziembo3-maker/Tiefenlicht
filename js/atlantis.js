@@ -151,11 +151,11 @@ function genCell(ci, cj) {
       out.T.push({ x: p[0] - ca, z: p[1] - sa, ux: -sa, uz: ca, yb, a, b, len: 14, wob: 1.2 });
     }
   }
-  // Höhle: ein Gang in einen dicken Felsen hinein, der nach hinten enger wird
+  // Höhle: ein Gang in einen dicken Felsen hinein, der nach hinten enger wird (hoch und breit genug, dass das Boot darin wenden kann)
   if (R() < 0.06 * hs && m > 0.5) {
     const big = out.B.filter((b) => Math.min(b.rx, b.rz) > 3.4 && b.H > 26)[0];
     if (big) { const th = R() * TAU, ux = Math.cos(th), uz = Math.sin(th), r = Math.max(big.rx, big.rz), ex = big.x - ux * r * 1.05, ez = big.z - uz * r * 1.05;
-      out.T.push({ x: ex, z: ez, ux, uz, yb: groundNR(ex, ez) - 1.2, a: rr(3.5, 5), b: rr(8, 12), len: r * 2.2, wob: 0.8, cave: true }); }
+      out.T.push({ x: ex, z: ez, ux, uz, yb: groundNR(ex, ez) - 1.2, a: rr(5.5, 7), b: rr(12, 16), len: r * 2.2, wob: 0.8, cave: true }); }
   }
   // warme Spalte: dunkle Nadeln im Kreis
   for (const v of VENTS) if (Math.floor(v.x / CELL) === ci && Math.floor(v.z / CELL) === cj) {
@@ -253,7 +253,7 @@ function tunnelFloor(x, z, g, h) {
   let k = 0, lim = 1e9;
   const one = (tn) => {
     const dx = x - tn.x, dz = z - tn.z, al = dx * tn.ux + dz * tn.uz, lat = Math.abs(-dx * tn.uz + dz * tn.ux);
-    const a0 = tn.cave ? -4 : -tn.len, a1 = tn.len, out = al < a0 ? a0 - al : al > a1 ? al - a1 : 0; if (out > 8) return;
+    const a0 = tn.cave ? -12 : -tn.len, a1 = tn.len, out = al < a0 ? a0 - al : al > a1 ? al - a1 : 0; if (out > 8) return;
     const wdt = tn.cave ? tn.a * (1 - Math.max(0, Math.min(1, al / tn.len)) * 0.55) : tn.a * 1.28;
     if (lat > wdt + 7) return; const kk = (1 - smooth(wdt + 1, wdt + 7, lat)) * (1 - smooth(1, 8, out)); if (kk > k) k = kk;
     if (kk > 0.001) lim = Math.min(lim, tn.yb + 0.6 + (1 - kk) * 30);
