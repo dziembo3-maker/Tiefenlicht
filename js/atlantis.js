@@ -15,6 +15,8 @@ const POLY = [[-700, 1470], [-610, 1160], [-555, 930], [-530, 600], [-495, 330],
 export const CITY = { x: -880, z: 860, r: 140 };
 /** Abbruch zur Tiefsee im Süden */
 export const ABY = { x: -905, z: -930, rx: 290, rz: 300, floor: -218 };
+/** Felsnadel des Observatoriums im Süden: Mitte, Höhe des Plateaus (dort steht der Bau), Plateau-Radius, freier Umkreis ohne anderen Fels */
+export const OBSV = { x: -740, z: -540, top: -27.5, r: 19, clear: 64 };
 /** warme Spalte im Gebiet (bleiben, um sie herum dunkle Nadeln) */
 export const VENTS = [{ x: -893, z: -345 }, { x: -775, z: -85 }, { x: -1165, z: 300 }, { x: -745, z: 975 }, { x: -1240, z: 760 }];
 
@@ -91,7 +93,7 @@ function genCell(ci, cj) {
   if (cx > -360) return out;
   const k = atlK(cx, cz); if (k < 0.3) return out;
   const R = rng(hk(ci + 1201, cj - 377)), rr = (a, b) => a + R() * (b - a), hs = smooth(0.3, 0.85, k), tk = towerK(cx, cz) * hs;
-  const blocked = (x, z, pad) => { if (Math.hypot(x - CITY.x, z - CITY.z) < CITY.r + 10 + pad || abyE(x, z) < 1.04 + pad / 250 || atlK(x, z) < 0.3) return true; for (const v of VENTS) if (Math.hypot(x - v.x, z - v.z) < 15 + pad) return true; return false; };
+  const blocked = (x, z, pad) => { if (Math.hypot(x - OBSV.x, z - OBSV.z) < OBSV.clear + pad) return true; if (Math.hypot(x - CITY.x, z - CITY.z) < CITY.r + 10 + pad || abyE(x, z) < 1.04 + pad / 250 || atlK(x, z) < 0.3) return true; for (const v of VENTS) if (Math.hypot(x - v.x, z - v.z) < 15 + pad) return true; return false; };
   // eine Grundform: Ellipse (rx, rz), Fuß im Sand, Kopf bei top
   const add = (x, z, rx, rz, top, o = {}) => {
     if (blocked(x, z, Math.max(rx, rz) * 0.6)) return null;
@@ -163,6 +165,13 @@ function genCell(ci, cj) {
     for (let i = 1; i < n; i++) { const a = a0 + (i / n) * TAU + rr(-0.2, 0.2), d = rr(7, 10), x = v.x + Math.cos(a) * d, z = v.z + Math.sin(a) * d, r = rr(2.4, 3.8), y0 = groundNR(x, z) - 3, H = gy + rr(16, 32) - y0;
       out.B.push({ x, z, rx: r, rz: r * 0.85, H, y0, c: 1, s: 0, lx: -Math.cos(a) * 0.1, lz: -Math.sin(a) * 0.1, tp: 0.7, waist: 0, wy: 0.5, tx: 0, tz: 0, k: 2, p: 2.2, rb: r * 1.45 + 1.2 * 5 + 0.2 * H + 3 }); }
   }
+  // die Nadel des Observatoriums: ein mächtiger Fels aus denselben Bänken wie alle anderen, oben eben abgeschnitten; am Fuß ein paar Blöcke
+  if (Math.floor(OBSV.x / CELL) === ci && Math.floor(OBSV.z / CELL) === cj) {
+    const P = rng(4711), pr = (a, b) => a + P() * (b - a), y0 = groundNR(OBSV.x, OBSV.z) - 3, rx = 26, rz = 24.5, k = 3;
+    out.B.push({ x: OBSV.x, z: OBSV.z, rx, rz, H: OBSV.top - y0, y0, c: Math.cos(0.7), s: Math.sin(0.7), lx: 0, lz: 0, tp: 0.13, waist: 0.05, wy: 0.45, tx: 0, tz: 0, k, p: 2.4, rb: rx * 1.45 + (rx / rz) * (k + 3) + 3 });
+    for (let i = 0; i < 6; i++) { const a = i / 6 * TAU + pr(-0.3, 0.3), d = pr(27, 33), x = OBSV.x + Math.cos(a) * d, z = OBSV.z + Math.sin(a) * d, r = pr(4, 7.5), yy = groundNR(x, z) - 3, H = pr(9, 22);
+      out.B.push({ x, z, rx: r * pr(1, 1.4), rz: r, H, y0: yy, c: Math.cos(a), s: Math.sin(a), lx: 0, lz: 0, tp: pr(0.15, 0.35), waist: 0, wy: 0.5, tx: pr(-0.2, 0.2), tz: pr(-0.2, 0.2), k: 3, p: pr(2, 2.8), rb: r * 1.4 * 1.45 + 1.4 * 6 + 3 }); }
+  }
   return out;
 }
 
@@ -174,7 +183,7 @@ export function localSet(x0, z0, x1, z1) {
   for (let i = Math.floor((x0 - M) / CELL); i <= Math.floor((x1 + M) / CELL); i++) for (let j = Math.floor((z0 - M) / CELL); j <= Math.floor((z1 + M) / CELL); j++) {
     const c = cellAt(i, j);
     for (const b of c.B) { if (seen.has(b)) continue; seen.add(b); if (b.x + b.rb > x0 && b.x - b.rb < x1 && b.z + b.rb > z0 && b.z - b.rb < z1) B.push(b); const r = reach(b); if (b.x + r > x0 && b.x - r < x1 && b.z + r > z0 && b.z - r < z1) RB.push(b); }
-    for (const t of c.T) if (Math.abs(t.x - (x0 + x1) / 2) < (x1 - x0) / 2 + t.len + t.a * 3 + 6 && Math.abs(t.z - (z0 + z1) / 2) < (z1 - z0) / 2 + t.len + t.a * 3 + 6) TN.push(t);
+    for (const t of c.T) if (Math.abs(t.x - (x0 + x1) / 2) < (x1 - x0) / 2 + Math.max(t.len, t.cave ? CAVE_BAY : 0) + t.a * 3 + 6 && Math.abs(t.z - (z0 + z1) / 2) < (z1 - z0) / 2 + Math.max(t.len, t.cave ? CAVE_BAY : 0) + t.a * 3 + 6) TN.push(t);
   }
   const nx = Math.max(1, Math.ceil((x1 - x0) / G)), nz = Math.max(1, Math.ceil((z1 - z0) / G)), grid = new Array(nx * nz), rgrid = new Array(nx * nz);
   let maxTop = -1e9, minY = 1e9;
@@ -208,6 +217,11 @@ function bedM(yy) {
   return (prev + (b.m - prev) * smooth(0, 0.14, f)) * (1 - 0.1 * smooth(0.72, 1, f));
 }
 
+// Höhlen: vor dem Mund eine offene Bucht, die sich nach außen weitet und höher wird. So sieht man die Höhle von draußen
+// und fährt durch einen freien Trichter hinein, statt schon vor dem Eingang zwischen Felsfüßen zu stecken.
+const CAVE_BAY = 26;
+const caveW = (al, len) => al < 0 ? 1 + 0.7 * smooth(0, CAVE_BAY, -al) : 1 - Math.max(0, Math.min(1, al / len)) * 0.55;
+const caveH = (al) => al < 0 ? 1 + 0.45 * smooth(0, CAVE_BAY, -al) : 1;
 /** Abstandsfunktion des Felses im Rechteck L: negativ innen */
 export function sdfL(L, x, y, z) {
   if (y > L.maxTop) return y - L.maxTop + 2;
@@ -227,9 +241,9 @@ export function sdfL(L, x, y, z) {
   d += (n3(x * 0.23, y * 0.09, z * 0.23) - 0.5) * 0.8 + (n3(x * 0.6, y * 0.3, z * 0.6) - 0.5) * 0.25;
   for (const tn of L.T) {   // ausgewaschene Öffnungen: unten breiter, Ränder unruhig
     const dx = x - tn.x, dz = z - tn.z, al = dx * tn.ux + dz * tn.uz, lat = -dx * tn.uz + dz * tn.ux;
-    if (Math.abs(lat) > tn.a * 2.5 || y < tn.yb - 3 || y > tn.yb + tn.b + 4 || al < -tn.len - 6 || al > tn.len + 6) continue;
+    if (Math.abs(lat) > tn.a * 2.5 || y < tn.yb - 3 || y > tn.yb + tn.b * (tn.cave ? 1.5 : 1) + 4 || al < -(tn.cave ? CAVE_BAY + 2 : tn.len + 6) || al > tn.len + 6) continue;
     const hy = (y - tn.yb) / tn.b, hyc = hy < 0 ? 0 : hy > 1 ? 1 : hy, wn = (n3(x * 0.3, y * 0.3, z * 0.3) - 0.5) * tn.wob * 2; let dt;
-    if (tn.cave) { const sw = 1 - Math.max(0, Math.min(1, al / tn.len)) * 0.55; dt = (Math.hypot(lat / (tn.a * sw), Math.max(hy, 0)) - 1) * Math.min(tn.a, tn.b) * sw + wn - lay * 0.7; dt = Math.max(dt, al - tn.len, -al - 4); }
+    if (tn.cave) { const sw = caveW(al, tn.len), hb = caveH(al), hy2 = hy / hb; dt = (Math.hypot(lat / (tn.a * sw), Math.max(hy2, 0)) - 1) * Math.min(tn.a, tn.b) * Math.min(sw, 1) + wn - lay * 0.7; dt = Math.max(dt, al - tn.len, -al - CAVE_BAY); }
     else { const aw = tn.a * (1 + 0.28 * (1 - hyc)); dt = (Math.hypot(lat / aw, Math.max(hy, 0)) - 1) * Math.min(aw, tn.b) + wn - lay * 0.7; dt = Math.max(dt, Math.abs(al) - tn.len); }
     d = smax(d, -dt, 1.2);
   }
@@ -253,8 +267,8 @@ function tunnelFloor(x, z, g, h) {
   let k = 0, lim = 1e9;
   const one = (tn) => {
     const dx = x - tn.x, dz = z - tn.z, al = dx * tn.ux + dz * tn.uz, lat = Math.abs(-dx * tn.uz + dz * tn.ux);
-    const a0 = tn.cave ? -12 : -tn.len, a1 = tn.len, out = al < a0 ? a0 - al : al > a1 ? al - a1 : 0; if (out > 8) return;
-    const wdt = tn.cave ? tn.a * (1 - Math.max(0, Math.min(1, al / tn.len)) * 0.55) : tn.a * 1.28;
+    const a0 = tn.cave ? -CAVE_BAY : -tn.len, a1 = tn.len, out = al < a0 ? a0 - al : al > a1 ? al - a1 : 0; if (out > 8) return;
+    const wdt = tn.cave ? tn.a * caveW(al, tn.len) : tn.a * 1.28;
     if (lat > wdt + 7) return; const kk = (1 - smooth(wdt + 1, wdt + 7, lat)) * (1 - smooth(1, 8, out)); if (kk > k) k = kk;
     if (kk > 0.001) lim = Math.min(lim, tn.yb + 0.6 + (1 - kk) * 30);
   };

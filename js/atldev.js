@@ -8,11 +8,12 @@ const PLACES = [
   ['Atlantis: Türme', -670, -20, -300, -1.57],
   ['Atlantis: Felstor oben', -1185, -21, 137, -1.55],
   ['Atlantis: Bogen unten', -1404, -68, -415, 2.11],
-  ['Atlantis: Höhle (davor)', -1482.4, -77, 557.1, 1.85],
+  ['Atlantis: Höhle (davor)', -696.8, -75.5, 39.8, 1.26],
   ['Atlantis: Tangwald', -1236, -72, 382, 0],
   ['Atlantis: Tangdickicht', -834, -74, 598, 1.57],
   ['Atlantis: Dünen mit Seegras', -1240, -76, -10, 0.5],
   ['Atlantis: Abbruch Süd', -905, -60, -600, 3.14],
+  ['Atlantis: Observatorium', -766, -22.5, -537, 1.57],
 ];
 function go(p) {
   const s = window.__sub; if (!s) return;
