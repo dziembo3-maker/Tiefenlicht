@@ -96,7 +96,7 @@ function atlLife(it, P, x0, z0) {
     it.kelpA.push(x, y - 0.3, z, h, R() * 6.3, R() * 6.3, R() < 0.16 ? rr(0.6, 1) : rr(0, 0.25));
   }
   // Tangdickicht: in manchen Kernen der Wälder steht der Tang so eng, dass man nur noch wenige Meter weit sieht
-  for (let i = 0; i < 520; i++) {
+  for (let i = 0; i < 900; i++) {
     const x = x0 + R() * CS, z = z0 + R() * CS, dk = denseK(x, z); if (R() > dk || !ok(x, z)) continue;
     const y = floorH(x, z); if (y < -112 || steep(x, z) > 5 || rockSDF(x, y + 1.5, z) < 1.2) continue;
     const h = Math.min(rr(18, 36), -9 - y); if (h < 4) continue;
@@ -358,9 +358,24 @@ export function createWorld(scene, life) {
     }
     ch.stage++; if (ch.stage === 3) W.built++;
   }
-  let fogD = 0; const nearBase = [], dyn = [], dynAt = { x: 1e9, y: 1e9, z: 1e9 }, atlCol = makeAtlCol(rockSDF, rock2D, floorH); W.near = nearBase;
+  const nearBase = [], dyn = [], dynAt = { x: 1e9, y: 1e9, z: 1e9 }, atlCol = makeAtlCol(rockSDF, rock2D, floorH); W.near = nearBase;
   // Felskollision: kleine Kugeln auf festem Raster an der Felsoberfläche (atlcol.js), nur das Vorzeichen des Felsfeldes zählt
   function atlSpheres(x, y, z) { dynAt.x = x; dynAt.y = y; dynAt.z = z; dyn.length = 0; for (const s of atlCol.around(x, y, z, 15, 10)) dyn.push(s); }
+  // Kamera und Atlantis-Felsen: main.js prüft beim Kameraabstand nur den Sandboden. Hier wird derselbe Blickstrahl (vom Punkt vor dem Boot
+  // nach hinten) gegen den Fels geprüft und der Abstand gekürzt, bevor main.js die Kamera setzt. So steckt sie in Höhlen, Bögen und
+  // hinter Säulen nicht im Gestein, und man sieht das Boot. Nach dem Fels wächst der Abstand langsam wieder auf den normalen Wert.
+  function camRock(S, C) {
+    const yaw = C.yaw + C.oy, D = C.dist;
+    const freeAt = (op) => {
+      const pit = Math.min(1.25, Math.max(-1, 0.27 + op)), cp = Math.cos(pit), dx = Math.sin(yaw) * cp, dy = -Math.sin(pit), dz = Math.cos(yaw) * cp;
+      const tx = S.x + dx * 2.4, ty = S.y + 1, tz = S.z + dz * 2.4;
+      for (let t = 0.8; t <= D + 1; t += 0.8) if (rockSDF(tx - dx * t, ty - dy * t, tz - dz * t) < 0.6) return t - 1.2;
+      return D;
+    };
+    let best = freeAt(C.op), bop = C.op;
+    if (best < D) for (const op of [-0.15, -0.3, 0.1, 0.3]) { const f = freeAt(op); if (f > best + 0.5) { best = f; bop = op; } }   // in Höhlen und unter Bögen lieber flacher von hinten schauen
+    if (best < D) { C.op = bop; C.dist = Math.max(4.5, best); }   // nie näher als 4,5 m, sonst steckt die Kamera im Boot
+  }
   function drop(ch) { atl.cancel(ch.key); for (const m of ch.meshes) { scene.remove(m); m.geometry.dispose(); } W.chunks.delete(ch.key); dirty = true; }
   W.small = true; W.setSmall = (v) => { W.small = v; for (const ch of W.chunks.values()) for (const m of ch.meshes) if (m.userData.small) m.visible = v; };
 
@@ -376,12 +391,9 @@ export function createWorld(scene, life) {
     for (const ch of W.chunks.values()) if (Math.hypot((ch.ix + 0.5) * CS - x, (ch.iz + 0.5) * CS - z) > DROP) drop(ch);
     atl.pump(x, z);
     // Atlantis-Felsen: für Boot, Kamera und Taucher als Kugeln an den nächsten Felsflächen rund um das Boot (alle paar Bilder neu)
-    if (x < -360 || fogD > 0.001) {   // im Tangdickicht wird das Wasser trüber, zusammen mit dem engen Tang sieht man nur noch wenige Meter
-      let d = 0; if (x < -360) { for (const [a, b] of [[0, 0], [9, 0], [-9, 0], [0, 9], [0, -9]]) d += denseK(x + a, z + b); d /= 5; }
-      fogD += (d - fogD) * 0.03; U.uFogK.value = 0.021 + 0.05 * fogD;
-    }
     if (x < -360) { const y = U.uSubPos.value.y; if (Math.hypot(x - dynAt.x, z - dynAt.z) > 1 || Math.abs(y - dynAt.y) > 1) atlSpheres(x, y, z); W.near = dyn.length ? nearBase.concat(dyn) : nearBase; }
     else { dyn.length = 0; W.near = nearBase; }
+    if (x < -360 && typeof window !== 'undefined' && window.__sub && window.__sub.C) camRock(window.__sub.S, window.__sub.C);
     // Seegras nur in der Nähe zeichnen (weiter weg schrumpft es ohnehin auf nichts)
     for (const ch of W.chunks.values()) for (const m of ch.meshes) if (m.userData.sg) m.visible = W.small && Math.hypot((ch.ix + 0.5) * CS - x, (ch.iz + 0.5) * CS - z) < 100;
     const k = key(cx, cz);
