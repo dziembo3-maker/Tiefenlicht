@@ -1,13 +1,14 @@
 // atldev.js – Entwicklermenü: unter „ORTE“ ein paar Stellen im Atlantis-Biom zum direkten Hinspringen.
 // Das Menü baut main.js; hier wird nur nach jedem Neuaufbau eine Zeile mit Knöpfen angehängt.
+// Jeder Ort ist geprüft: rundum mindestens 5 m freies Wasser, über dem Sand (nicht im Fels)
 const PLACES = [
-  ['Atlantis: Eingang (Osten)', -470, -30, 0, -1.57],
-  ['Atlantis: Stadtbecken', -880, -40, 690, 0],
+  ['Atlantis: Eingang (Osten)', -470, -18, 0, -1.57],
+  ['Atlantis: Stadtbecken', -880, -70, 780, 0],
   ['Atlantis: Säulenwände', -1050, -50, 720, 1.0],
   ['Atlantis: Türme', -670, -20, -300, -1.57],
   ['Atlantis: Felstor oben', -1185, -21, 137, -1.55],
-  ['Atlantis: Bogen unten', -1404, -72, -415, 2.11],
-  ['Atlantis: Höhle', -1477, -73, 555, 1.85],
+  ['Atlantis: Bogen unten', -1404, -68, -415, 2.11],
+  ['Atlantis: Höhle (davor)', -1482.4, -77, 557.1, 1.85],
   ['Atlantis: Tangwald', -1236, -72, 382, 0],
   ['Atlantis: Tangdickicht', -834, -74, 598, 1.57],
   ['Atlantis: Dünen mit Seegras', -1240, -76, -10, 0.5],
