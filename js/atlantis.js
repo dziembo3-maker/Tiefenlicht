@@ -16,7 +16,7 @@ export const CITY = { x: -880, z: 860, r: 140 };
 /** Abbruch zur Tiefsee im Süden */
 export const ABY = { x: -905, z: -930, rx: 290, rz: 300, floor: -218 };
 /** Felsnadel des Observatoriums im Süden: Mitte, Höhe des Plateaus (dort steht der Bau), Plateau-Radius, freier Umkreis ohne anderen Fels */
-export const OBSV = { x: -740, z: -540, top: -27.5, r: 19, clear: 64 };
+export const OBSV = { x: -740, z: -540, top: -27.5, r: 14, clear: 50 };
 /** warme Spalte im Gebiet (bleiben, um sie herum dunkle Nadeln) */
 export const VENTS = [{ x: -893, z: -345 }, { x: -775, z: -85 }, { x: -1165, z: 300 }, { x: -745, z: 975 }, { x: -1240, z: 760 }];
 
@@ -165,11 +165,11 @@ function genCell(ci, cj) {
     for (let i = 1; i < n; i++) { const a = a0 + (i / n) * TAU + rr(-0.2, 0.2), d = rr(7, 10), x = v.x + Math.cos(a) * d, z = v.z + Math.sin(a) * d, r = rr(2.4, 3.8), y0 = groundNR(x, z) - 3, H = gy + rr(16, 32) - y0;
       out.B.push({ x, z, rx: r, rz: r * 0.85, H, y0, c: 1, s: 0, lx: -Math.cos(a) * 0.1, lz: -Math.sin(a) * 0.1, tp: 0.7, waist: 0, wy: 0.5, tx: 0, tz: 0, k: 2, p: 2.2, rb: r * 1.45 + 1.2 * 5 + 0.2 * H + 3 }); }
   }
-  // die Nadel des Observatoriums: ein mächtiger Fels aus denselben Bänken wie alle anderen, oben eben abgeschnitten; am Fuß ein paar Blöcke
+  // die Nadel des Observatoriums: ein schlanker Fels aus denselben Bänken wie alle anderen, oben eben abgeschnitten (Plateau nur wenig breiter als der Bau); am Fuß ein paar Blöcke
   if (Math.floor(OBSV.x / CELL) === ci && Math.floor(OBSV.z / CELL) === cj) {
-    const P = rng(4711), pr = (a, b) => a + P() * (b - a), y0 = groundNR(OBSV.x, OBSV.z) - 3, rx = 26, rz = 24.5, k = 3;
+    const P = rng(4711), pr = (a, b) => a + P() * (b - a), y0 = groundNR(OBSV.x, OBSV.z) - 3, rx = 18.5, rz = 17.5, k = 3;
     out.B.push({ x: OBSV.x, z: OBSV.z, rx, rz, H: OBSV.top - y0, y0, c: Math.cos(0.7), s: Math.sin(0.7), lx: 0, lz: 0, tp: 0.13, waist: 0.05, wy: 0.45, tx: 0, tz: 0, k, p: 2.4, rb: rx * 1.45 + (rx / rz) * (k + 3) + 3 });
-    for (let i = 0; i < 6; i++) { const a = i / 6 * TAU + pr(-0.3, 0.3), d = pr(27, 33), x = OBSV.x + Math.cos(a) * d, z = OBSV.z + Math.sin(a) * d, r = pr(4, 7.5), yy = groundNR(x, z) - 3, H = pr(9, 22);
+    for (let i = 0; i < 6; i++) { const a = i / 6 * TAU + pr(-0.3, 0.3), d = pr(20, 25), x = OBSV.x + Math.cos(a) * d, z = OBSV.z + Math.sin(a) * d, r = pr(3, 5.5), yy = groundNR(x, z) - 3, H = pr(8, 18);
       out.B.push({ x, z, rx: r * pr(1, 1.4), rz: r, H, y0: yy, c: Math.cos(a), s: Math.sin(a), lx: 0, lz: 0, tp: pr(0.15, 0.35), waist: 0, wy: 0.5, tx: pr(-0.2, 0.2), tz: pr(-0.2, 0.2), k: 3, p: pr(2, 2.8), rb: r * 1.4 * 1.45 + 1.4 * 6 + 3 }); }
   }
   return out;
