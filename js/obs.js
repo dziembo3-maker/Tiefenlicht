@@ -371,23 +371,32 @@ export function buildObservatory(scene) {
   chain(dp(Math.PI / 2 + 1.2, 1.05, DR - 0.3), new T.Vector3(0.3, PIV.y + tdir.y * 1.5, PIV.z + tdir.z * 1.5), 0.06, 0.15);
 
   // ---------- 7) Innenraum: Fliesen, gebrochene Platten, Sand, Treppe zur Plattform am Okular, Möbel und Geräte ----------
+  // Plätze der Möbel (Mitte, Radius) und der Wendeltreppe: lose Fliesen, Seegras und Moos innen bleiben davon weg, damit nichts ineinander steckt
+  const FURN = [[1.0, 0.31, 0.5], [0.49, 1.095, 0.42], [-0.736, 1.011, 0.4], [1.169, -0.771, 0.36], [-1.071, -1.121, 0.3], [-0.975, -0.609, 0.18], [-0.59, 0.54, 0.18], [0.15, 0.75, 0.28]];
+  const freeIn = (x, z) => Math.hypot(x, z + 0.8) > 0.86 && FURN.every(([fx, fz, fr]) => Math.hypot(x - fx, z - fz) > fr + 0.05);
   { seed = 707;
-    for (let i = 0; i < 9; i++) { const a = R() * 6.28, d = rr(0.3, 1.7), s = rr(0.22, 0.38), g = new T.BoxGeometry(s, 0.06, s * rr(0.7, 1.1)); place(g, Math.cos(a) * d, FL + 0.03, Math.sin(a) * d, R() * 3, rr(-0.18, 0.18), rr(-0.18, 0.18)); put(0, jit(g, i, 0.015), 0.8); }   // lose, gekippte Fliesen
-    for (let i = 0; i < 14; i++) { const a = R() * 6.28, d = rr(1.3, 1.85), g = new T.SphereGeometry(rr(0.18, 0.4), 10, 6, 0, 6.283, 0, Math.PI / 2); g.scale(1.6, rr(0.12, 0.25), 1); g.rotateY(R() * 3); g.translate(Math.cos(a) * d, FL, Math.sin(a) * d); put(11, g, 1.0); } }   // Sandwehen an der Wand
-  // Plattform am Okular auf einer Säule, Wendeltreppe außen herum (Taucher-Maß: eine Stufe 0,4 m)
-  const ST = new T.Vector3(0, 0, -0.8), PY = 3.9;   // Okular-Linse liegt bei (0; 4,68; −0,94): Taucher auf der Plattform hat sie direkt vor dem Auge
-  { const g = new T.CylinderGeometry(0.24, 0.3, PY - FL, 16); g.translate(ST.x, (PY + FL) / 2, ST.z); put(0, jit(g, 3, 0.01), 0.85);
-    put(0, ringPiece([[0, PY - 0.12], [0.62, PY - 0.12], [0.62, PY], [0, PY]], { seed: 501, dents: 3, depth: 0.08, drop: 0.03, n: 48 }).translate(ST.x, 0, ST.z), 0.9);
-    const n = 18, f0 = Math.PI * 1.02, f1 = -0.35;
-    for (let i = 0; i < n; i++) { const fa = f0 + (f1 - f0) * i / n, fb = f0 + (f1 - f0) * (i + 1) / n, top = FL + (PY - FL) * (i + 1) / n;
-      const st = ringPiece([[0.64, FL], [1.02, FL], [1.02, top - 0.02], [0.99, top], [0.64, top]], { a0: Math.min(fa, fb), a1: Math.max(fa, fb), n: 3, seed: 600 + i, dents: i % 4 === 0 ? 1 : 0, depth: 0.12, drop: 0.05 });
-      st.translate(ST.x, 0, ST.z); put(0, st, 0.82 + 0.1 * (i % 2)); }
-    // Geländer: Pfosten und ein Handlauf entlang der Wendel, dazu ein Ring um die Plattform
-    const hp = []; for (let i = 0; i <= 36; i++) { const f = f0 + (f1 - f0) * i / 36, y = FL + (PY - FL) * i / 36 + 0.42; hp.push(new T.Vector3(ST.x + Math.cos(f) * 1.0, y, ST.z + Math.sin(f) * 1.0)); }
-    put(2, new T.TubeGeometry(new T.CatmullRomCurve3(hp), 80, 0.025, 6, false), 0.85);
-    for (let i = 0; i <= 18; i += 3) { const f = f0 + (f1 - f0) * i / 18, y = FL + (PY - FL) * i / 18; const p = new T.CylinderGeometry(0.02, 0.02, 0.44, 6); p.translate(ST.x + Math.cos(f) * 1.0, y + 0.22, ST.z + Math.sin(f) * 1.0); put(2, p, 0.8); }
-    { const ring = new T.TorusGeometry(0.6, 0.022, 6, 48, 6.2832 - 0.9); ring.rotateX(Math.PI / 2); ring.rotateY(-(f1 + 0.45)); ring.translate(ST.x, PY + 0.42, ST.z); put(2, ring, 0.85);
-      for (let i = 0; i < 9; i++) { const f = f1 + 0.45 + i / 9 * (6.2832 - 0.9); const p = new T.CylinderGeometry(0.018, 0.018, 0.42, 6); p.translate(ST.x + Math.cos(f) * 0.6, PY + 0.21, ST.z + Math.sin(f) * 0.6); put(2, p, 0.8); } } }
+    for (let i = 0; i < 9; i++) { const a = R() * 6.28, d = rr(0.3, 1.7), s = rr(0.22, 0.38); if (!freeIn(Math.cos(a) * d, Math.sin(a) * d)) continue; const g = new T.BoxGeometry(s, 0.06, s * rr(0.7, 1.1)); place(g, Math.cos(a) * d, FL + 0.03, Math.sin(a) * d, R() * 3, rr(-0.18, 0.18), rr(-0.18, 0.18)); put(0, jit(g, i, 0.015), 0.8); }   // lose, gekippte Fliesen
+    for (let i = 0; i < 14; i++) { const a = R() * 6.28, d = rr(1.3, 1.85); if (!freeIn(Math.cos(a) * d, Math.sin(a) * d)) continue; const g = new T.SphereGeometry(rr(0.18, 0.4), 10, 6, 0, 6.283, 0, Math.PI / 2); g.scale(1.6, rr(0.12, 0.25), 1); g.rotateY(R() * 3); g.translate(Math.cos(a) * d, FL, Math.sin(a) * d); put(11, g, 1.0); } }   // Sandwehen an der Wand
+  // Wendeltreppe zum Okular: schlanke Steinstufen, frei auskragend an einer dünnen Spindel, 1¼ Umdrehungen; oben ein halbrunder Absatz
+  // (Taucher-Maß: eine Stufe knapp 0,3 m). So bleibt der Raum frei und hoch, statt von einem Treppenturm gefüllt zu werden.
+  const ST = new T.Vector3(0, 0, -0.8), PY = 3.9;   // Okular-Linse liegt bei (0; 4,68; −0,94): Taucher auf dem Absatz hat sie direkt vor dem Auge
+  const SPN = 22, SF0 = 2.5 * Math.PI, SF1 = 0, SR0 = 0.09, SR1 = 0.74;   // Stufen, Winkel unten/oben (die Treppe steigt mit fallendem Winkel), Spindel- und Außenradius
+  { seed = 520;
+    { const g = new T.CylinderGeometry(SR0, SR0 + 0.02, PY - FL, 16, 8); g.translate(ST.x, (PY + FL) / 2, ST.z); put(0, jit(g, 3, 0.008), 0.85); }   // Spindel
+    for (let i = 0; i < SPN; i++) { const fa = SF0 + (SF1 - SF0) * i / SPN, fb = SF0 + (SF1 - SF0) * (i + 1) / SPN, top = FL + (PY - FL) * (i + 1) / SPN;
+      const st = ringPiece([[SR0, top - 0.065], [SR1, top - 0.065], [SR1, top - 0.015], [SR1 - 0.02, top], [SR0, top]], { a0: Math.min(fa, fb) + 0.012, a1: Math.max(fa, fb) - 0.012, n: 4, seed: 600 + i, dents: i % 5 === 2 ? 1 : 0, depth: 0.08, drop: 0.03 });
+      st.translate(ST.x, 0, ST.z); put(0, st, 0.82 + 0.1 * (i % 2));
+      { const fm = (fa + fb) / 2, br = new T.BoxGeometry(0.42, 0.05, 0.035); br.translate(SR0 + 0.21, 0, 0); br.rotateZ(-0.35); br.translate(0, top - 0.13, 0); br.rotateY(-fm); br.translate(ST.x, 0, ST.z); put(2, br, 0.75); } }   // eiserne Konsole unter jeder Stufe
+    // Absatz oben: Halbscheibe auf der Seite des Okulars
+    put(0, ringPiece([[0, PY - 0.07], [SR1 + 0.02, PY - 0.07], [SR1 + 0.02, PY], [0, PY]], { a0: -Math.PI, a1: 0, n: 24, seed: 501, dents: 1, depth: 0.06, drop: 0.02 }).translate(ST.x, 0, ST.z), 0.9);
+    // Geländer: eiserner Handlauf an der Außenkante der Wendel, dünne Stäbe; am Absatz ein Bogen und ein Stück an der offenen Kante
+    const hp = []; for (let i = 0; i <= 60; i++) { const f = SF0 + (SF1 - SF0) * i / 60, y = FL + (PY - FL) * i / 60 + 0.45; hp.push(new T.Vector3(ST.x + Math.cos(f) * (SR1 - 0.04), y, ST.z + Math.sin(f) * (SR1 - 0.04))); }
+    put(2, new T.TubeGeometry(new T.CatmullRomCurve3(hp), 140, 0.018, 6, false), 0.85);
+    for (let i = 1; i <= SPN; i++) { const f = SF0 + (SF1 - SF0) * (i - 0.5) / SPN, y = FL + (PY - FL) * i / SPN; const p = new T.CylinderGeometry(0.011, 0.011, 0.45, 5); p.translate(ST.x + Math.cos(f) * (SR1 - 0.04), y + 0.225, ST.z + Math.sin(f) * (SR1 - 0.04)); put(2, p, 0.8); }
+    { const ring = new T.TorusGeometry(SR1 - 0.02, 0.018, 6, 40, Math.PI - 0.25); ring.rotateX(Math.PI / 2); ring.rotateY(Math.PI); ring.translate(ST.x, PY + 0.45, ST.z); put(2, ring, 0.85);   // Bogen von −π bis −0,25
+      for (let i = 0; i < 7; i++) { const f = -Math.PI + i / 6 * (Math.PI - 0.25); const p = new T.CylinderGeometry(0.011, 0.011, 0.45, 5); p.translate(ST.x + Math.cos(f) * (SR1 - 0.02), PY + 0.225, ST.z + Math.sin(f) * (SR1 - 0.02)); put(2, p, 0.8); }
+      const rl = new T.CylinderGeometry(0.018, 0.018, SR1 - 0.1, 6); rl.rotateZ(Math.PI / 2); rl.translate(ST.x - (SR1 + 0.1) / 2, PY + 0.45, ST.z); put(2, rl, 0.85);   // offene Kante zur Wendel
+      for (const x of [-0.25, -0.5]) { const p = new T.CylinderGeometry(0.011, 0.011, 0.45, 5); p.translate(ST.x + x, PY + 0.225, ST.z); put(2, p, 0.8); } } }
   // Globus auf Dreibein: Holzbeine, Messingring, Meridian, Kugel mit Karte
   function globe(x, z, ry) {
     for (let k = 0; k < 3; k++) { const a = ry + k / 3 * 6.283, g = wbox(0.62, 0.035, 0.035); g.rotateZ(Math.PI / 2 - 0.25); g.translate(0.07, 0.3, 0); g.rotateY(-a); g.translate(x, FL, z); put(9, g, 0.9); }
@@ -413,11 +422,11 @@ export function buildObservatory(scene) {
   // Regal mit Schriftrollen und Krügen
   function shelf(x, z, ry) {
     const parts = [];
-    for (const s of [-1, 1]) { const p = wbox(1.3, 0.05, 0.05); p.rotateZ(Math.PI / 2); p.translate(s * 0.42, 0.65, 0.12); parts.push([p, 9]); const p2 = wbox(1.3, 0.05, 0.05); p2.rotateZ(Math.PI / 2); p2.translate(s * 0.42, 0.65, -0.12); parts.push([p2, 9]); }
-    for (const y of [0.15, 0.5, 0.85, 1.2]) { const b = wbox(0.9, 0.035, 0.28); b.translate(0, y, 0); parts.push([b, 9]); }
+    for (const s of [-1, 1]) { const p = wbox(1.3, 0.05, 0.05); p.rotateZ(Math.PI / 2); p.translate(s * 0.32, 0.65, 0.12); parts.push([p, 9]); const p2 = wbox(1.3, 0.05, 0.05); p2.rotateZ(Math.PI / 2); p2.translate(s * 0.32, 0.65, -0.12); parts.push([p2, 9]); }
+    for (const y of [0.15, 0.5, 0.85, 1.2]) { const b = wbox(0.7, 0.035, 0.28); b.translate(0, y, 0); parts.push([b, 9]); }
     seed = Math.round(x * 100 + z * 10);
-    for (const y of [0.17, 0.52, 0.87]) for (let k = 0; k < 4; k++) { if (R() < 0.3) continue; const sc0 = new T.CylinderGeometry(0.035, 0.035, rr(0.22, 0.3), 10); sc0.rotateZ(Math.PI / 2); sc0.rotateY(rr(-0.3, 0.3)); sc0.translate(-0.3 + k * 0.2, y + 0.05, rr(-0.06, 0.06)); parts.push([sc0, 10, paperTex]); }
-    for (let k = 0; k < 2; k++) { const j = new T.LatheGeometry([[0, 0], [0.05, 0], [0.08, 0.06], [0.07, 0.14], [0.035, 0.18], [0.04, 0.2], [0, 0.2]].map(([r, y]) => new T.Vector2(r, y)), 12); j.translate(0.2 + k * 0.16, 1.22, 0); parts.push([j, 12]); }
+    for (const y of [0.17, 0.52, 0.87]) for (let k = 0; k < 3; k++) { if (R() < 0.3) continue; const sc0 = new T.CylinderGeometry(0.035, 0.035, rr(0.22, 0.3), 10); sc0.rotateZ(Math.PI / 2); sc0.rotateY(rr(-0.3, 0.3)); sc0.translate(-0.2 + k * 0.2, y + 0.05, rr(-0.06, 0.06)); parts.push([sc0, 10, paperTex]); }
+    for (let k = 0; k < 2; k++) { const j = new T.LatheGeometry([[0, 0], [0.05, 0], [0.08, 0.06], [0.07, 0.14], [0.035, 0.18], [0.04, 0.2], [0, 0.2]].map(([r, y]) => new T.Vector2(r, y)), 12); j.translate(-0.12 + k * 0.24, 1.22, 0); parts.push([j, 12]); }
     for (const [g, k, tex] of parts) { g.rotateY(ry); g.translate(x, FL, z); put(k === 10 ? 'paper' : k, g, 0.95); }
   }
   // Leiter, angelehnt, eine Sprosse gebrochen
@@ -434,14 +443,19 @@ export function buildObservatory(scene) {
     for (const [g, k] of parts) { g.rotateY(ry); g.translate(x, FL, z); put(k, g, 0.9); } }
   function amphora(x, z, lie, ry) { const g = new T.LatheGeometry([[0, 0], [0.04, 0], [0.11, 0.12], [0.13, 0.25], [0.09, 0.38], [0.05, 0.42], [0.06, 0.46], [0, 0.46]].map(([r, y]) => new T.Vector2(r, y)), 16);
     if (lie) { g.rotateZ(Math.PI / 2); g.translate(0.23, 0.12, 0); } g.rotateY(ry); g.translate(x, FL, z); put(12, g, 0.85); }
-  globe(-1.05, 0.95, 0.3); globe(1.2, 0.75, 2.0); armillary(0.35, 1.45); desk(1.3, -0.15, -1.75); shelf(-1.55, -0.6, 1.35); shelf(0.95, -1.45, -0.6);
-  ladder(1.55, 1.15, -0.85, -0.22); chest(-0.6, 1.55, 0.4); amphora(-1.35, 0.3, false, 0); amphora(-1.5, 0.05, true, 1.2); amphora(1.6, -0.75, false, 0.3);
-  { const g = gearGeo(0.38, 18, 0.07, 4); g.rotateX(-Math.PI / 2 + 0.08); g.translate(-0.4, FL + 0.05, -1.5); put(2, g, 0.8); const g2 = gearGeo(0.26, 12, 0.06, 3); g2.rotateX(-0.3); g2.rotateY(0.6); g2.translate(1.6, FL + 0.24, 0.2); put(2, g2, 0.8); }
-  chain(new T.Vector3(-0.9, FL + 0.03, -1.2), new T.Vector3(-0.2, FL + 0.03, -1.65), 0.05, -0.0);
-  for (let k = 0; k < 6; k++) { seed = 900 + k; const s = new T.CylinderGeometry(0.03, 0.03, rr(0.2, 0.3), 10); s.rotateZ(Math.PI / 2); s.rotateY(R() * 3); s.translate(rr(-1.2, 1.4), FL + 0.03, rr(-0.4, 1.6)); put('paper', s, 0.9); }   // Schriftrollen am Boden
+  // Möbel: alle im Ring zwischen Wendeltreppe und Innensäulen, der Weg von der Tür zur Treppe bleibt frei (Plätze nachgerechnet, nichts steckt ineinander)
+  const atA = (a, r) => [Math.cos(a) * r, Math.sin(a) * r], tanY = (a) => -(a + Math.PI / 2);   // Ort auf dem Ring; Drehung, damit die Längsseite tangential liegt
+  { const [x, z] = atA(0.3, 1.05); desk(x, z, tanY(0.3) + Math.PI); }   // Tisch unter dem Fenster, Vorderseite zur Raummitte
+  { const [x, z] = atA(1.15, 1.2); shelf(x, z, tanY(1.15) + Math.PI); }
+  { const [x, z] = atA(2.2, 1.25); chest(x, z, tanY(2.2) + Math.PI); }
+  globe(1.169, -0.771, 0.3); armillary(-1.071, -1.121);
+  amphora(-0.975, -0.609, false, 0); amphora(-0.59, 0.54, false, 0.7);
+  { const g = gearGeo(0.26, 12, 0.06, 3); g.rotateX(-Math.PI / 2 + 0.06); g.translate(0.15, FL + 0.04, 0.75); put(2, g, 0.8); }   // Zahnrad am Boden
+  chain(new T.Vector3(-1.35, FL + 0.03, -0.15), new T.Vector3(-1.2, FL + 0.03, -0.4), 0.05, -0.0);
+  for (const [x, z, a] of [[0.55, 0.32, 0.4], [0.7, 0.1, 1.6], [0.95, -0.35, 0.9], [-0.3, 0.55, 2.2]]) { const s2 = new T.CylinderGeometry(0.03, 0.03, 0.26, 10); s2.rotateZ(Math.PI / 2); s2.rotateY(a); s2.translate(x, FL + 0.03, z); put('paper', s2, 0.9); }   // Schriftrollen am Boden
 
   // ---------- 8) Trümmer außen ----------
-  seed = 303; for (let i = 0; i < 30; i++) { const a = R() * 6.283, d = rr(4.3, 5.6); rubble(Math.cos(a) * d, Math.sin(a) * d, rr(0.08, 0.32)); }
+  seed = 303; for (let i = 0; i < 30; i++) { const a = R() * 6.283, d = rr(4.3, 5.2); rubble(Math.cos(a) * d, Math.sin(a) * d, rr(0.08, 0.32)); }
   for (const [x, z, s, y] of rubbleList) { const rd = Math.hypot(x, z), yy = y ?? (rd < 2 ? FL : rd < 3.85 ? 1.3 : rd < 4.15 ? 0.6 : 0.05); const g = new T.DodecahedronGeometry(s, 0); g.scale(rr(1, 1.8), rr(0.5, 0.9), rr(0.8, 1.4)); g.rotateY(R() * 6); g.translate(x, yy + s * 0.25, z); put(0, jit(g, x * 10), 0.8 + 0.2 * R()); }
   { const g = new T.CylinderGeometry(0.26, 0.27, 0.9, 20); g.rotateZ(Math.PI / 2 - 0.1); g.rotateY(0.7); g.translate(4.5, 0.25, 1.8); put(0, g, 0.85); }
   { const g = ringPiece([[3.3, 0], [3.9, 0], [3.9, 0.25], [3.3, 0.3]], { a0: 2.5, a1: 2.85, n: 6, seed: 9, dents: 2, depth: 0.2, drop: 0.05 }); g.rotateZ(0.12); g.translate(-0.6, 0.0, 1.4); put(0, g, 0.8); }
@@ -455,10 +469,10 @@ export function buildObservatory(scene) {
   { const P = [], col = (r, g, b) => [r, g, b]; seed = 404;
     const tuftAt = (x, y, z, n, hmax, c) => { for (let k = 0; k < n; k++) P.push(blade(x + rr(-0.12, 0.12), y, z + rr(-0.12, 0.12), rr(0.06, hmax), rr(0.015, 0.035), c, rr(0.02, 0.1))); };
     const moss = (x, y, z, s, c) => { const g = new T.IcosahedronGeometry(s, 1); g.scale(rr(1, 1.6), rr(0.3, 0.5), rr(1, 1.5)); g.rotateY(R() * 6); g.translate(x, y, z); jit(g, x * 7, s * 0.3); P.push(colorize(ni(g), c)); };
-    const ledge = (rMin, rMax, y, n, sz) => { for (let i = 0; i < n; i++) { const a = R() * 6.283, d = rr(rMin, rMax), x = Math.cos(a) * d, z = Math.sin(a) * d, cl = n2(x * 0.8, z * 0.8);
-      if (cl < 0.42) continue; moss(x, y, z, rr(sz * 0.4, sz), col(0.14 + 0.06 * R(), 0.25 + 0.08 * R(), 0.11)); if (R() < 0.5) tuftAt(x, y, z, 6, 0.28, col(0.18, 0.33 + 0.08 * R(), 0.13)); } };
-    ledge(4.15, 5.2, 0.06, 700, 0.14); ledge(3.9, 4.15, 0.6, 300, 0.11); ledge(2.5, 3.9, 1.31, 420, 0.09); ledge(3.6, 3.95, 6.43, 260, 0.08); ledge(3.1, 3.55, 6.57, 140, 0.07);
-    ledge(1.2, 1.9, FL + 0.02, 240, 0.08);   // innen an der Wand
+    const ledge = (rMin, rMax, y, n, sz, ok) => { for (let i = 0; i < n; i++) { const a = R() * 6.283, d = rr(rMin, rMax), x = Math.cos(a) * d, z = Math.sin(a) * d, cl = n2(x * 0.8, z * 0.8);
+      if (cl < 0.42 || (ok && !ok(x, z))) continue; moss(x, y, z, rr(sz * 0.4, sz), col(0.14 + 0.06 * R(), 0.25 + 0.08 * R(), 0.11)); if (R() < 0.5) tuftAt(x, y, z, 6, 0.28, col(0.18, 0.33 + 0.08 * R(), 0.13)); } };
+    ledge(4.15, 5.15, 0.06, 620, 0.14); ledge(3.9, 4.15, 0.6, 300, 0.11); ledge(2.5, 3.9, 1.31, 420, 0.09); ledge(3.6, 3.95, 6.43, 260, 0.08); ledge(3.1, 3.55, 6.57, 140, 0.07);
+    ledge(1.2, 1.9, FL + 0.02, 240, 0.08, freeIn);   // innen an der Wand
     const vine = (x, y, z, len, c) => { const n = 8, w = rr(0.03, 0.07), Pp = [], Uv = [], ax = R() * 6.28; for (let k = 0; k <= n; k++) { const t = k / n, yy = y - t * len, o = Math.sin(t * 3 + x) * 0.04; for (const s of [-1, 1]) { Pp.push(x + Math.cos(ax) * w * s * (1 - t * 0.6) + o, yy, z + Math.sin(ax) * w * s * (1 - t * 0.6)); Uv.push((s + 1) / 2, t); } }
       const I = []; for (let k = 0; k < n; k++) { const q = k * 2; I.push(q, q + 1, q + 2, q + 1, q + 3, q + 2); } const g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(Pp, 3)); g.setAttribute('uv', new T.Float32BufferAttribute(Uv, 2)); g.setIndex(I); g.computeVertexNormals(); P.push(colorize(ni(g), c)); };
     for (let i = 0; i < 70; i++) { const a = R() * 6.283; if (n2(Math.cos(a) * 3, Math.sin(a) * 3) < 0.4) continue; for (let k = 0; k < 3; k++) vine(Math.cos(a + k * 0.015) * 3.95, 6.3, Math.sin(a + k * 0.015) * 3.95, rr(0.2, 1.6), col(0.15 + 0.05 * R(), 0.25 + 0.06 * R(), 0.11)); }
@@ -466,7 +480,7 @@ export function buildObservatory(scene) {
     for (let i = 0; i < 12; i++) { const a = rr(3.2, 5.5), q = PIV.clone().add(tdir.clone().multiplyScalar(a)); vine(q.x + rr(-0.35, 0.35), q.y - 0.45, q.z, rr(0.2, 0.8), col(0.16, 0.28, 0.12)); }
     for (let i = 0; i < 30; i++) { const a = R() * 6.283; vine(Math.cos(a) * 2.25, 5.05, Math.sin(a) * 2.25, rr(0.2, 1.1), col(0.15, 0.26, 0.11)); }   // innen vom Gesims
     for (let i = 0; i < 16; i++) { const a = R() * 6.283, v = dp(a, rr(0.1, 0.9), DR - 0.25); if (inSlit(v.x, v.y - DC, v.z)) continue; vine(v.x, v.y, v.z, rr(0.3, 1.4), col(0.14, 0.24, 0.1)); }   // innen von den Bögen
-    for (let i = 0; i < 40; i++) { const a = R() * 6.283, d = rr(0.9, 1.85); for (let k = 0; k < 4; k++) P.push(blade(Math.cos(a) * d + rr(-0.1, 0.1), FL, Math.sin(a) * d + rr(-0.1, 0.1), rr(0.2, 0.6), 0.04, col(0.18, 0.32, 0.13), 0.12)); }   // Seegras innen
+    for (let i = 0; i < 40; i++) { const a = R() * 6.283, d = rr(0.9, 1.85); if (!freeIn(Math.cos(a) * d, Math.sin(a) * d)) continue; for (let k = 0; k < 4; k++) P.push(blade(Math.cos(a) * d + rr(-0.1, 0.1), FL, Math.sin(a) * d + rr(-0.1, 0.1), rr(0.2, 0.6), 0.04, col(0.18, 0.32, 0.13), 0.12)); }   // Seegras innen
     OBSG.add(new T.Mesh(merge(P), plantMat)); }
   { const P = [], PALC = [[0.25, 0.85, 0.8], [0.55, 0.42, 0.95], [1.0, 0.62, 0.42], [0.3, 0.7, 0.95], [0.85, 0.45, 0.8], [0.95, 0.85, 0.4]]; seed = 505;
     const pc = (g, c) => P.push(colorize(ni(g), c));
@@ -474,9 +488,9 @@ export function buildObservatory(scene) {
       else if (k < 0.65) { for (let j = 0; j < 6; j++) { const g = new T.SphereGeometry(rr(0.03, 0.06), 6, 5); g.translate(x + rr(-0.1, 0.1), y + 0.03, z + rr(-0.1, 0.1)); pc(g, c); } }
       else if (k < 0.85) { const g = new T.CircleGeometry(rr(0.1, 0.2), 12, 0, Math.PI); g.rotateY(R() * 6); g.translate(x, y + 0.01, z); pc(g, c); }
       else { const g = new T.SphereGeometry(0.06, 8, 4, 0, 6.283, 0, Math.PI / 2); g.scale(1, 0.4, 1.2); g.translate(x, y, z); pc(g, [0.9, 0.8, 0.6]); } };
-    for (let i = 0; i < 46; i++) { const a = R() * 6.283, d = rr(3.5, 5.3); spot(Math.cos(a) * d, d > 4.15 ? 0.05 : d > 3.9 ? 0.6 : 1.3, Math.sin(a) * d, PALC[Math.floor(R() * PALC.length)], R()); }
+    for (let i = 0; i < 46; i++) { const a = R() * 6.283, d = rr(3.5, 5.15); spot(Math.cos(a) * d, d > 4.15 ? 0.05 : d > 3.9 ? 0.6 : 1.3, Math.sin(a) * d, PALC[Math.floor(R() * PALC.length)], R()); }
     for (let i = 0; i < 18; i++) { const a = R() * 6.283, d = rr(3.6, 3.9); spot(Math.cos(a) * d, 6.43, Math.sin(a) * d, PALC[Math.floor(R() * PALC.length)], R()); }   // auf dem Gesims
-    for (let i = 0; i < 14; i++) { const a = R() * 6.283, d = rr(1.0, 1.8); spot(Math.cos(a) * d, FL, Math.sin(a) * d, PALC[Math.floor(R() * PALC.length)], 0.3 + R() * 0.7); }   // innen
+    for (let i = 0; i < 14; i++) { const a = R() * 6.283, d = rr(1.0, 1.8); if (!freeIn(Math.cos(a) * d, Math.sin(a) * d)) continue; spot(Math.cos(a) * d, FL, Math.sin(a) * d, PALC[Math.floor(R() * PALC.length)], 0.3 + R() * 0.7); }   // innen
     OBSG.add(new T.Mesh(merge(P), stoneMat)); }
 
   OBSG.userData.rays = [];
@@ -494,12 +508,12 @@ export function buildObservatory(scene) {
 // (man steigt hinauf), sonst ist sie Wand; hängt ein Stück über dem Kopf, ist es Decke.
 const L = { FL: 1.3, WI: 1.95, WO: 2.36, CR: 3.15, NC: 14, SILL: 2.3, WTOP: 3.75, DTOP: 4.25, DW: 0.19, WH: 0.16, PY: 3.9, DC: 6.7, DR: 3.05 };
 const SLOT = 6.2832 / 14, slotA = (k) => (k + 0.5) * SLOT + 0.11, DOOR = slotA(6), WINA = [8, 10, 12, 0, 2, 4].map(slotA);
-const ST = { x: 0, z: -0.8 }, F0 = Math.PI * 1.02, F1 = -0.35, NSTEP = 18;
+const ST = { x: 0, z: -0.8 }, SPN = 22, SF0 = 2.5 * Math.PI, SF1 = 0, SR0 = 0.09, SR1 = 0.74;   // Wendeltreppe: Stufen, Winkel unten/oben, Spindel, Außenradius
 const TILT = 0.62, TD = { y: Math.cos(TILT), z: Math.sin(TILT) }, PIV = { x: 0, y: L.DC + 0.55, z: 0.9 };
 const COLS = []; for (let i = 0; i < 14; i++) { const a = i / 14 * 6.2832 + 0.11; COLS.push([Math.cos(a) * L.CR, Math.sin(a) * L.CR, 0.34, 1.3, 5.06]); }
 for (const k of [7, 9, 11, 13, 1, 3, 5]) { const a = slotA(k); COLS.push([Math.cos(a) * 1.7, Math.sin(a) * 1.7, 0.25, L.FL, 5.06]); }
-// Möbel: Globen, Armillarsphäre, Tisch, Regale, Truhe (Kreis und Höhe über dem Boden)
-for (const [x, z, r, h] of [[-1.05, 0.95, 0.28, 0.85], [1.2, 0.75, 0.28, 0.85], [0.35, 1.45, 0.2, 1.05], [1.3, -0.15, 0.42, 0.78], [-1.55, -0.6, 0.45, 1.3], [0.95, -1.45, 0.45, 1.3], [-0.6, 1.55, 0.35, 0.4]]) COLS.push([x, z, r, L.FL, L.FL + h]);
+// Möbel: Tisch, Regal, Truhe, Globus, Armillarsphäre, zwei Amphoren (Kreis und Höhe über dem Boden)
+for (const [x, z, r, h] of [[1.0, 0.31, 0.45, 0.78], [0.49, 1.095, 0.38, 1.3], [-0.736, 1.011, 0.33, 0.4], [1.169, -0.771, 0.28, 0.85], [-1.071, -1.121, 0.2, 1.05], [-0.975, -0.609, 0.13, 0.46], [-0.59, 0.54, 0.13, 0.46]]) COLS.push([x, z, r, L.FL, L.FL + h]);
 const CLIMB = 0.75;   // so hoch steigt der Taucher von selbst (knapp 1,9 m: die Stufen des Unterbaus)
 const angD = (a, b) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
 const SEG = [];
@@ -514,9 +528,12 @@ function pieces(x, z) {
   }
   if (r >= 2.2 && r <= 3.95) SEG.push(5.06, 6.56); else if (r >= 1.6 && r < L.WI) SEG.push(5.0, 5.22);
   for (const c of COLS) if (Math.hypot(x - c[0], z - c[1]) < c[2]) SEG.push(c[3], c[4]);
+  // Wendeltreppe: dünne Spindel, freie Stufen (eine Umdrehung höher liegt die nächste), oben der halbrunde Absatz auf der Okularseite
   const d = Math.hypot(x - ST.x, z - ST.z);
-  if (d < 0.3) SEG.push(L.FL, L.PY); else if (d < 0.62) SEG.push(L.PY - 0.12, L.PY);
-  else if (d <= 1.02 && d >= 0.64) { const f = Math.atan2(z - ST.z, x - ST.x); if (f >= F1 && f <= F0) { const i = Math.min(NSTEP - 1, Math.floor((F0 - f) / (F0 - F1) * NSTEP)); SEG.push(L.FL, L.FL + (L.PY - L.FL) * (i + 1) / NSTEP); } }
+  if (d < SR0 + 0.01) SEG.push(L.FL, L.PY);
+  else if (d <= SR1 + 0.02) { const f = Math.atan2(z - ST.z, x - ST.x);
+    if (f <= 0) SEG.push(L.PY - 0.07, L.PY);
+    if (d <= SR1) for (let k = 0; k < 3; k++) { const th = f + k * 6.2832; if (th < SF1 || th > SF0) continue; const i = Math.min(SPN - 1, Math.floor((SF0 - th) / (SF0 - SF1) * SPN)), top = L.FL + (L.PY - L.FL) * (i + 1) / SPN; SEG.push(top - 0.065, top); } }
   return SEG;
 }
 const wallAt = (x, z, feet, head) => { const s = pieces(x, z); for (let i = 0; i < s.length; i += 2) if (s[i] <= feet + CLIMB && s[i + 1] > feet + CLIMB && s[i] < head) return true; return false; };
