@@ -167,7 +167,12 @@ export function buildObservatory(scene) {
         else if (uKind < 12.5) { c = mix(vec3(0.55, 0.30, 0.17), vec3(0.70, 0.45, 0.28), n) * (0.85 + 0.2 * n2); spec = 0.1; }
         else { c = vec3(0.2, 0.4, 0.4); emit = vec3(0.35, 0.95, 0.95) * (0.7 + 0.3 * sin(uTime * 2.0)); alg = 0.0; }
         c *= vC;
-        float algae = smoothstep(0.55, 0.9, N.y) * smoothstep(0.38, 0.7, vn(lp.xz * 1.6 + 7.0)) + smoothstep(0.66, 0.9, vn(vec2(lp.x + lp.z, lp.y * 0.5) * 1.4)) * 0.45 * (1.0 - abs(N.y));
+        // Bewuchs: Moos auf allem, was nach oben schaut; an Wänden und Säulen Flecken, herablaufende Streifen unter dem Gesims, unten feuchter und dichter
+        float side = 1.0 - abs(N.y);
+        float wallMoss = smoothstep(0.5, 0.8, vn(vec2(lp.x + lp.z, lp.y * 0.5) * 1.4) * 0.7 + vn(vec2((lp.x - lp.z) * 4.0, lp.y * 0.8)) * 0.4) * side;
+        float streak = smoothstep(0.6, 0.85, vn(vec2(atan(lp.z, lp.x) * 18.0, lp.y * 0.22))) * smoothstep(2.5, 5.5, lp.y) * side;
+        float damp = (1.0 - smoothstep(0.2, 2.6, lp.y)) * smoothstep(0.35, 0.6, vn(lp.xz * 3.0 + lp.y * 2.0));
+        float algae = smoothstep(0.5, 0.9, N.y) * smoothstep(0.32, 0.62, vn(lp.xz * 1.6 + 7.0)) + wallMoss * 0.75 + streak * 0.55 + damp * 0.7;
         c = mix(c, mix(vec3(0.17, 0.30, 0.13), vec3(0.28, 0.40, 0.17), n2), clamp(algae, 0.0, 1.0) * 0.75 * alg);
         vec3 lit = obsLight(c, N, vW) + emit;
         vec3 V = normalize(cameraPosition - vW), H = normalize(V + uSunDir); lit += spec * pow(max(dot(N, H), 0.0), 30.0) * vec3(0.5, 0.55, 0.5) * (vW.y > 0.0 ? 1.0 : 0.4);
@@ -377,26 +382,26 @@ export function buildObservatory(scene) {
   { seed = 707;
     for (let i = 0; i < 9; i++) { const a = R() * 6.28, d = rr(0.3, 1.7), s = rr(0.22, 0.38); if (!freeIn(Math.cos(a) * d, Math.sin(a) * d)) continue; const g = new T.BoxGeometry(s, 0.06, s * rr(0.7, 1.1)); place(g, Math.cos(a) * d, FL + 0.03, Math.sin(a) * d, R() * 3, rr(-0.18, 0.18), rr(-0.18, 0.18)); put(0, jit(g, i, 0.015), 0.8); }   // lose, gekippte Fliesen
     for (let i = 0; i < 14; i++) { const a = R() * 6.28, d = rr(1.3, 1.85); if (!freeIn(Math.cos(a) * d, Math.sin(a) * d)) continue; const g = new T.SphereGeometry(rr(0.18, 0.4), 10, 6, 0, 6.283, 0, Math.PI / 2); g.scale(1.6, rr(0.12, 0.25), 1); g.rotateY(R() * 3); g.translate(Math.cos(a) * d, FL, Math.sin(a) * d); put(11, g, 1.0); } }   // Sandwehen an der Wand
-  // Wendeltreppe zum Okular: schlanke Steinstufen, frei auskragend an einer dünnen Spindel, 1¼ Umdrehungen; oben ein halbrunder Absatz
-  // (Taucher-Maß: eine Stufe knapp 0,3 m). So bleibt der Raum frei und hoch, statt von einem Treppenturm gefüllt zu werden.
-  const ST = new T.Vector3(0, 0, -0.8), PY = 3.9;   // Okular-Linse liegt bei (0; 4,68; −0,94): Taucher auf dem Absatz hat sie direkt vor dem Auge
-  const SPN = 22, SF0 = 2.5 * Math.PI, SF1 = 0, SR0 = 0.09, SR1 = 0.74;   // Stufen, Winkel unten/oben (die Treppe steigt mit fallendem Winkel), Spindel- und Außenradius
+  // Podest am Okular: eine Steinsäule mit Kragsteinen trägt eine runde Platte, auf der man sicher steht und hineinschaut.
+  // Die Treppe hinauf ist längst eingestürzt: unten steht noch ein Stumpf aus sechs massiven Stufen, ihre oberen Stufen liegen zerbrochen am Boden.
+  // (Der Taucher erreicht das Podest mit dem Luftventil.)
+  const ST = new T.Vector3(0, 0, -0.8), PY = 3.9;   // Okular-Linse liegt bei (0; 4,68; −0,94): wer auf dem Podest steht, hat sie direkt vor dem Auge
+  const RST = { n: 6, a0: -1.83, a1: -0.96, r0: 0.64, r1: 0.95, h: 0.144 };   // Treppenstumpf: Stufen, Winkel (unten → oben), Radien, Stufenhöhe
   { seed = 520;
-    { const g = new T.CylinderGeometry(SR0, SR0 + 0.02, PY - FL, 16, 8); g.translate(ST.x, (PY + FL) / 2, ST.z); put(0, jit(g, 3, 0.008), 0.85); }   // Spindel
-    for (let i = 0; i < SPN; i++) { const fa = SF0 + (SF1 - SF0) * i / SPN, fb = SF0 + (SF1 - SF0) * (i + 1) / SPN, top = FL + (PY - FL) * (i + 1) / SPN;
-      const st = ringPiece([[SR0, top - 0.065], [SR1, top - 0.065], [SR1, top - 0.015], [SR1 - 0.02, top], [SR0, top]], { a0: Math.min(fa, fb) + 0.012, a1: Math.max(fa, fb) - 0.012, n: 4, seed: 600 + i, dents: i % 5 === 2 ? 1 : 0, depth: 0.08, drop: 0.03 });
-      st.translate(ST.x, 0, ST.z); put(0, st, 0.82 + 0.1 * (i % 2));
-      { const fm = (fa + fb) / 2, br = new T.BoxGeometry(0.42, 0.05, 0.035); br.translate(SR0 + 0.21, 0, 0); br.rotateZ(-0.35); br.translate(0, top - 0.13, 0); br.rotateY(-fm); br.translate(ST.x, 0, ST.z); put(2, br, 0.75); } }   // eiserne Konsole unter jeder Stufe
-    // Absatz oben: Halbscheibe auf der Seite des Okulars
-    put(0, ringPiece([[0, PY - 0.07], [SR1 + 0.02, PY - 0.07], [SR1 + 0.02, PY], [0, PY]], { a0: -Math.PI, a1: 0, n: 24, seed: 501, dents: 1, depth: 0.06, drop: 0.02 }).translate(ST.x, 0, ST.z), 0.9);
-    // Geländer: eiserner Handlauf an der Außenkante der Wendel, dünne Stäbe; am Absatz ein Bogen und ein Stück an der offenen Kante
-    const hp = []; for (let i = 0; i <= 60; i++) { const f = SF0 + (SF1 - SF0) * i / 60, y = FL + (PY - FL) * i / 60 + 0.45; hp.push(new T.Vector3(ST.x + Math.cos(f) * (SR1 - 0.04), y, ST.z + Math.sin(f) * (SR1 - 0.04))); }
-    put(2, new T.TubeGeometry(new T.CatmullRomCurve3(hp), 140, 0.018, 6, false), 0.85);
-    for (let i = 1; i <= SPN; i++) { const f = SF0 + (SF1 - SF0) * (i - 0.5) / SPN, y = FL + (PY - FL) * i / SPN; const p = new T.CylinderGeometry(0.011, 0.011, 0.45, 5); p.translate(ST.x + Math.cos(f) * (SR1 - 0.04), y + 0.225, ST.z + Math.sin(f) * (SR1 - 0.04)); put(2, p, 0.8); }
-    { const ring = new T.TorusGeometry(SR1 - 0.02, 0.018, 6, 40, Math.PI - 0.25); ring.rotateX(Math.PI / 2); ring.rotateY(Math.PI); ring.translate(ST.x, PY + 0.45, ST.z); put(2, ring, 0.85);   // Bogen von −π bis −0,25
-      for (let i = 0; i < 7; i++) { const f = -Math.PI + i / 6 * (Math.PI - 0.25); const p = new T.CylinderGeometry(0.011, 0.011, 0.45, 5); p.translate(ST.x + Math.cos(f) * (SR1 - 0.02), PY + 0.225, ST.z + Math.sin(f) * (SR1 - 0.02)); put(2, p, 0.8); }
-      const rl = new T.CylinderGeometry(0.018, 0.018, SR1 - 0.1, 6); rl.rotateZ(Math.PI / 2); rl.translate(ST.x - (SR1 + 0.1) / 2, PY + 0.45, ST.z); put(2, rl, 0.85);   // offene Kante zur Wendel
-      for (const x of [-0.25, -0.5]) { const p = new T.CylinderGeometry(0.011, 0.011, 0.45, 5); p.translate(ST.x + x, PY + 0.225, ST.z); put(2, p, 0.8); } } }
+    { const g = new T.LatheGeometry([[0, FL], [0.42, FL], [0.42, FL + 0.1], [0.34, FL + 0.18], [0.3, FL + 0.3], [0.27, PY - 0.55], [0.3, PY - 0.45], [0.27, PY - 0.4], [0, PY - 0.4]].map(([r, y]) => new T.Vector2(r, y)), 24); g.translate(ST.x, 0, ST.z); put(0, jit(g, 3, 0.012), 0.85); }   // Säule mit Fuß und Ring
+    { const g = new T.LatheGeometry([[0, PY - 0.42], [0.3, PY - 0.42], [0.5, PY - 0.2], [0.6, PY - 0.14], [0, PY - 0.14]].map(([r, y]) => new T.Vector2(r, y)), 32); g.translate(ST.x, 0, ST.z); put(0, jit(g, 5, 0.012), 0.82); }   // Kragkegel unter der Platte
+    put(0, ringPiece([[0, PY - 0.15], [0.62, PY - 0.15], [0.66, PY - 0.1], [0.66, PY - 0.03], [0.62, PY], [0, PY]], { seed: 501, dents: 4, depth: 0.12, drop: 0.04, n: 48 }).translate(ST.x, 0, ST.z), 0.92);   // Platte mit Profil, Kante bestoßen
+    put(0, ringPiece([[0.56, PY], [0.64, PY], [0.64, PY + 0.16], [0.6, PY + 0.2], [0.56, PY + 0.2]], { a0: -Math.PI - 0.6, a1: 0.35, n: 30, seed: 502, dents: 3, depth: 0.05, drop: 0.06 }).translate(ST.x, 0, ST.z), 0.88);   // niedrige Brüstung, zur Treppenseite offen
+    for (let i = 0; i < RST.n; i++) { const fa = RST.a0 + (RST.a1 - RST.a0) * i / RST.n, fb = RST.a0 + (RST.a1 - RST.a0) * (i + 1) / RST.n, top = FL + RST.h * (i + 1), last = i === RST.n - 1;
+      const st = ringPiece([[RST.r0, FL], [RST.r1, FL], [RST.r1, top - 0.02], [RST.r1 - 0.03, top], [RST.r0, top]], { a0: fa, a1: fb, n: 4, seed: 610 + i, dents: last ? 3 : 1, depth: last ? 0.3 : 0.1, drop: last ? 0.12 : 0.04, rough: 0.012 });
+      st.translate(ST.x, 0, ST.z); put(0, st, 0.8 + 0.08 * (i % 2)); }
+    { const fa = RST.a1, top = FL + RST.h * RST.n; for (let k = 0; k < 5; k++) { const g = new T.DodecahedronGeometry(rr(0.05, 0.09), 0); g.scale(1.3, 0.7, 1); const r = rr(RST.r0, RST.r1), f = fa + rr(-0.02, 0.06); g.translate(ST.x + Math.cos(f) * r, top + 0.02, ST.z + Math.sin(f) * r); put(0, jit(g, k), 0.75); } }   // Bruchkante: Splitter
+    // heruntergefallene Stufen: Keilblöcke, gekippt und halb im Sand
+    const okFall = (x, z) => freeIn(x, z) && Math.hypot(x, z) < 1.78 && [7, 9, 11, 13, 1, 3, 5].every((k) => Math.hypot(x - Math.cos(slotA(k)) * 1.7, z - Math.sin(slotA(k)) * 1.7) > 0.45) && !(z > -0.25 && z < 0.55 && x < 0.2);
+    let fell = 0; for (let t = 0; t < 200 && fell < 7; t++) { const a = rr(-2.6, 1.0), d = rr(0.95, 1.45), x = ST.x + Math.cos(a) * d, z = ST.z + Math.sin(a) * d; if (!okFall(x, z)) continue;
+      const blk = ringPiece([[RST.r0, 0], [RST.r1, 0], [RST.r1, 0.13], [RST.r0, 0.13]], { a0: 0, a1: 0.14, n: 2, seed: 640 + fell, dents: 2, depth: 0.2, drop: 0.06, rough: 0.012 });
+      blk.translate(-(RST.r0 + RST.r1) / 2, 0, 0); blk.rotateZ(rr(-0.35, 0.35)); blk.rotateX(rr(-0.3, 0.3)); blk.rotateY(R() * 6.28); blk.translate(x, FL - 0.02, z); put(0, blk, 0.78); fell++; }
+    for (let k = 0; k < 10; k++) { const a = rr(-2.6, 1.0), d = rr(0.9, 1.5), x = ST.x + Math.cos(a) * d, z = ST.z + Math.sin(a) * d; if (!okFall(x, z)) continue; const g = new T.DodecahedronGeometry(rr(0.04, 0.1), 0); g.scale(rr(1, 1.6), 0.6, 1); g.rotateY(R() * 6); g.translate(x, FL + 0.02, z); put(0, jit(g, k + 20), 0.75); } }
   // Globus auf Dreibein: Holzbeine, Messingring, Meridian, Kugel mit Karte
   function globe(x, z, ry) {
     for (let k = 0; k < 3; k++) { const a = ry + k / 3 * 6.283, g = wbox(0.62, 0.035, 0.035); g.rotateZ(Math.PI / 2 - 0.25); g.translate(0.07, 0.3, 0); g.rotateY(-a); g.translate(x, FL, z); put(9, g, 0.9); }
@@ -455,7 +460,7 @@ export function buildObservatory(scene) {
   for (const [x, z, a] of [[0.55, 0.32, 0.4], [0.7, 0.1, 1.6], [0.95, -0.35, 0.9], [-0.3, 0.55, 2.2]]) { const s2 = new T.CylinderGeometry(0.03, 0.03, 0.26, 10); s2.rotateZ(Math.PI / 2); s2.rotateY(a); s2.translate(x, FL + 0.03, z); put('paper', s2, 0.9); }   // Schriftrollen am Boden
 
   // ---------- 8) Trümmer außen ----------
-  seed = 303; for (let i = 0; i < 30; i++) { const a = R() * 6.283, d = rr(4.3, 5.2); rubble(Math.cos(a) * d, Math.sin(a) * d, rr(0.08, 0.32)); }
+  seed = 303; for (let i = 0; i < 55; i++) { const a = R() * 6.283, d = rr(4.25, 5.0); rubble(Math.cos(a) * d, Math.sin(a) * d, rr(0.08, 0.32)); }
   for (const [x, z, s, y] of rubbleList) { const rd = Math.hypot(x, z), yy = y ?? (rd < 2 ? FL : rd < 3.85 ? 1.3 : rd < 4.15 ? 0.6 : 0.05); const g = new T.DodecahedronGeometry(s, 0); g.scale(rr(1, 1.8), rr(0.5, 0.9), rr(0.8, 1.4)); g.rotateY(R() * 6); g.translate(x, yy + s * 0.25, z); put(0, jit(g, x * 10), 0.8 + 0.2 * R()); }
   { const g = new T.CylinderGeometry(0.26, 0.27, 0.9, 20); g.rotateZ(Math.PI / 2 - 0.1); g.rotateY(0.7); g.translate(4.5, 0.25, 1.8); put(0, g, 0.85); }
   { const g = ringPiece([[3.3, 0], [3.9, 0], [3.9, 0.25], [3.3, 0.3]], { a0: 2.5, a1: 2.85, n: 6, seed: 9, dents: 2, depth: 0.2, drop: 0.05 }); g.rotateZ(0.12); g.translate(-0.6, 0.0, 1.4); put(0, g, 0.8); }
@@ -473,14 +478,26 @@ export function buildObservatory(scene) {
       if (cl < 0.42 || (ok && !ok(x, z))) continue; moss(x, y, z, rr(sz * 0.4, sz), col(0.14 + 0.06 * R(), 0.25 + 0.08 * R(), 0.11)); if (R() < 0.5) tuftAt(x, y, z, 6, 0.28, col(0.18, 0.33 + 0.08 * R(), 0.13)); } };
     ledge(4.15, 5.15, 0.06, 620, 0.14); ledge(3.9, 4.15, 0.6, 300, 0.11); ledge(2.5, 3.9, 1.31, 420, 0.09); ledge(3.6, 3.95, 6.43, 260, 0.08); ledge(3.1, 3.55, 6.57, 140, 0.07);
     ledge(1.2, 1.9, FL + 0.02, 240, 0.08, freeIn);   // innen an der Wand
-    const vine = (x, y, z, len, c) => { const n = 8, w = rr(0.03, 0.07), Pp = [], Uv = [], ax = R() * 6.28; for (let k = 0; k <= n; k++) { const t = k / n, yy = y - t * len, o = Math.sin(t * 3 + x) * 0.04; for (const s of [-1, 1]) { Pp.push(x + Math.cos(ax) * w * s * (1 - t * 0.6) + o, yy, z + Math.sin(ax) * w * s * (1 - t * 0.6)); Uv.push((s + 1) / 2, t); } }
+    const vine = (x, y, z, len, c) => { const n = 8, w = rr(0.05, 0.12), Pp = [], Uv = [], ax = R() * 6.28; for (let k = 0; k <= n; k++) { const t = k / n, yy = y - t * len, o = Math.sin(t * 3 + x) * 0.04; for (const s of [-1, 1]) { Pp.push(x + Math.cos(ax) * w * s * (1 - t * 0.6) + o, yy, z + Math.sin(ax) * w * s * (1 - t * 0.6)); Uv.push((s + 1) / 2, t); } }
       const I = []; for (let k = 0; k < n; k++) { const q = k * 2; I.push(q, q + 1, q + 2, q + 1, q + 3, q + 2); } const g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(Pp, 3)); g.setAttribute('uv', new T.Float32BufferAttribute(Uv, 2)); g.setIndex(I); g.computeVertexNormals(); P.push(colorize(ni(g), c)); };
-    for (let i = 0; i < 70; i++) { const a = R() * 6.283; if (n2(Math.cos(a) * 3, Math.sin(a) * 3) < 0.4) continue; for (let k = 0; k < 3; k++) vine(Math.cos(a + k * 0.015) * 3.95, 6.3, Math.sin(a + k * 0.015) * 3.95, rr(0.2, 1.6), col(0.15 + 0.05 * R(), 0.25 + 0.06 * R(), 0.11)); }
+    for (let i = 0; i < 90; i++) { const a = R() * 6.283; if (n2(Math.cos(a) * 3, Math.sin(a) * 3) < 0.38) continue; for (let k = 0; k < 3; k++) vine(Math.cos(a + k * 0.02) * 3.95, 6.3, Math.sin(a + k * 0.02) * 3.95, rr(0.3, 1.9), col(0.15 + 0.05 * R(), 0.25 + 0.06 * R(), 0.11)); }
     for (let i = 0; i < 26; i++) { const phi = R() * 6.283, el = rr(0.05, 0.5), v = dp(phi, el, DR + 0.12); if (inSlit(v.x, v.y - DC, v.z)) continue; vine(v.x, v.y, v.z, rr(0.2, 1.0), col(0.16, 0.27, 0.12)); }
     for (let i = 0; i < 12; i++) { const a = rr(3.2, 5.5), q = PIV.clone().add(tdir.clone().multiplyScalar(a)); vine(q.x + rr(-0.35, 0.35), q.y - 0.45, q.z, rr(0.2, 0.8), col(0.16, 0.28, 0.12)); }
     for (let i = 0; i < 30; i++) { const a = R() * 6.283; vine(Math.cos(a) * 2.25, 5.05, Math.sin(a) * 2.25, rr(0.2, 1.1), col(0.15, 0.26, 0.11)); }   // innen vom Gesims
     for (let i = 0; i < 16; i++) { const a = R() * 6.283, v = dp(a, rr(0.1, 0.9), DR - 0.25); if (inSlit(v.x, v.y - DC, v.z)) continue; vine(v.x, v.y, v.z, rr(0.3, 1.4), col(0.14, 0.24, 0.1)); }   // innen von den Bögen
     for (let i = 0; i < 40; i++) { const a = R() * 6.283, d = rr(0.9, 1.85); if (!freeIn(Math.cos(a) * d, Math.sin(a) * d)) continue; for (let k = 0; k < 4; k++) P.push(blade(Math.cos(a) * d + rr(-0.1, 0.1), FL, Math.sin(a) * d + rr(-0.1, 0.1), rr(0.2, 0.6), 0.04, col(0.18, 0.32, 0.13), 0.12)); }   // Seegras innen
+    // dicke Tange: breite, gewellte Bänder, die vom Fuß des Baus, den Stufen und dem Gesims nach oben treiben
+    const kelpBand = (x, y, z, len, w, c) => { const n = 14, Pp = [], Uv = [], ax = R() * 6.28, ph = R() * 6, lean = rr(-0.25, 0.25);
+      for (let k = 0; k <= n; k++) { const t = k / n, ww = w * (0.35 + 0.65 * Math.sin(Math.min(1, t * 1.25) * Math.PI * 0.9)) * (1 + 0.25 * Math.sin(t * 17 + ph)), tw = ax + t * 1.6, bx = Math.sin(t * 2.4 + ph) * 0.12 * len * t + lean * t * len;
+        for (const s2 of [-1, 1]) { Pp.push(x + bx + Math.cos(tw) * ww * s2, y + t * len, z + Math.sin(tw) * ww * s2 + Math.cos(t * 2 + ph) * 0.08 * len * t); Uv.push((s2 + 1) / 2, t); } }
+      const I = []; for (let k = 0; k < n; k++) { const q = k * 2; I.push(q, q + 1, q + 2, q + 1, q + 3, q + 2); } const g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(Pp, 3)); g.setAttribute('uv', new T.Float32BufferAttribute(Uv, 2)); g.setIndex(I); g.computeVertexNormals(); P.push(colorize(ni(g), c)); };
+    const kelpCol = () => col(0.26 + 0.08 * R(), 0.3 + 0.08 * R(), 0.1 + 0.04 * R());
+    for (let i = 0; i < 70; i++) { const a = R() * 6.283, d = rr(4.2, 4.85); if (n2(Math.cos(a) * 2.2, Math.sin(a) * 2.2) < 0.38) continue; for (let k = 0; k < 2 + (R() < 0.5 ? 1 : 0); k++) kelpBand(Math.cos(a) * d + rr(-0.1, 0.1), 0.04, Math.sin(a) * d + rr(-0.1, 0.1), rr(1.2, 4.2), rr(0.07, 0.14), kelpCol()); }   // am Fuß
+    for (let i = 0; i < 26; i++) { const a = R() * 6.283, d = rr(3.92, 4.12); kelpBand(Math.cos(a) * d, 0.6, Math.sin(a) * d, rr(0.8, 2.4), rr(0.06, 0.11), kelpCol()); }   // auf der mittleren Stufe
+    for (let i = 0; i < 22; i++) { const a = R() * 6.283, d = rr(3.6, 3.9); kelpBand(Math.cos(a) * d, 6.42, Math.sin(a) * d, rr(0.7, 2.2), rr(0.05, 0.1), kelpCol()); }   // auf dem Gesims
+    for (let i = 0; i < 14; i++) { const a = R() * 6.283, v = dp(a, rr(0.05, 0.35), DR + 0.1); if (inSlit(v.x, v.y - DC, v.z)) continue; kelpBand(v.x, v.y, v.z, rr(0.6, 1.6), rr(0.04, 0.08), kelpCol()); }   // an der Kuppel
+    // Moospolster auf Kapitellen und Säulenbasen außen
+    for (let i = 0; i < 14; i++) { const a = i / 14 * 6.2832 + 0.11; for (let k = 0; k < 3; k++) { if (R() < 0.35) continue; const aa = a + rr(-0.06, 0.06); moss(Math.cos(aa) * (3.15 + rr(-0.25, 0.25)), 5.09, Math.sin(aa) * (3.15 + rr(-0.25, 0.25)), rr(0.06, 0.12), col(0.15, 0.27, 0.11)); moss(Math.cos(aa) * (3.15 + rr(-0.32, 0.32)), 1.45, Math.sin(aa) * (3.15 + rr(-0.32, 0.32)), rr(0.06, 0.12), col(0.14, 0.26, 0.1)); } }
     OBSG.add(new T.Mesh(merge(P), plantMat)); }
   { const P = [], PALC = [[0.25, 0.85, 0.8], [0.55, 0.42, 0.95], [1.0, 0.62, 0.42], [0.3, 0.7, 0.95], [0.85, 0.45, 0.8], [0.95, 0.85, 0.4]]; seed = 505;
     const pc = (g, c) => P.push(colorize(ni(g), c));
@@ -492,6 +509,39 @@ export function buildObservatory(scene) {
     for (let i = 0; i < 18; i++) { const a = R() * 6.283, d = rr(3.6, 3.9); spot(Math.cos(a) * d, 6.43, Math.sin(a) * d, PALC[Math.floor(R() * PALC.length)], R()); }   // auf dem Gesims
     for (let i = 0; i < 14; i++) { const a = R() * 6.283, d = rr(1.0, 1.8); if (!freeIn(Math.cos(a) * d, Math.sin(a) * d)) continue; spot(Math.cos(a) * d, FL, Math.sin(a) * d, PALC[Math.floor(R() * PALC.length)], 0.3 + R() * 0.7); }   // innen
     OBSG.add(new T.Mesh(merge(P), stoneMat)); }
+
+  // ---------- 10) nur im Spiel: Übergang vom Bau zum Fels ----------
+  // Auf dem Plateau rund um den Bau liegen Trümmer, Säulentrommeln, Moos, Seegras und Tange, alle auf der echten Felsoberfläche;
+  // an der Fuge zwischen Unterbau und Fels sitzt dichtes Moos, über die Felskante hängen Ranken. So steht der Bau im Fels statt darauf.
+  { seed = 909; const S = [], P = [], col = (r, g, b) => [r, g, b];
+    const topAt = (lx, lz) => { const y = plateauY(B0.x + lx * SC, B0.z + lz * SC); return y < -1e8 ? null : (y - B0.y) / SC; };
+    const onRock = (lx, lz) => rockSDF(B0.x + lx * SC, OBSV.top - 0.8, B0.z + lz * SC) < 0;
+    const EDGE = []; for (let k = 0; k < 90; k++) { const a = k / 90 * 6.2832; let e = 4.7; for (let d = 4.7; d < 7.4; d += 0.08) { if (!onRock(Math.cos(a) * d, Math.sin(a) * d)) break; e = d; } EDGE.push(e); }
+    const edgeAt = (a) => EDGE[Math.round((((a % 6.2832) + 6.2832) % 6.2832) / 6.2832 * 90) % 90];
+    const spot = (bias) => { const a = R() * 6.2832, e = edgeAt(a); if (e < 4.95) return null; const d = 4.78 + (e - 4.85) * Math.pow(R(), bias); const x = Math.cos(a) * d, z = Math.sin(a) * d, y = topAt(x, z); return y === null ? null : [x, y, z, a, d, e]; };
+    const stone = (g, tint) => { const n = ni(g); colorize(n, [tint, tint, tint]); S.push(n); };
+    const mossP = (x, y, z, s, c) => { const g = new T.IcosahedronGeometry(s, 1); g.scale(rr(1, 1.7), rr(0.3, 0.5), rr(1, 1.5)); g.rotateY(R() * 6); g.translate(x, y, z); jit(g, x * 7, s * 0.3); P.push(colorize(ni(g), c)); };
+    const band = (x, y, z, len, w, c) => { const n = 12, Pp = [], Uv = [], ax = R() * 6.28, ph = R() * 6;
+      for (let k = 0; k <= n; k++) { const t = k / n, ww = w * (0.35 + 0.65 * Math.sin(Math.min(1, t * 1.25) * Math.PI * 0.9)), tw = ax + t * 1.5, bx = Math.sin(t * 2.4 + ph) * 0.12 * len * t;
+        for (const s2 of [-1, 1]) { Pp.push(x + bx + Math.cos(tw) * ww * s2, y + t * len, z + Math.sin(tw) * ww * s2); Uv.push((s2 + 1) / 2, t); } }
+      const I = []; for (let k = 0; k < n; k++) { const q = k * 2; I.push(q, q + 1, q + 2, q + 1, q + 3, q + 2); } const g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(Pp, 3)); g.setAttribute('uv', new T.Float32BufferAttribute(Uv, 2)); g.setIndex(I); g.computeVertexNormals(); P.push(colorize(ni(g), c)); };
+    const hang = (x, y, z, len, c) => { const n = 8, w = rr(0.05, 0.11), Pp = [], Uv = [], ax = R() * 6.28; for (let k = 0; k <= n; k++) { const t = k / n, yy = y - t * len, o = Math.sin(t * 3 + x) * 0.04; for (const s2 of [-1, 1]) { Pp.push(x + Math.cos(ax) * w * s2 * (1 - t * 0.6) + o, yy, z + Math.sin(ax) * w * s2 * (1 - t * 0.6)); Uv.push((s2 + 1) / 2, t); } }
+      const I = []; for (let k = 0; k < n; k++) { const q = k * 2; I.push(q, q + 1, q + 2, q + 1, q + 3, q + 2); } const g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(Pp, 3)); g.setAttribute('uv', new T.Float32BufferAttribute(Uv, 2)); g.setIndex(I); g.computeVertexNormals(); P.push(colorize(ni(g), c)); };
+    // Fuge Unterbau / Fels: dichtes Moos und kleine Brocken rundum
+    for (let i = 0; i < 260; i++) { const a = R() * 6.2832, d = rr(4.7, 4.98), x = Math.cos(a) * d, z = Math.sin(a) * d, y = topAt(x, z); if (y === null) continue;
+      if (R() < 0.75) mossP(x, y, z, rr(0.06, 0.16), col(0.13 + 0.06 * R(), 0.24 + 0.08 * R(), 0.1)); else { const g = new T.DodecahedronGeometry(rr(0.05, 0.14), 0); g.scale(rr(1, 1.6), rr(0.5, 0.8), 1); g.rotateY(R() * 6); g.translate(x, y + 0.02, z); stone(jit(g, i), 0.75 + 0.15 * R()); } }
+    // Trümmer vom Bau auf dem Absatz, nahe am Bau dichter
+    for (let i = 0; i < 90; i++) { const p = spot(1.7); if (!p) continue; const [x, y, z] = p, s = rr(0.06, 0.32) * (R() < 0.15 ? 1.6 : 1); const g = new T.DodecahedronGeometry(s, 0); g.scale(rr(1, 1.8), rr(0.45, 0.85), rr(0.8, 1.4)); g.rotateY(R() * 6); g.translate(x, y + s * 0.15, z); stone(jit(g, x * 10), 0.72 + 0.2 * R()); }
+    // gestürzte Säulentrommeln (nur wo Platz ist)
+    for (let i = 0, n = 0; i < 40 && n < 4; i++) { const p = spot(1.2); if (!p || p[5] - p[4] < 0.75) continue; const [x, y, z, a] = p, len = rr(0.4, 0.75), g = new T.CylinderGeometry(0.26, 0.27, len, 20); g.rotateZ(Math.PI / 2); g.rotateY(-a + rr(-0.6, 0.6) + Math.PI / 2); g.rotateX(rr(-0.08, 0.08)); g.translate(x, y + 0.2, z); stone(jit(g, i + 70, 0.02), 0.82); n++; }
+    // Bewuchs auf dem Absatz: Moospolster, Seegrasbüschel, Tange
+    for (let i = 0; i < 200; i++) { const p = spot(1.3); if (!p) continue; mossP(p[0], p[1], p[2], rr(0.07, 0.2), col(0.13 + 0.07 * R(), 0.24 + 0.1 * R(), 0.1)); }
+    for (let i = 0; i < 150; i++) { const p = spot(1.0); if (!p) continue; const [x, y, z] = p; for (let k = 0; k < 6; k++) P.push(blade(x + rr(-0.15, 0.15), y, z + rr(-0.15, 0.15), rr(0.12, 0.45), rr(0.02, 0.04), col(0.18, 0.33 + 0.08 * R(), 0.13), rr(0.03, 0.12))); }
+    for (let i = 0; i < 40; i++) { const p = spot(1.0); if (!p) continue; for (let k = 0; k < 2; k++) band(p[0] + rr(-0.1, 0.1), p[1], p[2] + rr(-0.1, 0.1), rr(1.0, 3.6), rr(0.07, 0.13), col(0.26 + 0.08 * R(), 0.3 + 0.08 * R(), 0.1)); }
+    // Ranken über die Felskante
+    for (let i = 0; i < 70; i++) { const a = R() * 6.2832, e = edgeAt(a), x = Math.cos(a) * (e + 0.04), z = Math.sin(a) * (e + 0.04), y = topAt(Math.cos(a) * (e - 0.05), Math.sin(a) * (e - 0.05)); if (y === null || n2(Math.cos(a) * 2.5, Math.sin(a) * 2.5) < 0.35) continue; for (let k = 0; k < 3; k++) hang(x + rr(-0.05, 0.05), y, z + rr(-0.05, 0.05), rr(0.5, 2.6), col(0.14 + 0.05 * R(), 0.25 + 0.06 * R(), 0.1)); }
+    if (S.length) OBSG.add(new T.Mesh(merge(S), archMats[0]));
+    if (P.length) OBSG.add(new T.Mesh(merge(P), plantMat)); }
 
   OBSG.userData.rays = [];
 
@@ -508,7 +558,7 @@ export function buildObservatory(scene) {
 // (man steigt hinauf), sonst ist sie Wand; hängt ein Stück über dem Kopf, ist es Decke.
 const L = { FL: 1.3, WI: 1.95, WO: 2.36, CR: 3.15, NC: 14, SILL: 2.3, WTOP: 3.75, DTOP: 4.25, DW: 0.19, WH: 0.16, PY: 3.9, DC: 6.7, DR: 3.05 };
 const SLOT = 6.2832 / 14, slotA = (k) => (k + 0.5) * SLOT + 0.11, DOOR = slotA(6), WINA = [8, 10, 12, 0, 2, 4].map(slotA);
-const ST = { x: 0, z: -0.8 }, SPN = 22, SF0 = 2.5 * Math.PI, SF1 = 0, SR0 = 0.09, SR1 = 0.74;   // Wendeltreppe: Stufen, Winkel unten/oben, Spindel, Außenradius
+const ST = { x: 0, z: -0.8 }, RST = { n: 6, a0: -1.83, a1: -0.96, r0: 0.64, r1: 0.95, h: 0.144 };   // Podest am Okular und Stumpf der eingestürzten Treppe
 const TILT = 0.62, TD = { y: Math.cos(TILT), z: Math.sin(TILT) }, PIV = { x: 0, y: L.DC + 0.55, z: 0.9 };
 const COLS = []; for (let i = 0; i < 14; i++) { const a = i / 14 * 6.2832 + 0.11; COLS.push([Math.cos(a) * L.CR, Math.sin(a) * L.CR, 0.34, 1.3, 5.06]); }
 for (const k of [7, 9, 11, 13, 1, 3, 5]) { const a = slotA(k); COLS.push([Math.cos(a) * 1.7, Math.sin(a) * 1.7, 0.25, L.FL, 5.06]); }
@@ -528,12 +578,10 @@ function pieces(x, z) {
   }
   if (r >= 2.2 && r <= 3.95) SEG.push(5.06, 6.56); else if (r >= 1.6 && r < L.WI) SEG.push(5.0, 5.22);
   for (const c of COLS) if (Math.hypot(x - c[0], z - c[1]) < c[2]) SEG.push(c[3], c[4]);
-  // Wendeltreppe: dünne Spindel, freie Stufen (eine Umdrehung höher liegt die nächste), oben der halbrunde Absatz auf der Okularseite
+  // Podest: Säule, darauf die Platte mit Kragkegel; daneben der Stumpf der eingestürzten Treppe (sechs massive Stufen)
   const d = Math.hypot(x - ST.x, z - ST.z);
-  if (d < SR0 + 0.01) SEG.push(L.FL, L.PY);
-  else if (d <= SR1 + 0.02) { const f = Math.atan2(z - ST.z, x - ST.x);
-    if (f <= 0) SEG.push(L.PY - 0.07, L.PY);
-    if (d <= SR1) for (let k = 0; k < 3; k++) { const th = f + k * 6.2832; if (th < SF1 || th > SF0) continue; const i = Math.min(SPN - 1, Math.floor((SF0 - th) / (SF0 - SF1) * SPN)), top = L.FL + (L.PY - L.FL) * (i + 1) / SPN; SEG.push(top - 0.065, top); } }
+  if (d < 0.3) SEG.push(L.FL, L.PY); else if (d < 0.66) SEG.push(L.PY - 0.2, L.PY);
+  if (d >= RST.r0 && d <= RST.r1) { const f = Math.atan2(z - ST.z, x - ST.x); if (f >= RST.a0 && f <= RST.a1) { const i = Math.min(RST.n - 1, Math.floor((f - RST.a0) / (RST.a1 - RST.a0) * RST.n)); SEG.push(L.FL, L.FL + RST.h * (i + 1)); } }
   return SEG;
 }
 const wallAt = (x, z, feet, head) => { const s = pieces(x, z); for (let i = 0; i < s.length; i += 2) if (s[i] <= feet + CLIMB && s[i + 1] > feet + CLIMB && s[i] < head) return true; return false; };
@@ -556,7 +604,7 @@ let active = false;
 function obsDiver(D, EYE, RAD) {
   const lx = (D.x - B0.x) / SC, lz = (D.z - B0.z) / SC, ly = (D.y - B0.y) / SC, eye = EYE / SC, rad = RAD / SC, r = Math.hypot(lx, lz);
   let feet = ly - eye, head = ly + 0.08;
-  if (r > OBSV.r / SC + 1.2 || feet < -1.6 || feet > 12) return -1;
+  if (r > 7.2 || feet < -1.6 || feet > 12) return -1;   // 7,2 Baumaß = 18 m: das ganze Plateau
   // Wände: ringsum prüfen, wie weit man in festes Material ragt, und herausschieben
   let px = 0, pz = 0;
   if (wallAt(lx, lz, feet, head)) {   // mitten in der Wand (z. B. nach einem Sprung): nächste freie Stelle suchen
@@ -602,7 +650,7 @@ function pillarSide(D, EYE, RAD) {
     return cd(D, EYE, RAD);
   };
   CAVE.hose = (P, o) => {
-    if (active && inReach(P[o], P[o + 2], OBSV.r + 3) && P[o + 1] > OBSV.top - 3) {
+    if (active && inReach(P[o], P[o + 2], OBSV.r + 7) && P[o + 1] > OBSV.top - 3) {
       const x = (P[o] - B0.x) / SC, z = (P[o + 2] - B0.z) / SC, y = (P[o + 1] - B0.y) / SC;
       let g = Math.hypot(x, z) < 4.8 ? groundAt(x, z, y - 0.05) : -1e9, gw = g > -1e8 ? B0.y + g * SC + 0.07 : -1e9;
       if (gw < -1e8) { const p = plateauY(P[o], P[o + 2]); if (p > -1e8) gw = p + 0.07; }
