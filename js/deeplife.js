@@ -3,6 +3,7 @@
 // Alles lebt in einem Ring um das Boot: wer zu weit weg ist, verschwindet, und an anderer Stelle taucht Neues auf.
 import { clamp, wrapPi } from './util.js';
 import { floorH } from './terrain.js';
+import { atlK } from './atlantis.js';
 import { createDeepFish } from './tiefseefische.js';
 import { createDeepModels } from './deep.js';
 
@@ -18,7 +19,7 @@ export function createDeepLife(scene) {
   /** ein freier Platz um das Boot: in Blickrichtung (Wahrscheinlichkeit ahead) oder ringsum, in der Tiefe des Boots, genug Wasser darunter */
   function spot(sub, d0, d1, ahead, minY = -175) {
     for (let k = 0; k < 16; k++) { const a = R() < ahead ? sub.h + rr(-0.7, 0.7) : R() * 2 * PI, d = rr(d0, d1), x = sub.x + Math.sin(a) * d, z = sub.z + Math.cos(a) * d, y = Math.min(minY, sub.y + rr(-18, 14)), f = floorH(x, z);
-      if (y > f + 10) return { x, y, z }; }
+      if (y > f + 10 && atlK(x, z) < 0.1) return { x, y, z }; }   // im Atlantis-Biom keine Tiefseetiere
     return null;
   }
   // ---------- Laternenfisch-Schwärme: ein Punkt zieht geradeaus, die Fische schwanken um ihre Plätze in der Wolke ----------
@@ -40,6 +41,7 @@ export function createDeepLife(scene) {
   };
   /** Fensterbesuch: ein Laternenfisch-Schwarm, ein Mondfisch oder ein Schlammstachel zieht dicht vor dem Bugfenster quer vorbei */
   L.passWindow = (sub, kind) => {
+    if (atlK(sub.x, sub.z) > 0.1) return false;
     const h = sub.h || 0, fx = Math.sin(h), fz = Math.cos(h), sx = Math.cos(h), sz = -Math.sin(h), side = R() < 0.5 ? 1 : -1, D = kind === 'school' ? 15 : kind === 'mola' ? 12 : 10, W = kind === 'school' ? 45 : 22;
     const cx = sub.x + fx * D, cz = sub.z + fz * D, p = { x: cx - sx * W * side, y: sub.y + rr(-0.4, 0.9), z: cz - sz * W * side }, yaw = Math.atan2(sx * side, sz * side);
     if (floorH(p.x, p.z) > p.y - 3 || floorH(cx, cz) > p.y - 3) return false;

@@ -4,6 +4,7 @@
 import { T, rng, clamp, wrapPi } from './util.js';
 import { uni, COMMON } from './gfx.js';
 import { floorH } from './terrain.js';
+import { atlK } from './atlantis.js';
 
 const PI = Math.PI;
 
@@ -161,7 +162,7 @@ export function createFauna(scene) {
   const F = { kinds, sharkT: rr(30, 60), sharkGap: 90, encT: 10, encGap: 25 };   // sharkGap / encGap: im Mittel so viele Sekunden zwischen Hai-Vorbeizügen und Begegnungen
   /** wohin der Spieler gerade schaut (Winkel im Fauna-Format: x = cos a, z = sin a) */
   const lookA = (sub) => PI / 2 - (sub.vh !== undefined ? sub.vh : sub.h || 0);
-  function valid(x, y, z) { const f = floorH(x, z); return y > f + 1.2 && y < -8; }
+  function valid(x, y, z) { if (atlK(x, z) > 0.15) return false; const f = floorH(x, z); return y > f + 1.2 && y < -8; }   // im Atlantis-Biom leben die Rifftiere (reef.js)
   /** Tiefe: zwischen 140 und 200 m werden die Fische seltener, darunter gibt es keine mehr (der Gleiter kommt überall vor) */
   const keepAt = (y) => 1 - clamp((-y - 140) / 60, 0, 1);
 
@@ -177,7 +178,7 @@ export function createFauna(scene) {
     }
     return null;
   }
-  function retarget(f, c, sub) { let a = R() * 2 * PI; const d = rr(15, 45) * (c.speed > 1.8 ? 2 : 1); if (F.attract && c.speed > 1.8 && c.beat < 1 && sub) { const ta = Math.atan2(sub.x - f.x, sub.z - f.z); a = Math.PI / 2 - ta + rr(-0.9, 0.9); } f.tx = f.x + Math.cos(a) * d; f.tz = f.z + Math.sin(a) * d; const fl = floorH(f.tx, f.tz); f.ty = Math.min(-9, Math.max(fl + c.nearFloor[0], Math.min(fl + c.nearFloor[1], f.y + rr(-6, 6)))); f.retarget = rr(12, 30); }
+  function retarget(f, c, sub) { let a = R() * 2 * PI; const d = rr(15, 45) * (c.speed > 1.8 ? 2 : 1); if (F.attract && c.speed > 1.8 && c.beat < 1 && sub) { const ta = Math.atan2(sub.x - f.x, sub.z - f.z); a = Math.PI / 2 - ta + rr(-0.9, 0.9); } f.tx = f.x + Math.cos(a) * d; f.tz = f.z + Math.sin(a) * d; const fl = floorH(f.tx, f.tz); f.ty = Math.min(-9, Math.max(fl + c.nearFloor[0], Math.min(fl + c.nearFloor[1], f.y + rr(-6, 6)))); f.retarget = rr(12, 30); if (atlK(f.tx, f.tz) > 0.15) { f.tx = f.x + 40; f.tz = f.z; } }
   // Entwicklermenü: Anzahl je Art, Haie anlocken, Tiere vor dem Boot erscheinen lassen
   F.cfg = CFG; F.attract = false; F.max = kinds.map((k) => k.M);
   F.setCount = (si, n) => { CFG[si].n = Math.max(0, Math.min(kinds[si].M, Math.round(n))); const k = kinds[si]; while (k.list.length > CFG[si].n) { const f = k.list.pop(); for (const o of k.list) if (o.leader === f) o.leader = null; } };
@@ -199,7 +200,7 @@ export function createFauna(scene) {
       for (let i = k.list.length - 1; i >= 0; i--) {
         const f = k.list[i]; f.life -= dt;
         const dS = Math.hypot(f.x - sub.x, f.z - sub.z);
-        if (dS > 150 || f.life < 0 || (k.si !== 2 && f.y < -205)) { if (f.leader === undefined || f.leader === null) for (const o of k.list) if (o.leader === f) o.leader = null; k.list.splice(i, 1); continue; }
+        if (dS > 150 || f.life < 0 || (atlK(f.x, f.z) > 0.3 && dS > 50) || (k.si !== 2 && f.y < -205)) { if (f.leader === undefined || f.leader === null) for (const o of k.list) if (o.leader === f) o.leader = null; k.list.splice(i, 1); continue; }
         // Ziel: Anführer folgen, sonst eigenes Ziel
         let tx = f.tx, ty = f.ty, tz = f.tz;
         if (f.leader && k.list.includes(f.leader)) { const L = f.leader, cy = Math.cos(L.yaw), sy = Math.sin(L.yaw); tx = L.x + f.off[0] * cy + f.off[2] * sy - Math.sin(L.yaw) * 2; ty = L.y + f.off[1]; tz = L.z - f.off[0] * sy + f.off[2] * cy - Math.cos(L.yaw) * 2; }

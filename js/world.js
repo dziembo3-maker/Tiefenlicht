@@ -67,6 +67,7 @@ function placer(R) {
   P.dots = (it, x, y, z, n, rad, pal) => { for (let i = 0; i < n; i++) { const a = R() * 6.3, d = Math.sqrt(R()) * rad, c = pick(pal); it.dots.push(x + Math.cos(a) * d, y + rr(0.3, 1) * rad * 0.5 * R() + 0.4, z + Math.sin(a) * d, c[0], c[1], c[2], R() * 6.3); } };
   P.jelly = (it, x, y, z, s) => it.jelly.push(x, y, z, s, R() * 6.3, rr(1.5, 5), rr(0.03, 0.07) * (R() < 0.5 ? -1 : 1), rr(0.9, 1.3));
   P.school = (it, x, y, z, a, b, cnt, tilt) => {
+    if (atlK(x, z) > 0.15) return;   // im Atlantis-Biom schwimmen die Rifftiere (reef.js)
     const sp = rr(0.045, 0.085) * (R() < 0.5 ? -1 : 1), ph = R() * 6.3, amp = rr(1.5, 4), len = rr(0.9, 1.9);
     cnt = Math.round(cnt * 1.6); for (let i = 0; i < cnt; i++) { const lag = (Math.pow(R(), 1.6) * (R() < 0.5 ? -1 : 1)) * len, tight = 1 - Math.abs(lag) / len * 0.5; it.fish.push(x, y, z, ph + lag, a, b, amp, sp, (R() - 0.5) * 3.4 * tight, (R() - 0.5) * 2.6 * tight, tilt, rr(0.17, 0.29)); }
   };

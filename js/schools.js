@@ -4,6 +4,7 @@
 import { T, rng, clamp, wrapPi, smooth } from './util.js';
 import { uni, COMMON } from './gfx.js';
 import { floorH, BOUNDS } from './terrain.js';
+import { atlK } from './atlantis.js';
 
 const PI = Math.PI;
 // Körper: [t (0 = Schnauze, 1 = Schwanzstiel), halbe Höhe, halbe Breite, Mittelhöhe]
@@ -173,7 +174,7 @@ export function createSchools(scene) {
     const s = types[ti]; if (s.on) return false; const ty = s.ty, look = ref.vh !== undefined ? ref.vh : ref.h || 0;
     for (let k = 0; k < 40; k++) {
       const spread = k < 14 ? 0.45 : k < 28 ? 1.1 : PI, a = look + (k < 14 ? (R() < 0.5 ? 1 : -1) * rr(0.22, 0.5) : rr(-spread, spread)), d = near ? rr(20, 26) : rr(42, 56), x = ref.x + Math.sin(a) * d, z = ref.z + Math.cos(a) * d;
-      if (Math.hypot(x, z) > BOUNDS.r * 0.95) continue;
+      if (Math.hypot(x, z) > BOUNDS.r * 0.95 || atlK(x, z) > 0.1) continue;   // im Atlantis-Biom keine dieser Schwärme
       const y = wantY(ty, x, z, ref.y + rr(0, 4)), fl = floorH(x, z); if (y - ty.rad * 0.7 < fl + 1 || y > -5) continue;
       if (k < 32 && Math.abs(y - ref.y) > 10) continue;   // erst nur in Sichthöhe suchen
       let blocked = false; for (let i = 1; i < 10 && !blocked; i++) { const q = i / 10; if (floorH(x + (ref.x - x) * q, z + (ref.z - z) * q) > y + (ref.y - y) * q - ty.rad * 0.4) blocked = true; }
@@ -187,7 +188,7 @@ export function createSchools(scene) {
   S.passWindow = (ref) => {
     const free = types.filter((s) => !s.on); if (!free.length) return false; const s = free[Math.floor(R() * free.length)], ty = s.ty, h = ref.h || 0, fx = Math.sin(h), fz = Math.cos(h), sx = Math.cos(h), sz = -Math.sin(h), side = R() < 0.5 ? 1 : -1, D = 11 + ty.rad * 0.7, W = 42;
     const cx = ref.x + fx * D, cz = ref.z + fz * D, x = cx - sx * W * side, z = cz - sz * W * side, y = wantY(ty, x, z, ref.y);
-    if (y - ty.rad * 0.7 < floorH(x, z) + 1 || y > -5 || floorH(cx, cz) > y - ty.rad * 0.7) return false;
+    if (y - ty.rad * 0.7 < floorH(x, z) + 1 || y > -5 || floorH(cx, cz) > y - ty.rad * 0.7 || atlK(x, z) > 0.1 || atlK(cx, cz) > 0.1) return false;
     Object.assign(s, { on: true, out: false, x, y, z, yaw: Math.atan2(sx * side, sz * side), turn: 0, fade: 0, life: 0, run: W * 2 + 20, sw: 0, swT: 0, swNext: 1e9, swCool: 60 }); s.m.visible = true; return true;
   };
   S.clear = () => { for (const s of types) { s.on = false; s.m.visible = false; } };
@@ -208,6 +209,7 @@ export function createSchools(scene) {
       if (s.swT > 0) s.swT -= dt; s.sw += ((s.swT > 0 ? 1 : 0) - s.sw) * Math.min(1, dt * 0.45); s.u.uSwirl.value = s.sw * s.sw * (3 - 2 * s.sw);
       s.ph = (s.ph + dt * ty.beat * 6.2832 * (1 + 0.9 * near + 0.4 * s.sw)) % (PI * 2000); s.u.uPh.value = s.ph;   // Flossenschlag: schneller, wenn das Boot nah ist; die Phase läuft stetig weiter, ohne zu springen
       if (s.run > 0) s.run -= ty.speed * boost * dt; else { s.turn += (rr(-1, 1) * 0.25 - s.turn) * Math.min(1, dt * 0.3); s.yaw = wrapPi(s.yaw + s.turn * dt * 0.25); }
+      if (atlK(s.x, s.z) > 0.05) s.yaw += wrapPi(PI / 2 - s.yaw) * Math.min(1, dt * 0.5);   // vom Atlantis-Biom weg nach Osten
       if (Math.hypot(s.x, s.z) > BOUNDS.r * 0.9) s.yaw += wrapPi(Math.atan2(-s.x, -s.z) - s.yaw) * Math.min(1, dt * 0.5);
       const ahx = s.x + Math.sin(s.yaw) * 12, ahz = s.z + Math.cos(s.yaw) * 12; if (floorH(ahx, ahz) > s.y - ty.rad * 0.7 - 1) s.yaw += dt * 0.6;   // vorn steigt der Grund: abdrehen
       s.x += Math.sin(s.yaw) * ty.speed * boost * dt; s.z += Math.cos(s.yaw) * ty.speed * boost * dt;
