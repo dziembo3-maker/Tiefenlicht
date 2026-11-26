@@ -401,15 +401,16 @@ const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 // Größe (m), Tempo (m/s), Flossenschlag (je s), Höhe über Grund, Gruppengröße, Gruppen ums Boot: n im offenen Riff, nF zusätzlich
 // mitten im Tangwald; grpF: Gruppengröße im Wald; turn: wie schnell sie drehen
 export const REEF_CFG = {
-  silver: { size: [0.4, 0.5], speed: 1.7, beat: 2.6, h: [3, 12], grp: [22, 34], grpF: [10, 16], n: 2, nF: 2, turn: 1.3 },
-  stripe: { size: [0.5, 0.65], speed: 1.1, beat: 1.8, h: [1, 4], grp: [5, 9], grpF: [5, 9], n: 3, nF: 6, turn: 1.1 },
-  butterfly: { size: [0.42, 0.55], speed: 0.7, beat: 2.2, h: [1, 5], grp: [2, 4], grpF: [2, 4], n: 4, nF: 8, turn: 1.0 },
-  blue: { size: [0.65, 0.85], speed: 0.8, beat: 1.6, h: [1.5, 7], grp: [1, 2], grpF: [1, 3], n: 4, nF: 7, turn: 0.8 },
-  trigger: { size: [0.75, 0.95], speed: 0.9, beat: 1.4, h: [1, 6], grp: [1, 1], grpF: [1, 2], n: 3, nF: 3, turn: 0.8 },
-  scorpion: { size: [0.55, 0.75], speed: 0.6, beat: 0.8, h: [0, 0], grp: [1, 1], grpF: [1, 1], n: 4, nF: 5, turn: 1.0, floor: 1 },
+  silver: { size: [1.0, 1.2], speed: 2.4, beat: 2.4, h: [4, 14], grp: [22, 34], grpF: [10, 16], n: 2, nF: 2, turn: 1.2 },
+  stripe: { size: [1.1, 1.4], speed: 1.5, beat: 1.7, h: [1.5, 5], grp: [5, 9], grpF: [5, 9], n: 3, nF: 6, turn: 1.0 },
+  butterfly: { size: [1.0, 1.3], speed: 1.0, beat: 2.0, h: [1.5, 6], grp: [2, 4], grpF: [2, 4], n: 4, nF: 14, turn: 0.9, close: 1 },
+  blue: { size: [1.3, 1.7], speed: 1.1, beat: 1.5, h: [2, 8], grp: [1, 2], grpF: [1, 3], n: 4, nF: 12, turn: 0.8, close: 1 },
+  trigger: { size: [1.5, 1.9], speed: 1.2, beat: 1.3, h: [2, 7], grp: [1, 1], grpF: [1, 2], n: 3, nF: 3, turn: 0.8 },
+  scorpion: { size: [1.1, 1.4], speed: 0.8, beat: 0.8, h: [0, 0], grp: [1, 1], grpF: [1, 1], n: 4, nF: 10, turn: 1.0, floor: 1, close: 1 },
   ray: { size: [1.8, 2.6], speed: 0.6, beat: 0.6, h: [0.5, 1.5], grp: [1, 1], grpF: [1, 1], n: 2, nF: 0, turn: 0.5, floor: 1 },
-  manta: { size: [4.5, 6], speed: 1.1, beat: 0.55, h: [6, 16], grp: [1, 1], grpF: [1, 1], n: 1, nF: 0, turn: 0.25 },
+  manta: { size: [4.5, 6], speed: 3.2, beat: 0.5, h: [10, 20], minH: 8, grp: [1, 1], grpF: [1, 1], n: 1, nF: 0, turn: 0.3 },
 };
+// close: im Tangwald neugierig, sie kommen bis auf wenige Meter ans Boot heran
 const KEYS = Object.keys(REEF_CFG), REEF_DEPTH = -112;   // tiefer als das gibt es keine Rifftiere
 
 export function createReefLife(scene) {
@@ -430,7 +431,7 @@ export function createReefLife(scene) {
       const fl = floorH(x, z); if (!near && fl < REEF_DEPTH) continue;
       const fk = forestK(x, z); if (!near && (forest ? fk < 0.55 : fk > 0.5 && R() < 0.7)) continue;
       if (c === C.ray && !near && (fk > 0.3 || rock2D(x, z) < 5)) continue;   // Rochen: offener Sand
-      if (c === C.scorpion && !near) { const rd = rock2D(x, z); if (rd > 5 && R() < 0.8) continue; }   // Drachenköpfe: meist neben Felsen
+      if (c === C.scorpion && !near && !forest) { const rd = rock2D(x, z); if (rd > 5 && R() < 0.8) continue; }   // Drachenköpfe: meist neben Felsen
       const y = near ? Math.max(fl + (c.floor ? 0 : 1.5), Math.min(-6, sub.y)) : wantY(c, x, z, fl);
       if (!freeAt(x, y + 0.5, z, c === C.manta ? 5 : 1.2)) continue;
       return { x, y, z, fl };
@@ -442,7 +443,7 @@ export function createReefLife(scene) {
     const gr = forest ? c.grpF : c.grp, dense = forest && denseK(p.x, p.z) > 0.3 ? 1.4 : 1, n = Math.max(1, Math.round(rr(gr[0], gr[1] + 0.99) * dense - 0.49));
     const look = sub.vh !== undefined ? sub.vh : sub.h || 0;
     const g = { key, c, forest, x: p.x, y: p.y, z: p.z, yaw: near ? look + PI / 2 : R() * 2 * PI, pitch: 0, sp: c.speed * rr(0.85, 1.15), tx: p.x, ty: p.y, tz: p.z, re: 0, rest: c.floor ? rr(15, 50) : 0, flee: 0, mem: [] };
-    const spread = n > 12 ? 2.2 : n > 4 ? 1.4 : 0.9, sz = rr(c.size[0], c.size[1]);
+    const sz = rr(c.size[0], c.size[1]), spread = (n > 12 ? 2.2 : n > 4 ? 1.4 : 0.9) * Math.max(1, sz * 1.6);
     for (let i = 0; i < n; i++) {
       const o = i === 0 ? [0, 0, 0] : [rr(-1, 1) * spread * (1 + n * 0.03), rr(-0.5, 0.5) * spread * 0.7, rr(-1, 1) * spread * (1 + n * 0.04)];
       g.mem.push({ o, x: g.x + o[0], y: g.y + o[1], z: g.z + o[2], yaw: g.yaw, pitch: 0, roll: 0, ph: R() * 6.3, amp: 1, size: sz * rr(0.9, 1.1), seed: R(), w: R() * 6.3 });
@@ -455,6 +456,7 @@ export function createReefLife(scene) {
     const c = g.c; let best = null, bs = -1e9;
     for (let k = 0; k < (away ? 6 : 8); k++) {
       let a = R() * 2 * PI; if (away) a = Math.atan2(g.x - sub.x, g.z - sub.z) + rr(-0.9, 0.9);
+      else if (g.forest && c.close && L.av && R() < 0.35 && Math.hypot(g.x - L.av.x, g.z - L.av.z) < 30) { const b = R() * 2 * PI, q = rr(4, 8); const px = L.av.x + Math.sin(b) * q, pz = L.av.z + Math.cos(b) * q; a = Math.atan2(px - g.x, pz - g.z); }   // neugierig: zum Boot hin
       const d = away ? rr(8, 16) : g.forest ? rr(6, 18) : c === C.manta ? rr(30, 60) : rr(10, 30) * (c.speed > 1.4 ? 1.6 : 1);
       const tx = g.x + Math.sin(a) * d, tz = g.z + Math.cos(a) * d; if (!inBiome(tx, tz)) continue;
       const fl = floorH(tx, tz); if (fl < REEF_DEPTH - 6) continue;
@@ -474,7 +476,7 @@ export function createReefLife(scene) {
   L.counts = () => { const o = {}; for (const k of KEYS) o[k] = 0; for (const g of L.groups) o[g.key] += g.mem.length; return o; };
   L.countNear = (x, z, r) => { let n = 0; for (const g of L.groups) if (Math.hypot(g.x - x, g.z - z) < r) n += g.mem.length; return n; };
   L.update = (dt, sub, avoid) => {
-    dt = Math.min(dt, 0.1); L.fT -= dt; if (L.fT <= 0) { L.fT = 1.5; L.fF = forestShare(sub); }
+    dt = Math.min(dt, 0.1); L.av = avoid; L.fT -= dt; if (L.fT <= 0) { L.fT = 1.5; L.fF = forestShare(sub); }
     // auffüllen: je Art offene Gruppen und Waldgruppen, höchstens zwei neue Gruppen je Bild
     let made = 0;
     if (atlK(sub.x, sub.z) > 0 || sub.x < -300) for (const key of KEYS) {
@@ -486,7 +488,7 @@ export function createReefLife(scene) {
     for (let i = L.groups.length - 1; i >= 0; i--) {
       const g = L.groups[i], c = g.c, dS = Math.hypot(g.x - sub.x, g.z - sub.z);
       if (dS > 105) { L.groups.splice(i, 1); continue; }
-      const dA = Math.hypot(g.x - avoid.x, g.y - avoid.y, g.z - avoid.z), scare = c === C.manta ? 0 : c.floor ? 6 : g.forest ? 7 : 9;   // im Wald lassen sie das Boot näher heran und huschen dann tiefer in den Tang
+      const dA = Math.hypot(g.x - avoid.x, g.y - avoid.y, g.z - avoid.z), scare = c === C.manta ? 0 : g.forest && c.close ? 3.5 : c.floor ? 6 : g.forest ? 7 : 9;   // im Wald lassen sie das Boot näher heran und huschen dann tiefer in den Tang
       g.flee = Math.max(0, g.flee - dt);
       if (dA < scare && g.flee <= 0) { retarget(g, avoid, true); g.flee = 4; g.rest = 0; }
       // Bodentiere: liegen still; ab und zu (oder wenn das Boot kommt) ein Stück weiter
@@ -497,7 +499,7 @@ export function createReefLife(scene) {
         g.re -= dt; const dT = Math.hypot(g.tx - g.x, g.tz - g.z);
         if (g.re <= 0 || dT < 2.5) { if (c.floor && g.flee <= 0) { g.rest = c === C.ray ? rr(20, 60) : rr(25, 80); g.tx = g.x; g.tz = g.z; } else retarget(g, sub, false); }
         let dx = g.tx - g.x, dy = g.ty - g.y, dz = g.tz - g.z;
-        const ahx = g.x + Math.sin(g.yaw) * 4, ahz = g.z + Math.cos(g.yaw) * 4, fla = floorH(ahx, ahz), low = c.floor ? 0.4 : Math.max(0.8, c.h[0] * 0.6);
+        const ahx = g.x + Math.sin(g.yaw) * 4, ahz = g.z + Math.cos(g.yaw) * 4, fla = floorH(ahx, ahz), low = c.floor ? 0.4 : c.minH || Math.max(0.8, c.h[0] * 0.6);
         if (g.y < fla + low) dy += (fla + low + 0.5 - g.y) * 3;
         if (!freeAt(ahx, g.y, ahz, c === C.manta ? 4 : 1.2)) { g.yaw += dt * c.turn * 1.5; g.re = Math.min(g.re, 0.6); }   // Fels voraus: abdrehen
         if (!inBiome(ahx, ahz)) { let a = g.yaw + PI, bk = -1; for (let j = 0; j < 8; j++) { const b = j * PI / 4, px = g.x + Math.sin(b) * 25, pz = g.z + Math.cos(b) * 25, kk = inBiome(px, pz) ? 1 + R() : atlK(px, pz) * 0.5; if (kk > bk) { bk = kk; a = b; } } g.tx = g.x + Math.sin(a) * 20; g.tz = g.z + Math.cos(a) * 20; g.re = 6; }   // am Rand des Bioms (oder der Stadt): zurück ins Riff
@@ -505,7 +507,7 @@ export function createReefLife(scene) {
         g.yaw = wrap(g.yaw + Math.max(-tr * dt, Math.min(tr * dt, wrap(wy - g.yaw)))); g.pitch += (wp - g.pitch) * Math.min(1, dt * 1.2);
         const sp = g.sp * (g.flee > 0 ? 2.2 : 1) * (c.floor ? 1 : 0.9 + 0.1 * Math.sin(g.mem[0].w + g.re));
         g.x += Math.sin(g.yaw) * Math.cos(g.pitch) * sp * dt; g.z += Math.cos(g.yaw) * Math.cos(g.pitch) * sp * dt; g.y += Math.sin(g.pitch) * sp * dt;
-        const fl = floorH(g.x, g.z); if (g.y < fl + (c.floor ? 0.05 : 0.6)) g.y = fl + (c.floor ? 0.05 : 0.6); if (g.y > -6) g.y = -6;
+        const fl = floorH(g.x, g.z), mh = c.floor ? 0.05 : c.minH || 0.6; if (c.minH && g.y < fl + mh) g.y += (fl + mh - g.y) * Math.min(1, dt * 1.5); if (g.y < fl + mh * 0.7) g.y = fl + mh * 0.7; if (g.y > -6) g.y = -6;   // der Manta hält Abstand zum Grund
       }
       // die einzelnen Tiere: folgen ihrem Platz in der Gruppe, schwanken ein wenig, weichen dem Boot einzeln aus
       const cy = Math.cos(g.yaw), sy = Math.sin(g.yaw), moving = !(c.floor && g.rest > 0), k = Math.min(1, dt * (g.mem.length > 1 ? 1.4 : 6));
@@ -513,7 +515,7 @@ export function createReefLife(scene) {
         f.w += dt * 0.7; const wob = g.mem.length > 1 ? 0.35 : 0;
         const tx = g.x + f.o[0] * cy + f.o[2] * sy + Math.sin(f.w) * wob, ty = g.y + f.o[1] + Math.sin(f.w * 1.3) * wob * 0.5, tz = g.z - f.o[0] * sy + f.o[2] * cy + Math.cos(f.w * 0.8) * wob;
         f.x += (tx - f.x) * k; f.y += (ty - f.y) * k; f.z += (tz - f.z) * k;
-        const bx = f.x - avoid.x, by = f.y - avoid.y, bz = f.z - avoid.z, bd = Math.hypot(bx, by, bz) || 1; if (bd < 4.5 && c !== C.manta) { const w = (4.5 - bd) * dt * 3; f.x += bx / bd * w; f.y += by / bd * w * 0.4; f.z += bz / bd * w; }
+        const bx = f.x - avoid.x, by = f.y - avoid.y, bz = f.z - avoid.z, bd = Math.hypot(bx, by, bz) || 1; const ar = g.forest && c.close ? 2.5 : 4.5; if (bd < ar && c !== C.manta) { const w = (ar - bd) * dt * 3; f.x += bx / bd * w; f.y += by / bd * w * 0.4; f.z += bz / bd * w; }
         const flo = floorH(f.x, f.z); if (f.y < flo + 0.04 * f.size) f.y = flo + 0.04 * f.size;
         const dyaw = wrap(g.yaw + (g.mem.length > 1 ? Math.sin(f.w * 0.9) * 0.15 : 0) - f.yaw); f.yaw = wrap(f.yaw + dyaw * Math.min(1, dt * 3)); f.pitch = g.pitch; f.roll += (-dyaw * 0.6 - f.roll) * Math.min(1, dt * 2);
         const rate = moving ? (g.flee > 0 ? 1.7 : 1) : 0.35; f.amp = moving ? (g.flee > 0 ? 1.3 : 1) : 0.15;
