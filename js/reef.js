@@ -401,15 +401,16 @@ const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 // Größe (m), Tempo (m/s), Flossenschlag (je s), Höhe über Grund, Gruppengröße, Gruppen ums Boot: n im offenen Riff, nF zusätzlich
 // mitten im Tangwald; grpF: Gruppengröße im Wald; turn: wie schnell sie drehen
 export const REEF_CFG = {
-  silver: { size: [1.0, 1.2], speed: 2.4, beat: 2.4, h: [4, 14], grp: [22, 34], grpF: [10, 16], n: 2, nF: 2, turn: 1.2 },
-  stripe: { size: [1.1, 1.4], speed: 1.5, beat: 1.7, h: [1.5, 5], grp: [5, 9], grpF: [5, 9], n: 3, nF: 6, turn: 1.0 },
-  butterfly: { size: [1.0, 1.3], speed: 1.0, beat: 2.0, h: [1.5, 6], grp: [2, 4], grpF: [2, 4], n: 4, nF: 14, turn: 0.9, close: 1 },
-  blue: { size: [1.3, 1.7], speed: 1.1, beat: 1.5, h: [2, 8], grp: [1, 2], grpF: [1, 3], n: 4, nF: 12, turn: 0.8, close: 1 },
-  trigger: { size: [1.5, 1.9], speed: 1.2, beat: 1.3, h: [2, 7], grp: [1, 1], grpF: [1, 2], n: 3, nF: 3, turn: 0.8 },
+  silver: { size: [1.0, 1.2], speed: 2.4, beat: 2.4, h: [4, 14], grp: [22, 34], grpF: [10, 16], n: 3, nF: 2, turn: 1.2, up: 0.6 },
+  stripe: { size: [1.1, 1.4], speed: 1.5, beat: 1.7, h: [1.5, 5], grp: [5, 9], grpF: [5, 9], n: 3, nF: 6, turn: 1.0, up: 0.2 },
+  butterfly: { size: [1.0, 1.3], speed: 1.0, beat: 2.0, h: [1.5, 6], grp: [2, 4], grpF: [2, 4], n: 4, nF: 14, turn: 0.9, close: 1, up: 0.25 },
+  blue: { size: [1.3, 1.7], speed: 1.1, beat: 1.5, h: [2, 8], grp: [1, 2], grpF: [1, 3], n: 4, nF: 12, turn: 0.8, close: 1, up: 0.4 },
+  trigger: { size: [1.5, 1.9], speed: 1.2, beat: 1.3, h: [2, 7], grp: [1, 1], grpF: [1, 2], n: 3, nF: 3, turn: 0.8, up: 0.4 },
   scorpion: { size: [1.1, 1.4], speed: 0.8, beat: 0.8, h: [0, 0], grp: [1, 1], grpF: [1, 1], n: 4, nF: 10, turn: 1.0, floor: 1, close: 1 },
   ray: { size: [1.8, 2.6], speed: 0.6, beat: 0.6, h: [0.5, 1.5], grp: [1, 1], grpF: [1, 1], n: 2, nF: 0, turn: 0.5, floor: 1 },
-  manta: { size: [4.5, 6], speed: 3.2, beat: 0.5, h: [10, 20], minH: 8, grp: [1, 1], grpF: [1, 1], n: 1, nF: 0, turn: 0.3 },
+  manta: { size: [4.5, 6], speed: 3.2, beat: 0.5, h: [10, 20], minH: 8, up: 1, surf: [8, 20], grp: [1, 1], grpF: [1, 1], n: 1, nF: 0, turn: 0.3 },
 };
+// up: so ein Anteil der Gruppen im offenen Riff schwimmt im oberen Wasser, surf m unter der Oberfläche (sonst 7 bis 28 m)
 // close: im Tangwald neugierig, sie kommen bis auf wenige Meter ans Boot heran
 const KEYS = Object.keys(REEF_CFG), REEF_DEPTH = -112;   // tiefer als das gibt es keine Rifftiere
 
@@ -418,10 +419,10 @@ export function createReefLife(scene) {
   const L = { groups: [], cfg: C, fF: 0, fT: 0, models: M };
   const inBiome = (x, z) => atlK(x, z) > 0.6 && Math.hypot(x - CITY.x, z - CITY.z) > CITY.r * 0.7;
   /** Höhe, in der eine Art hier schwimmt (Bodentiere: direkt auf dem Sand) */
-  const wantY = (c, x, z, fl) => c.floor && !c.h[1] ? fl : Math.min(-6, fl + rr(c.h[0], c.h[1]));
+  const wantY = (c, x, z, fl, up) => { if (c.floor && !c.h[1]) return fl; if (up) { const sf = c.surf || [7, 28]; return Math.min(-6, Math.max(fl + (c.minH || c.h[0]), -rr(sf[0], sf[1]))); } return Math.min(-6, fl + rr(c.h[0], c.h[1])); };   // up: oberes Wasser
   function freeAt(x, y, z, r) { return rockSDF(x, y, z) > r; }
   /** ein Platz für eine neue Gruppe: Wald oder offenes Riff */
-  function place(c, sub, forest, near) {
+  function place(c, sub, forest, near, up) {
     const look = sub.vh !== undefined ? sub.vh : sub.h || 0;
     for (let k = 0; k < 14; k++) {
       const fw = !near && R() < 0.55, a = fw ? look + rr(-0.8, 0.8) : R() * 2 * PI, d = near ? rr(9, 13) : fw ? rr(48, 75) : forest ? rr(16, 65) : rr(42, 80);
@@ -429,20 +430,20 @@ export function createReefLife(scene) {
       if (!fw && !near && d < 48 && Math.abs(wrap(a - look)) < 1.0 && !(forest && denseK(x, z) > 0.3)) continue;   // nicht mitten im Blickfeld auftauchen (im dichten Tang sieht man es nicht)
       if (!near && !inBiome(x, z)) continue;
       const fl = floorH(x, z); if (!near && fl < REEF_DEPTH) continue;
-      const fk = forestK(x, z); if (!near && (forest ? fk < 0.55 : fk > 0.5 && R() < 0.7)) continue;
+      const fk = forestK(x, z); if (!near && (forest ? fk < 0.55 : !up && fk > 0.5 && R() < 0.7)) continue;   // im oberen Wasser auch über dem Wald
       if (c === C.ray && !near && (fk > 0.3 || rock2D(x, z) < 5)) continue;   // Rochen: offener Sand
       if (c === C.scorpion && !near && !forest) { const rd = rock2D(x, z); if (rd > 5 && R() < 0.8) continue; }   // Drachenköpfe: meist neben Felsen
-      const y = near ? Math.max(fl + (c.floor ? 0 : 1.5), Math.min(-6, sub.y)) : wantY(c, x, z, fl);
+      const y = near ? Math.max(fl + (c.floor ? 0 : 1.5), Math.min(-6, sub.y)) : wantY(c, x, z, fl, up);
       if (!freeAt(x, y + 0.5, z, c === C.manta ? 5 : 1.2)) continue;
       return { x, y, z, fl };
     }
     return null;
   }
   function spawn(key, sub, forest, near) {
-    const c = C[key], p = place(c, sub, forest, near); if (!p) return null;
+    const c = C[key], up = !near && (!forest || key === 'silver') && R() < (c.up || 0), p = place(c, sub, forest, near, up); if (!p) return null;
     const gr = forest ? c.grpF : c.grp, dense = forest && denseK(p.x, p.z) > 0.3 ? 1.4 : 1, n = Math.max(1, Math.round(rr(gr[0], gr[1] + 0.99) * dense - 0.49));
     const look = sub.vh !== undefined ? sub.vh : sub.h || 0;
-    const g = { key, c, forest, x: p.x, y: p.y, z: p.z, yaw: near ? look + PI / 2 : R() * 2 * PI, pitch: 0, sp: c.speed * rr(0.85, 1.15), tx: p.x, ty: p.y, tz: p.z, re: 0, rest: c.floor ? rr(15, 50) : 0, flee: 0, mem: [] };
+    const g = { key, c, forest, up: near ? sub.y - p.fl > 15 : up, x: p.x, y: p.y, z: p.z, yaw: near ? look + PI / 2 : R() * 2 * PI, pitch: 0, sp: c.speed * rr(0.85, 1.15), tx: p.x, ty: p.y, tz: p.z, re: 0, rest: c.floor ? rr(15, 50) : 0, flee: 0, mem: [] };
     const sz = rr(c.size[0], c.size[1]), spread = (n > 12 ? 2.2 : n > 4 ? 1.4 : 0.9) * Math.max(1, sz * 1.6);
     for (let i = 0; i < n; i++) {
       const o = i === 0 ? [0, 0, 0] : [rr(-1, 1) * spread * (1 + n * 0.03), rr(-0.5, 0.5) * spread * 0.7, rr(-1, 1) * spread * (1 + n * 0.04)];
@@ -460,7 +461,7 @@ export function createReefLife(scene) {
       const d = away ? rr(8, 16) : g.forest ? rr(6, 18) : c === C.manta ? rr(30, 60) : rr(10, 30) * (c.speed > 1.4 ? 1.6 : 1);
       const tx = g.x + Math.sin(a) * d, tz = g.z + Math.cos(a) * d; if (!inBiome(tx, tz)) continue;
       const fl = floorH(tx, tz); if (fl < REEF_DEPTH - 6) continue;
-      const ty = c.floor ? fl + rr(c.h[0], c.h[1]) : wantY(c, tx, tz, fl); if (!freeAt(tx, ty, tz, c === C.manta ? 5 : 1.5)) continue;
+      const ty = c.floor ? fl + rr(c.h[0], c.h[1]) : wantY(c, tx, tz, fl, g.up); if (!freeAt(tx, ty, tz, c === C.manta ? 5 : 1.5)) continue;
       const fk = forestK(tx, tz); if (g.forest && fk < 0.5 && !away) continue;
       const s = away ? (g.forest ? denseK(tx, tz) * 3 + fk : 0) + R() * 0.3 : R(); if (s > bs) { bs = s; best = [tx, ty, tz]; }
     }
